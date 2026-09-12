@@ -103,6 +103,8 @@ fn main() {
     if let "windows" = std::env::consts::OS {
         let current = std::env::current_dir().unwrap();
         build.include(current.parent().unwrap());
+        // OCCT's OSD layer uses registry, security-descriptor and user-name APIs (MSVC patch).
+        println!("cargo:rustc-link-lib=advapi32");
     }
 
     build

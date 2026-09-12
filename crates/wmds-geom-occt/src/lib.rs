@@ -4,6 +4,7 @@
 //! other CAD tool expects. The trait speaks metres; conversion happens at this boundary only.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use glam::DVec3;
 use opencascade::primitives::Shape;
@@ -15,7 +16,7 @@ const M_TO_MM: f64 = 1000.0;
 pub struct OcctKernel;
 
 #[derive(Clone)]
-pub struct OcctSolid(pub Shape);
+pub struct OcctSolid(pub Arc<Shape>);
 
 fn mm(v: Vec3) -> DVec3 {
     DVec3::new(v[0] * M_TO_MM, v[1] * M_TO_MM, v[2] * M_TO_MM)
@@ -32,7 +33,7 @@ impl GeomKernel for OcctKernel {
         let half = [size[0] / 2.0, size[1] / 2.0, size[2] / 2.0];
         let lo = mm(wmds_geom::sub(centre, half));
         let hi = mm(wmds_geom::add(centre, half));
-        Ok(OcctSolid(Shape::box_from_corners(lo, hi)))
+        Ok(OcctSolid(Arc::new(Shape::box_from_corners(lo, hi))))
     }
 
     fn cylinder_between(&self, a: Vec3, b: Vec3, r: f64) -> Result<OcctSolid> {
@@ -46,27 +47,27 @@ impl GeomKernel for OcctKernel {
         if (pb - pa).length() == 0.0 {
             return Err(GeomError::Kernel("cylinder endpoints coincide".into()));
         }
-        Ok(OcctSolid(Shape::cylinder_from_points(pa, pb, r * M_TO_MM)))
+        Ok(OcctSolid(Arc::new(Shape::cylinder_from_points(pa, pb, r * M_TO_MM))))
     }
 
     fn union(&self, a: &OcctSolid, b: &OcctSolid) -> Result<OcctSolid> {
-        Ok(OcctSolid(a.0.union(&b.0).shape))
+        Ok(OcctSolid(Arc::new(a.0.union(&b.0).shape)))
     }
 
     fn subtract(&self, a: &OcctSolid, b: &OcctSolid) -> Result<OcctSolid> {
-        Ok(OcctSolid(a.0.subtract(&b.0).shape))
+        Ok(OcctSolid(Arc::new(a.0.subtract(&b.0).shape)))
     }
 
     fn intersect(&self, a: &OcctSolid, b: &OcctSolid) -> Result<OcctSolid> {
-        Ok(OcctSolid(a.0.intersect(&b.0).shape))
+        Ok(OcctSolid(Arc::new(a.0.intersect(&b.0).shape)))
     }
 
     fn translated(&self, s: &OcctSolid, offset: Vec3) -> Result<OcctSolid> {
-        Ok(OcctSolid(s.0.translated(mm(offset))))
+        Ok(OcctSolid(Arc::new(s.0.translated(mm(offset)))))
     }
 
     fn mirrored(&self, s: &OcctSolid, origin: Vec3, normal: Vec3) -> Result<OcctSolid> {
-        Ok(OcctSolid(s.0.mirrored(mm(origin), dir(normal))))
+        Ok(OcctSolid(Arc::new(s.0.mirrored(mm(origin), dir(normal)))))
     }
 
     fn tessellate(&self, s: &OcctSolid, tolerance: f64) -> Result<Mesh> {
@@ -98,7 +99,7 @@ impl GeomKernel for OcctKernel {
 
     fn read_step(&self, path: &Path) -> Result<OcctSolid> {
         Shape::read_step(path)
-            .map(OcctSolid)
+            .map(|s| OcctSolid(Arc::new(s)))
             .map_err(|e| GeomError::Io(format!("STEP read failed: {e}")))
     }
 

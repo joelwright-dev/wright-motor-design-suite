@@ -51,9 +51,18 @@ were replaced with inline free-function wrappers declared in the crate headers:
 |---------|---------|
 | `BRepLib_ToolTriangulatedShape::ComputeNormals` (`b_rep_lib.hxx` / `.rs`) | `BRepLib_ToolTriangulatedShape_ComputeNormals` |
 | `BRepOffsetAPI_MakePipeShell::SetLaw` (`b_rep_offset_api.hxx` / `.rs`) | `BRepOffsetAPI_MakePipeShell_SetLaw` |
+| `ShapeAnalysis_FreeBounds::ConnectEdgesToWires` (`shape_analysis.hxx` / `.rs`) | `ShapeAnalysis_FreeBounds_ConnectEdgesToWires` |
 
-The two call sites in `crates/opencascade/src/{mesh.rs,make_pipe_shell.rs}` were updated to
-match. Nothing else was modified. Worth offering upstream as a pull request.
+The `handle_try_deref` template in `bindings_common.hxx` was made generic over the handle type
+for the same reason. The three call sites in `crates/opencascade/src/{mesh.rs,
+make_pipe_shell.rs,primitives/wire.rs}` were updated to match.
+
+`crates/opencascade-sys/build.rs` additionally emits `cargo:rustc-link-lib=advapi32` on
+Windows: OCCT's OSD layer uses registry, security-descriptor and user-name APIs that live there,
+and the static build otherwise fails to link with `LNK2019` errors.
+
+Nothing else was modified. Verified on Windows 11 with MSVC 14.44 and OCCT 7.8.1: the WMDS
+kernel tests (box, tube, union, STEP round trip) pass. Worth offering upstream as a pull request.
 
 ## Licence note for distribution
 
