@@ -1,5 +1,5 @@
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use wmds_units::Quantity;
 
@@ -14,8 +14,8 @@ pub enum Value {
     Tuple(Vec<Value>),
     List(Vec<Value>),
     /// A record of named fields, produced by the host (e.g. a port, an instance).
-    Record(Rc<Vec<(String, Value)>>),
-    Lambda(String, Rc<Expr>),
+    Record(Arc<Vec<(String, Value)>>),
+    Lambda(String, Arc<Expr>),
 }
 
 impl Value {
@@ -77,7 +77,7 @@ impl Value {
     }
 
     pub fn record(fields: Vec<(String, Value)>) -> Value {
-        Value::Record(Rc::new(fields))
+        Value::Record(Arc::new(fields))
     }
 }
 

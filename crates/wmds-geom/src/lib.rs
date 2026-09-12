@@ -50,7 +50,9 @@ pub trait GeomKernel {
     /// Hollow tube of outside diameter `od` and wall `wall` from `a` to `b`.
     fn tube_between(&self, a: Vec3, b: Vec3, od: f64, wall: f64) -> Result<Self::Solid> {
         if wall <= 0.0 || wall * 2.0 >= od {
-            return Err(GeomError::Kernel(format!("tube wall {wall} is not valid for od {od}")));
+            return Err(GeomError::Kernel(format!(
+                "tube wall {wall} is not valid for od {od}"
+            )));
         }
         let outer = self.cylinder_between(a, b, od / 2.0)?;
         // Extend the inner cylinder slightly past the ends so the subtraction is clean.
@@ -82,7 +84,8 @@ pub trait GeomKernel {
     fn read_step(&self, path: &Path) -> Result<Self::Solid>;
     fn write_stl(&self, s: &Self::Solid, path: &Path) -> Result<()> {
         let m = self.tessellate(s, 1e-4)?;
-        m.write_stl_binary(path).map_err(|e| GeomError::Io(e.to_string()))
+        m.write_stl_binary(path)
+            .map_err(|e| GeomError::Io(e.to_string()))
     }
 
     /// Mass properties for unit density, from the tessellation unless the kernel can do better.

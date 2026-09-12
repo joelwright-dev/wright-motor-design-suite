@@ -19,19 +19,49 @@ Working today:
 * `wmds-schema`: KDL parser and validator for `.prim.kdl` primitive definitions.
 * `wmds-model`: parameter resolution (dependency order, unit coercion, ranges, variants), port
   frames, geometry feature arguments, cost expressions.
-* `wmds` CLI: `wmds lib validate <paths>` and `wmds lib show <file> --set name=value`.
+* `wmds-geom`: the `GeomKernel` trait, meshes, mass properties, and the feature interpreter.
+* `wmds-geom-occt`: OpenCASCADE implementation of the kernel (boxes, cylinders, tubes,
+  booleans, tessellation, STEP and STL).
+* `wmds` CLI: `wmds lib validate <paths>` and `wmds lib show <file> --set name=value`, with
+  `--build` for mass properties and `--step out.step` / `--stl out.stl` for export.
+* `wmds-app`: desktop viewer. Loads a primitive, shows it in a 3D orbit viewport with port
+  markers, and rebuilds the geometry live as parameter sliders and variants change.
 
-Not yet: geometry kernel, viewport, mass properties from geometry, STEP export.
+```bash
+cargo run -p wmds-app -- library/suspension/arms/lca-wishbone-a.prim.kdl
+```
+
+Not yet: materials database (densities are placeholders), assemblies and mates, chassis
+generator.
 
 ## Building
 
-Requires a stable Rust toolchain (rustup) and, on Windows, Visual Studio Build Tools with the
-C++ workload.
+Requires a stable Rust toolchain (rustup), CMake, and, on Windows, Visual Studio Build Tools
+with the C++ workload. The first build compiles OpenCASCADE from source and takes 30 minutes or
+more; later builds are incremental.
+
+**Windows path length.** MSBuild cannot build OpenCASCADE when the build directory path is long
+(it fails with `FTK1011` file-tracker errors). If the repository lives in a deep folder such as
+a OneDrive tree, point cargo at a short build directory before building:
+
+```powershell
+$env:CARGO_TARGET_DIR = "C:\Users\<you>\wmds-build"
+```
+
+Set it permanently with `setx CARGO_TARGET_DIR C:\Users\<you>\wmds-build` (new terminals only).
+The source tree stays where it is; only build output moves.
 
 ```bash
 cargo test --workspace
 cargo run -- lib validate library
 cargo run -- lib show library/suspension/arms/lca-wishbone-a.prim.kdl --set span=420mm --set hand=right
+cargo run -- lib show library/suspension/arms/lca-wishbone-a.prim.kdl --build --step arm.step
+```
+
+For a fast build without the geometry kernel (parsing, resolution and analytics only):
+
+```bash
+cargo build --no-default-features
 ```
 
 ## Documents

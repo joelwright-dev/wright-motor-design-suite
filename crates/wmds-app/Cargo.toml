@@ -1,0 +1,29 @@
+[package]
+name = "wmds-app"
+description = "WMDS desktop application: 3D viewport and primitive editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "wmds-app"
+path = "src/main.rs"
+
+[features]
+default = ["occt"]
+occt = ["dep:wmds-geom-occt"]
+
+[dependencies]
+wmds-units = { workspace = true }
+wmds-expr = { workspace = true }
+wmds-schema = { workspace = true }
+wmds-model = { workspace = true }
+wmds-geom = { workspace = true }
+wmds-geom-occt = { workspace = true, optional = true }
+eframe = { version = "0.36", default-features = false, features = ["wgpu", "default_fonts", "x11", "wayland"] }
+egui = "0.36"
+egui-wgpu = "0.36"
+wgpu = "30"
+bytemuck = { version = "1", features = ["derive"] }
+glam = "0.24"

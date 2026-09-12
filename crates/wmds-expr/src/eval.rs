@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use thiserror::Error;
 use wmds_units::{Dim, Quantity, UnitError};
@@ -156,7 +156,7 @@ pub fn eval(e: &Expr, env: &dyn Env) -> Result<Value, EvalError> {
                 eval(b, env)
             }
         }
-        Expr::Lambda(p, body) => Ok(Value::Lambda(p.clone(), Rc::new((**body).clone()))),
+        Expr::Lambda(p, body) => Ok(Value::Lambda(p.clone(), Arc::new((**body).clone()))),
         Expr::Call(name, args) => {
             let vals = args
                 .iter()

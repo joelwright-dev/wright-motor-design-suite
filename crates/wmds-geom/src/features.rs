@@ -43,8 +43,14 @@ impl<S> BuiltGeometry<S> {
 }
 
 /// Build every geometry level of a resolved primitive.
-pub fn build_primitive<K: GeomKernel>(k: &K, p: &ResolvedPrimitive) -> Result<BuiltGeometry<K::Solid>> {
-    let mut out = BuiltGeometry { levels: BTreeMap::new(), warnings: Vec::new() };
+pub fn build_primitive<K: GeomKernel>(
+    k: &K,
+    p: &ResolvedPrimitive,
+) -> Result<BuiltGeometry<K::Solid>> {
+    let mut out = BuiltGeometry {
+        levels: BTreeMap::new(),
+        warnings: Vec::new(),
+    };
     // Build in an order that lets `hull` reference the manufacture level.
     let mut levels: Vec<&ResolvedLevel> = p.geometry.iter().collect();
     levels.sort_by_key(|l| match l.level.as_str() {
@@ -60,7 +66,11 @@ pub fn build_primitive<K: GeomKernel>(k: &K, p: &ResolvedPrimitive) -> Result<Bu
 }
 
 /// Build one geometry level. `built` gives access to levels built earlier (for `hull`).
-pub fn build_level<K: GeomKernel>(k: &K, lvl: &ResolvedLevel, built: &BuiltGeometry<K::Solid>) -> Result<K::Solid> {
+pub fn build_level<K: GeomKernel>(
+    k: &K,
+    lvl: &ResolvedLevel,
+    built: &BuiltGeometry<K::Solid>,
+) -> Result<K::Solid> {
     let mut bodies: Vec<(String, K::Solid)> = Vec::new();
     let mut counter = 0usize;
     let mut name_of = |f: &ResolvedFeature| -> String {
@@ -78,11 +88,24 @@ pub fn build_level<K: GeomKernel>(k: &K, lvl: &ResolvedLevel, built: &BuiltGeome
                 let solid = if let (Some(a), Some(b)) = (f.args.get("from"), f.args.get("to")) {
                     let a = vec3_len(a).map_err(ferr)?;
                     let b = vec3_len(b).map_err(ferr)?;
-                    let size = [(b[0] - a[0]).abs(), (b[1] - a[1]).abs(), (b[2] - a[2]).abs()];
-                    let centre = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, (a[2] + b[2]) / 2.0];
+                    let size = [
+                        (b[0] - a[0]).abs(),
+                        (b[1] - a[1]).abs(),
+                        (b[2] - a[2]).abs(),
+                    ];
+                    let centre = [
+                        (a[0] + b[0]) / 2.0,
+                        (a[1] + b[1]) / 2.0,
+                        (a[2] + b[2]) / 2.0,
+                    ];
                     k.make_box(size, centre)?
                 } else {
-                    let size = vec3_len(f.args.get("size").ok_or_else(|| ferr("box needs size= or from=/to=".into()))?).map_err(ferr)?;
+                    let size = vec3_len(
+                        f.args
+                            .get("size")
+                            .ok_or_else(|| ferr("box needs size= or from=/to=".into()))?,
+                    )
+                    .map_err(ferr)?;
                     let centre = match f.args.get("at") {
                         Some(v) => vec3_len(v).map_err(ferr)?,
                         None => [0.0; 3],
@@ -100,7 +123,11 @@ pub fn build_level<K: GeomKernel>(k: &K, lvl: &ResolvedLevel, built: &BuiltGeome
                 let solid = if let (Some(a), Some(b)) = (f.args.get("from"), f.args.get("to")) {
                     k.cylinder_between(vec3_len(a).map_err(ferr)?, vec3_len(b).map_err(ferr)?, r)?
                 } else {
-                    let h = len(f.args.get("h").ok_or_else(|| ferr("cylinder needs h= (or from=/to=)".into()))?).map_err(ferr)?;
+                    let h = len(f
+                        .args
+                        .get("h")
+                        .ok_or_else(|| ferr("cylinder needs h= (or from=/to=)".into()))?)
+                    .map_err(ferr)?;
                     let centre = match f.args.get("at") {
                         Some(v) => vec3_len(v).map_err(ferr)?,
                         None => [0.0; 3],
@@ -114,10 +141,28 @@ pub fn build_level<K: GeomKernel>(k: &K, lvl: &ResolvedLevel, built: &BuiltGeome
                 bodies.push((name_of(f), solid));
             }
             "tube" => {
-                let od = len(f.args.get("od").ok_or_else(|| ferr("tube needs od=".into()))?).map_err(ferr)?;
-                let wall = len(f.args.get("wall").ok_or_else(|| ferr("tube needs wall=".into()))?).map_err(ferr)?;
-                let a = vec3_len(f.args.get("from").ok_or_else(|| ferr("tube needs from=".into()))?).map_err(ferr)?;
-                let b = vec3_len(f.args.get("to").ok_or_else(|| ferr("tube needs to=".into()))?).map_err(ferr)?;
+                let od = len(f
+                    .args
+                    .get("od")
+                    .ok_or_else(|| ferr("tube needs od=".into()))?)
+                .map_err(ferr)?;
+                let wall = len(f
+                    .args
+                    .get("wall")
+                    .ok_or_else(|| ferr("tube needs wall=".into()))?)
+                .map_err(ferr)?;
+                let a = vec3_len(
+                    f.args
+                        .get("from")
+                        .ok_or_else(|| ferr("tube needs from=".into()))?,
+                )
+                .map_err(ferr)?;
+                let b = vec3_len(
+                    f.args
+                        .get("to")
+                        .ok_or_else(|| ferr("tube needs to=".into()))?,
+                )
+                .map_err(ferr)?;
                 if crate::length(sub(b, a)) == 0.0 {
                     return Err(ferr("tube from= and to= coincide".into()));
                 }
@@ -142,8 +187,10 @@ pub fn build_level<K: GeomKernel>(k: &K, lvl: &ResolvedLevel, built: &BuiltGeome
                 } else {
                     let a_name = str_arg(f, "a").ok_or_else(|| ferr(format!("{op} needs a=")))?;
                     let b_name = str_arg(f, "b").ok_or_else(|| ferr(format!("{op} needs b=")))?;
-                    let a = take_body(&mut bodies, &a_name).ok_or_else(|| ferr(format!("no body named `{a_name}`")))?;
-                    let b = take_body(&mut bodies, &b_name).ok_or_else(|| ferr(format!("no body named `{b_name}`")))?;
+                    let a = take_body(&mut bodies, &a_name)
+                        .ok_or_else(|| ferr(format!("no body named `{a_name}`")))?;
+                    let b = take_body(&mut bodies, &b_name)
+                        .ok_or_else(|| ferr(format!("no body named `{b_name}`")))?;
                     let solid = match op {
                         "union" => k.union(&a, &b)?,
                         "subtract" => k.subtract(&a, &b)?,
@@ -161,7 +208,11 @@ pub fn build_level<K: GeomKernel>(k: &K, lvl: &ResolvedLevel, built: &BuiltGeome
                     "yz" => [1.0, 0.0, 0.0],
                     other => return Err(ferr(format!("unknown mirror plane `{other}`"))),
                 };
-                let src = bodies.iter().find(|(n, _)| *n == of).map(|(_, s)| s.clone()).ok_or_else(|| ferr(format!("no body named `{of}`")))?;
+                let src = bodies
+                    .iter()
+                    .find(|(n, _)| *n == of)
+                    .map(|(_, s)| s.clone())
+                    .ok_or_else(|| ferr(format!("no body named `{of}`")))?;
                 let solid = k.mirrored(&src, [0.0; 3], normal)?;
                 bodies.push((name_of(f), solid));
             }
@@ -170,7 +221,9 @@ pub fn build_level<K: GeomKernel>(k: &K, lvl: &ResolvedLevel, built: &BuiltGeome
                     .levels
                     .get("manufacture")
                     .or_else(|| built.levels.get("display"))
-                    .ok_or_else(|| ferr("hull needs a manufacture or display level built first".into()))?;
+                    .ok_or_else(|| {
+                        ferr("hull needs a manufacture or display level built first".into())
+                    })?;
                 let solid = match k.hull(src) {
                     Ok(s) => s,
                     Err(GeomError::Unsupported(_)) => src.clone(),
@@ -183,7 +236,10 @@ pub fn build_level<K: GeomKernel>(k: &K, lvl: &ResolvedLevel, built: &BuiltGeome
     }
 
     if bodies.is_empty() {
-        return Err(GeomError::Feature(lvl.level.clone(), "level produced no geometry".into()));
+        return Err(GeomError::Feature(
+            lvl.level.clone(),
+            "level produced no geometry".into(),
+        ));
     }
     let mut it = bodies.into_iter();
     let (_, mut acc) = it.next().unwrap();
@@ -206,11 +262,16 @@ fn str_arg(f: &ResolvedFeature, key: &str) -> Option<String> {
 }
 
 fn len(v: &Value) -> std::result::Result<f64, String> {
-    let q = v.as_quantity().ok_or_else(|| format!("expected a length, found {}", v.type_name()))?;
+    let q = v
+        .as_quantity()
+        .ok_or_else(|| format!("expected a length, found {}", v.type_name()))?;
     if q.dim == Dim::LENGTH {
         Ok(q.value)
     } else if q.dim.is_dimensionless() {
-        Err(format!("length `{q}` has no unit (write e.g. `{} mm`)", q.value))
+        Err(format!(
+            "length `{q}` has no unit (write e.g. `{} mm`)",
+            q.value
+        ))
     } else {
         Err(format!("expected a length, found {q}"))
     }
@@ -239,6 +300,9 @@ fn axis(v: &Value) -> std::result::Result<Vec3, String> {
             }
             crate::normalize([c[0].value, c[1].value, c[2].value]).map_err(|e| e.to_string())
         }
-        other => Err(format!("axis must be x/y/z or a tuple, found {}", other.type_name())),
+        other => Err(format!(
+            "axis must be x/y/z or a tuple, found {}",
+            other.type_name()
+        )),
     }
 }

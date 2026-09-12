@@ -8,6 +8,7 @@ members = [
     "crates/wmds-geom",
     "crates/wmds-geom-occt",
     "crates/wmds-cli",
+    "crates/wmds-app",
 ]
 
 [workspace.package]

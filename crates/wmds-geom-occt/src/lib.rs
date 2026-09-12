@@ -37,7 +37,9 @@ impl GeomKernel for OcctKernel {
 
     fn cylinder_between(&self, a: Vec3, b: Vec3, r: f64) -> Result<OcctSolid> {
         if r <= 0.0 {
-            return Err(GeomError::Kernel(format!("cylinder radius {r} must be positive")));
+            return Err(GeomError::Kernel(format!(
+                "cylinder radius {r} must be positive"
+            )));
         }
         let pa = mm(a);
         let pb = mm(b);
@@ -68,30 +70,41 @@ impl GeomKernel for OcctKernel {
     }
 
     fn tessellate(&self, s: &OcctSolid, tolerance: f64) -> Result<Mesh> {
-        let m = s
-            .0
-            .mesh_with_tolerance(tolerance * M_TO_MM)
-            .map_err(|e| GeomError::Kernel(format!("tessellation failed: {e}")))?;
-        let positions: Vec<Vec3> = m.vertices.iter().map(|v| [v.x / M_TO_MM, v.y / M_TO_MM, v.z / M_TO_MM]).collect();
+        let m =
+            s.0.mesh_with_tolerance(tolerance * M_TO_MM)
+                .map_err(|e| GeomError::Kernel(format!("tessellation failed: {e}")))?;
+        let positions: Vec<Vec3> = m
+            .vertices
+            .iter()
+            .map(|v| [v.x / M_TO_MM, v.y / M_TO_MM, v.z / M_TO_MM])
+            .collect();
         let normals: Vec<Vec3> = m.normals.iter().map(|n| [n.x, n.y, n.z]).collect();
         let triangles: Vec<[u32; 3]> = m
             .indices
             .chunks_exact(3)
             .map(|c| [c[0] as u32, c[1] as u32, c[2] as u32])
             .collect();
-        Ok(Mesh { positions, normals, triangles })
+        Ok(Mesh {
+            positions,
+            normals,
+            triangles,
+        })
     }
 
     fn write_step(&self, s: &OcctSolid, path: &Path) -> Result<()> {
-        s.0.write_step(path).map_err(|e| GeomError::Io(format!("STEP write failed: {e}")))
+        s.0.write_step(path)
+            .map_err(|e| GeomError::Io(format!("STEP write failed: {e}")))
     }
 
     fn read_step(&self, path: &Path) -> Result<OcctSolid> {
-        Shape::read_step(path).map(OcctSolid).map_err(|e| GeomError::Io(format!("STEP read failed: {e}")))
+        Shape::read_step(path)
+            .map(OcctSolid)
+            .map_err(|e| GeomError::Io(format!("STEP read failed: {e}")))
     }
 
     fn write_stl(&self, s: &OcctSolid, path: &Path) -> Result<()> {
-        s.0.write_stl(path).map_err(|e| GeomError::Io(format!("STL write failed: {e}")))
+        s.0.write_stl(path)
+            .map_err(|e| GeomError::Io(format!("STL write failed: {e}")))
     }
 }
 
@@ -109,20 +122,31 @@ mod tests {
         let b = k.make_box([0.2, 0.3, 0.4], [1.0, 2.0, 3.0]).unwrap();
         let mp = k.mass_props(&b).unwrap();
         assert!(close(mp.volume, 0.024, 1e-6), "volume {}", mp.volume);
-        assert!(close(mp.centroid[0], 1.0, 1e-6) && close(mp.centroid[1], 2.0, 1e-6) && close(mp.centroid[2], 3.0, 1e-6));
+        assert!(
+            close(mp.centroid[0], 1.0, 1e-6)
+                && close(mp.centroid[1], 2.0, 1e-6)
+                && close(mp.centroid[2], 3.0, 1e-6)
+        );
     }
 
     #[test]
     fn tube_volume_matches_analytic() {
         let k = OcctKernel;
         // od 28 mm, wall 2.5 mm, length 300 mm
-        let t = k.tube_between([0.0; 3], [0.3, 0.0, 0.0], 0.028, 0.0025).unwrap();
+        let t = k
+            .tube_between([0.0; 3], [0.3, 0.0, 0.0], 0.028, 0.0025)
+            .unwrap();
         let mp = k.mass_props(&t).unwrap();
         let ro: f64 = 0.014;
         let ri: f64 = 0.0115;
         let expected = std::f64::consts::PI * (ro * ro - ri * ri) * 0.3;
         // Tessellated circles underestimate area slightly; 1 % is a reasonable bound.
-        assert!(close(mp.volume, expected, 0.01), "volume {} vs {}", mp.volume, expected);
+        assert!(
+            close(mp.volume, expected, 0.01),
+            "volume {} vs {}",
+            mp.volume,
+            expected
+        );
         assert!(close(mp.centroid[0], 0.15, 1e-3));
     }
 

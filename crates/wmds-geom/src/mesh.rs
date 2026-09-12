@@ -43,14 +43,30 @@ impl Mesh {
         let base = self.positions.len() as u32;
         self.positions.extend_from_slice(&other.positions);
         self.normals.extend_from_slice(&other.normals);
-        self.triangles.extend(other.triangles.iter().map(|t| [t[0] + base, t[1] + base, t[2] + base]));
+        self.triangles.extend(
+            other
+                .triangles
+                .iter()
+                .map(|t| [t[0] + base, t[1] + base, t[2] + base]),
+        );
     }
 
     /// Polyhedral mass properties by the divergence theorem (Eberly, "Polyhedral Mass
     /// Properties (Revisited)"). Exact for the polyhedron; the mesh must be closed and
     /// consistently oriented.
     pub fn mass_props(&self) -> MassProps {
-        let mult = [1.0 / 6.0, 1.0 / 24.0, 1.0 / 24.0, 1.0 / 24.0, 1.0 / 60.0, 1.0 / 60.0, 1.0 / 60.0, 1.0 / 120.0, 1.0 / 120.0, 1.0 / 120.0];
+        let mult = [
+            1.0 / 6.0,
+            1.0 / 24.0,
+            1.0 / 24.0,
+            1.0 / 24.0,
+            1.0 / 60.0,
+            1.0 / 60.0,
+            1.0 / 60.0,
+            1.0 / 120.0,
+            1.0 / 120.0,
+            1.0 / 120.0,
+        ];
         let mut intg = [0.0f64; 10];
         for t in &self.triangles {
             let p0 = self.positions[t[0] as usize];
@@ -84,7 +100,11 @@ impl Mesh {
         }
         let volume = intg[0];
         if volume.abs() < 1e-300 {
-            return MassProps { volume: 0.0, centroid: [0.0; 3], inertia: [[0.0; 3]; 3] };
+            return MassProps {
+                volume: 0.0,
+                centroid: [0.0; 3],
+                inertia: [[0.0; 3]; 3],
+            };
         }
         let cx = intg[1] / volume;
         let cy = intg[2] / volume;
@@ -95,7 +115,11 @@ impl Mesh {
         let ixy = -(intg[7] - volume * cx * cy);
         let iyz = -(intg[8] - volume * cy * cz);
         let ixz = -(intg[9] - volume * cz * cx);
-        MassProps { volume, centroid: [cx, cy, cz], inertia: [[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]] }
+        MassProps {
+            volume,
+            centroid: [cx, cy, cz],
+            inertia: [[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]],
+        }
     }
 
     /// Write a binary STL (millimetres, the de-facto convention for STL consumers).
@@ -107,10 +131,18 @@ impl Mesh {
         f.write_all(&header)?;
         f.write_all(&(self.triangles.len() as u32).to_le_bytes())?;
         for t in &self.triangles {
-            let p = [self.positions[t[0] as usize], self.positions[t[1] as usize], self.positions[t[2] as usize]];
+            let p = [
+                self.positions[t[0] as usize],
+                self.positions[t[1] as usize],
+                self.positions[t[2] as usize],
+            ];
             let u = crate::sub(p[1], p[0]);
             let v = crate::sub(p[2], p[0]);
-            let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+            let n = [
+                u[1] * v[2] - u[2] * v[1],
+                u[2] * v[0] - u[0] * v[2],
+                u[0] * v[1] - u[1] * v[0],
+            ];
             let n = crate::normalize(n).unwrap_or([0.0, 0.0, 1.0]);
             for c in n {
                 f.write_all(&(c as f32).to_le_bytes())?;
@@ -156,9 +188,22 @@ impl MassProps {
 /// An axis-aligned box mesh, used by tests and as a fallback envelope.
 pub fn box_mesh(lo: Vec3, hi: Vec3) -> Mesh {
     let p = |x: usize, y: usize, z: usize| -> Vec3 {
-        [if x == 0 { lo[0] } else { hi[0] }, if y == 0 { lo[1] } else { hi[1] }, if z == 0 { lo[2] } else { hi[2] }]
+        [
+            if x == 0 { lo[0] } else { hi[0] },
+            if y == 0 { lo[1] } else { hi[1] },
+            if z == 0 { lo[2] } else { hi[2] },
+        ]
     };
-    let positions = vec![p(0, 0, 0), p(1, 0, 0), p(1, 1, 0), p(0, 1, 0), p(0, 0, 1), p(1, 0, 1), p(1, 1, 1), p(0, 1, 1)];
+    let positions = vec![
+        p(0, 0, 0),
+        p(1, 0, 0),
+        p(1, 1, 0),
+        p(0, 1, 0),
+        p(0, 0, 1),
+        p(1, 0, 1),
+        p(1, 1, 1),
+        p(0, 1, 1),
+    ];
     // Outward-facing, counter-clockwise from outside.
     let triangles = vec![
         [0, 2, 1],
@@ -174,7 +219,11 @@ pub fn box_mesh(lo: Vec3, hi: Vec3) -> Mesh {
         [3, 0, 4],
         [3, 4, 7], // left
     ];
-    Mesh { positions, normals: Vec::new(), triangles }
+    Mesh {
+        positions,
+        normals: Vec::new(),
+        triangles,
+    }
 }
 
 #[cfg(test)]
@@ -202,7 +251,11 @@ mod tests {
         let m = box_mesh([10.0, 20.0, 30.0], [12.0, 23.0, 34.0]);
         let mp = m.mass_props();
         assert!(close(mp.volume, 24.0));
-        assert!(close(mp.centroid[0], 11.0) && close(mp.centroid[1], 21.5) && close(mp.centroid[2], 32.0));
+        assert!(
+            close(mp.centroid[0], 11.0)
+                && close(mp.centroid[1], 21.5)
+                && close(mp.centroid[2], 32.0)
+        );
         // Ixx = V (b^2 + c^2)/12 with b=3, c=4
         assert!(close(mp.inertia[0][0], 24.0 * (9.0 + 16.0) / 12.0));
         assert!(close(mp.inertia[1][1], 24.0 * (4.0 + 16.0) / 12.0));

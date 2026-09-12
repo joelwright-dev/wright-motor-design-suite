@@ -69,7 +69,11 @@ fn placeholder_density(material: &str) -> Option<(f64, &'static str)> {
 }
 
 #[cfg(feature = "occt")]
-fn build_geometry(r: &wmds_model::ResolvedPrimitive, step: Option<&Path>, stl: Option<&Path>) -> ExitCode {
+fn build_geometry(
+    r: &wmds_model::ResolvedPrimitive,
+    step: Option<&Path>,
+    stl: Option<&Path>,
+) -> ExitCode {
     use wmds_geom::GeomKernel;
     let k = wmds_geom_occt::OcctKernel;
     let built = match wmds_geom::build_primitive(&k, r) {
@@ -118,13 +122,7 @@ fn build_geometry(r: &wmds_model::ResolvedPrimitive, step: Option<&Path>, stl: O
             let (mass, _, inertia) = mp.with_density(rho);
             println!(
                 "  {:<18} mass {:.3} kg at {} kg/m^3 ({} placeholder density)   Ixx {:.4} Iyy {:.4} Izz {:.4} kg*m^2",
-                "",
-                mass,
-                rho,
-                family,
-                inertia[0][0],
-                inertia[1][1],
-                inertia[2][2]
+                "", mass, rho, family, inertia[0][0], inertia[1][1], inertia[2][2]
             );
         }
     }
@@ -154,7 +152,11 @@ fn build_geometry(r: &wmds_model::ResolvedPrimitive, step: Option<&Path>, stl: O
 }
 
 #[cfg(not(feature = "occt"))]
-fn build_geometry(_r: &wmds_model::ResolvedPrimitive, _step: Option<&Path>, _stl: Option<&Path>) -> ExitCode {
+fn build_geometry(
+    _r: &wmds_model::ResolvedPrimitive,
+    _step: Option<&Path>,
+    _stl: Option<&Path>,
+) -> ExitCode {
     eprintln!("this build of wmds has no geometry kernel (built without the `occt` feature)");
     ExitCode::FAILURE
 }
@@ -178,7 +180,13 @@ fn main() -> ExitCode {
                     step,
                     stl,
                 },
-        } => show(&file, &sets, build || step.is_some() || stl.is_some(), step.as_deref(), stl.as_deref()),
+        } => show(
+            &file,
+            &sets,
+            build || step.is_some() || stl.is_some(),
+            step.as_deref(),
+            stl.as_deref(),
+        ),
     }
 }
 
@@ -256,7 +264,13 @@ fn validate(paths: &[PathBuf]) -> ExitCode {
     }
 }
 
-fn show(file: &Path, sets: &[String], build: bool, step: Option<&Path>, stl: Option<&Path>) -> ExitCode {
+fn show(
+    file: &Path,
+    sets: &[String],
+    build: bool,
+    step: Option<&Path>,
+    stl: Option<&Path>,
+) -> ExitCode {
     let def = match load(file) {
         Ok(d) => d,
         Err(e) => {
