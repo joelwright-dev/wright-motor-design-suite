@@ -34,7 +34,6 @@ pub struct GpuMeshData {
 impl GpuMeshData {
     /// Build from a `wmds_geom::Mesh`. Uses the mesh normals when present and consistent,
     /// otherwise flat-shades by duplicating vertices per triangle.
-    #[cfg_attr(not(feature = "occt"), allow(dead_code))]
     pub fn from_mesh(mesh: &Mesh, version: u64) -> Self {
         if !mesh.normals.is_empty() && mesh.normals.len() == mesh.positions.len() {
             let vertices = mesh

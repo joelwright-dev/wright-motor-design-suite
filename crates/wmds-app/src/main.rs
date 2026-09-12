@@ -18,8 +18,23 @@ use viewport::{Camera, GpuMeshData, ViewportCallback};
 
 const DEPTH_BITS: u8 = 24;
 
+#[cfg(feature = "occt")]
+const KERNEL_NAME: &str = "OpenCASCADE";
+#[cfg(not(feature = "occt"))]
+const KERNEL_NAME: &str = "mesh kernel (preview: no booleans, overlaps double-counted)";
+
 fn main() -> eframe::Result {
-    let file = std::env::args().nth(1).map(PathBuf::from);
+    // Usage: wmds-app [file.prim.kdl] [--screenshot out.png]
+    let mut file: Option<PathBuf> = None;
+    let mut screenshot: Option<PathBuf> = None;
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        if a == "--screenshot" {
+            screenshot = args.next().map(PathBuf::from);
+        } else {
+            file = Some(PathBuf::from(a));
+        }
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Wright Motor Design Suite")
@@ -31,7 +46,11 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "WMDS",
         options,
-        Box::new(move |cc| Ok(Box::new(App::new(cc, file)))),
+        Box::new(move |cc| {
+            let mut app = App::new(cc, file);
+            app.screenshot = screenshot;
+            Ok(Box::new(app))
+        }),
     )
 }
 
@@ -80,6 +99,10 @@ struct App {
     show_ports: bool,
     has_renderer: bool,
     framed: bool,
+    /// Headless smoke test: save a PNG of the window once the geometry is built, then quit.
+    screenshot: Option<PathBuf>,
+    frames_since_build: u32,
+    screenshot_requested: bool,
 }
 
 impl App {
@@ -111,6 +134,9 @@ impl App {
             show_ports: true,
             has_renderer,
             framed: false,
+            screenshot: None,
+            frames_since_build: 0,
+            screenshot_requested: false,
         };
         if app.file.is_some() {
             app.load();
@@ -373,7 +399,7 @@ impl App {
                 ui.label("building…");
             });
         } else if let Some(ms) = self.build_ms {
-            ui.label(format!("built in {ms} ms"));
+            ui.label(format!("built in {ms} ms with {}", KERNEL_NAME));
         }
         if let Some(v) = self.volume_m3 {
             ui.label(format!("volume {:.1} cm³", v * 1e6));
@@ -517,6 +543,7 @@ impl eframe::App for App {
             let ctx = ui.ctx().clone();
             self.start_build(&ctx);
         }
+        self.handle_screenshot(ui.ctx());
         egui::Panel::left("side").resizable(true).show(ui, |ui| {
             ui.set_min_width(360.0);
             egui::ScrollArea::vertical().show(ui, |ui| self.side_panel(ui));
@@ -524,6 +551,38 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| self.viewport(ui));
+    }
+}
+
+impl App {
+    /// `--screenshot` mode: wait until the geometry has been built and drawn for a few frames,
+    /// ask the viewport for a screenshot, write it as PNG, and close.
+    fn handle_screenshot(&mut self, ctx: &egui::Context) {
+        let Some(path) = self.screenshot.clone() else { return };
+        let built = self.mesh.is_some() || self.build_error.is_some() || self.resolve_error.is_some();
+        if built && !self.building {
+            self.frames_since_build += 1;
+        }
+        ctx.request_repaint();
+        if self.frames_since_build >= 5 && !self.screenshot_requested {
+            self.screenshot_requested = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+        }
+        let shot = ctx.input(|i| {
+            i.events.iter().find_map(|e| match e {
+                egui::Event::Screenshot { image, .. } => Some(image.clone()),
+                _ => None,
+            })
+        });
+        if let Some(image) = shot {
+            let [w, h] = image.size;
+            let rgba: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
+            match image::save_buffer(&path, &rgba, w as u32, h as u32, image::ColorType::Rgba8) {
+                Ok(()) => eprintln!("wrote screenshot to {}", path.display()),
+                Err(e) => eprintln!("screenshot failed: {e}"),
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
     }
 }
 
@@ -542,10 +601,18 @@ fn placeholder_density(material: &str) -> Option<f64> {
     }
 }
 
-#[cfg(feature = "occt")]
 fn build_geometry(r: &ResolvedPrimitive, version: u64) -> BuildResult {
-    use wmds_geom::GeomKernel;
-    let k = wmds_geom_occt::OcctKernel;
+    #[cfg(feature = "occt")]
+    {
+        build_with(&wmds_geom_occt::OcctKernel, r, version)
+    }
+    #[cfg(not(feature = "occt"))]
+    {
+        build_with(&wmds_geom::MeshKernel, r, version)
+    }
+}
+
+fn build_with<K: wmds_geom::GeomKernel>(k: &K, r: &ResolvedPrimitive, version: u64) -> BuildResult {
     let empty = BuildResult {
         mesh: None,
         bounds: None,
@@ -556,7 +623,7 @@ fn build_geometry(r: &ResolvedPrimitive, version: u64) -> BuildResult {
         elapsed_ms: 0,
         version,
     };
-    let built = match wmds_geom::build_primitive(&k, r) {
+    let built = match wmds_geom::build_primitive(k, r) {
         Ok(b) => b,
         Err(e) => {
             return BuildResult {
@@ -593,19 +660,5 @@ fn build_geometry(r: &ResolvedPrimitive, version: u64) -> BuildResult {
         volume_m3: Some(mp.volume),
         centroid: Some(mp.centroid),
         ..empty
-    }
-}
-
-#[cfg(not(feature = "occt"))]
-fn build_geometry(r: &ResolvedPrimitive, version: u64) -> BuildResult {
-    BuildResult {
-        mesh: None,
-        bounds: None,
-        volume_m3: None,
-        centroid: None,
-        ports: r.ports.clone(),
-        error: Some("built without the `occt` feature: no geometry kernel".into()),
-        elapsed_ms: 0,
-        version,
     }
 }

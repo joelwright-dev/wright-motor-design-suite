@@ -10,6 +10,8 @@ members = [
     "crates/wmds-cli",
     "crates/wmds-app",
 ]
+# Vendored third-party crates are path dependencies, not workspace members.
+exclude = ["third_party"]
 
 [workspace.package]
 version = "0.0.1"

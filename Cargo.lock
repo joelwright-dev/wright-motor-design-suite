@@ -2064,7 +2064,6 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 [[package]]
 name = "opencascade"
 version = "0.3.0"
-source = "git+https://github.com/bschwind/opencascade-rs?rev=32758df23a137f4e7c786c618b0317fc3badb3b2#32758df23a137f4e7c786c618b0317fc3badb3b2"
 dependencies = [
  "cxx",
  "glam",
@@ -2076,7 +2075,6 @@ dependencies = [
 [[package]]
 name = "opencascade-kicad-parser"
 version = "0.3.0"
-source = "git+https://github.com/bschwind/opencascade-rs?rev=32758df23a137f4e7c786c618b0317fc3badb3b2#32758df23a137f4e7c786c618b0317fc3badb3b2"
 dependencies = [
  "sexp",
  "thiserror 1.0.69",
@@ -2085,7 +2083,6 @@ dependencies = [
 [[package]]
 name = "opencascade-sys"
 version = "0.3.0"
-source = "git+https://github.com/bschwind/opencascade-rs?rev=32758df23a137f4e7c786c618b0317fc3badb3b2#32758df23a137f4e7c786c618b0317fc3badb3b2"
 dependencies = [
  "cmake",
  "cxx",
@@ -3769,6 +3766,7 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "glam",
+ "image",
  "wgpu",
  "wmds-expr",
  "wmds-geom",

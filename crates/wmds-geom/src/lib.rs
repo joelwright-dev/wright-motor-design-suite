@@ -9,9 +9,11 @@
 
 pub mod features;
 pub mod mesh;
+pub mod mesh_kernel;
 
 pub use features::{BuiltGeometry, build_level, build_primitive};
 pub use mesh::{MassProps, Mesh};
+pub use mesh_kernel::MeshKernel;
 
 use std::path::Path;
 
