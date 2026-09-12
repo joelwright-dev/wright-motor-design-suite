@@ -351,7 +351,7 @@ pub fn show_chassis(
     if !build {
         return ExitCode::SUCCESS;
     }
-    build_and_report(&chassis.assembly, Some(&lib), step, stl)
+    build_and_report(&chassis.assembly, Some(&lib), step, stl, false)
 }
 
 fn print_chassis(chassis: &wmds_model::GeneratedChassis, req: &ChassisRef, list_parts: bool) {
@@ -413,6 +413,7 @@ pub fn show_vehicle(
     build: bool,
     step: Option<&Path>,
     stl: Option<&Path>,
+    bounds: bool,
 ) -> ExitCode {
     let lib = match Library::load(project) {
         Ok(l) => l,
@@ -558,7 +559,7 @@ pub fn show_vehicle(
             ExitCode::FAILURE
         };
     }
-    let code = build_and_report(&asm, Some(&lib), step, stl);
+    let code = build_and_report(&asm, Some(&lib), step, stl, bounds);
     if asm.is_ok() { code } else { ExitCode::FAILURE }
 }
 
@@ -567,12 +568,16 @@ fn build_and_report(
     lib: Option<&Library>,
     step: Option<&Path>,
     stl: Option<&Path>,
+    bounds: bool,
 ) -> ExitCode {
     let k = kernel();
     println!("\nbuilding geometry with {KERNEL_NAME}");
     let built = wmds_geom::build_assembly(&k, asm);
     for (id, e) in &built.failures {
         println!("  FAIL {id}: {e}");
+    }
+    if bounds {
+        print_bounds(&k, &built);
     }
     let density_of = |m: &str| lib.and_then(|l| l.density(m));
     let masses = wmds_geom::assembly_masses(&k, &built, &density_of);
@@ -961,4 +966,89 @@ pub fn check_vehicle(project: &Path, file: &Path, json: Option<&Path>, show_all:
     } else {
         ExitCode::FAILURE
     }
+}
+
+/// Print the extent every part occupies in vehicle coordinates.
+///
+/// This is the report that settles an argument about a part looking wrong. A handed part drawn
+/// the wrong way round has the right origin and the wrong extent, so a position table shows
+/// nothing and this shows it immediately. Parts whose names differ only by a left or right
+/// marker are paired up and their y extents compared, because that is nearly always the
+/// question being asked.
+fn print_bounds<K: wmds_geom::GeomKernel>(k: &K, built: &wmds_geom::BuiltAssembly<K::Solid>) {
+    use std::collections::BTreeMap;
+
+    let mut extents: BTreeMap<String, ([f64; 3], [f64; 3])> = BTreeMap::new();
+    for p in &built.parts {
+        if let Ok(m) = k.tessellate(&p.solid, 2e-3)
+            && let Some((lo, hi)) = m.bounds()
+        {
+            extents.insert(p.id.clone(), (lo, hi));
+        }
+    }
+
+    println!("\nextent of each part, in vehicle coordinates (mm)");
+    println!(
+        "  {:<34} {:>26} {:>26} {:>26}",
+        "part", "x from / to", "y from / to", "z from / to"
+    );
+    for (id, (lo, hi)) in &extents {
+        println!(
+            "  {:<34} {:>12.0} {:>12.0} {:>12.0} {:>12.0} {:>12.0} {:>12.0}",
+            id,
+            lo[0] * 1e3,
+            hi[0] * 1e3,
+            lo[1] * 1e3,
+            hi[1] * 1e3,
+            lo[2] * 1e3,
+            hi[2] * 1e3
+        );
+    }
+
+    // Pair left with right and say whether each pair is a mirror image.
+    println!("\nleft and right pairs");
+    let mut any = false;
+    for (id, (lo, hi)) in &extents {
+        let Some(right) = mirror_name(id) else { continue };
+        let Some((rlo, rhi)) = extents.get(&right) else {
+            continue;
+        };
+        any = true;
+        let mirrored = (lo[1] + rhi[1]).abs() < 1e-4 && (hi[1] + rlo[1]).abs() < 1e-4;
+        println!(
+            "  {:<34} y {:>7.0} to {:>7.0}   {:<34} y {:>7.0} to {:>7.0}   {}",
+            id,
+            lo[1] * 1e3,
+            hi[1] * 1e3,
+            right,
+            rlo[1] * 1e3,
+            rhi[1] * 1e3,
+            if mirrored { "mirrored" } else { "NOT MIRRORED" }
+        );
+    }
+    if !any {
+        println!("  no parts whose names pair left with right");
+    }
+}
+
+/// The right-hand name of a part whose name marks it as the left-hand one.
+///
+/// Purely a naming convention, and deliberately narrow: it matches the markers actually used in
+/// this library rather than trying to be clever about every possible spelling.
+fn mirror_name(id: &str) -> Option<String> {
+    for (l, r) in [
+        ("_fl", "_fr"),
+        ("_rl", "_rr"),
+        ("_left", "_right"),
+        ("_l.", "_r."),
+        ("_left.", "_right."),
+    ] {
+        if let Some(pos) = id.find(l) {
+            let mut out = id.to_string();
+            out.replace_range(pos..pos + l.len(), r);
+            return Some(out);
+        }
+    }
+    // A dotted sub-assembly id such as `corner_fl.lower_arm` is handled above by `_fl`.
+    None
 }

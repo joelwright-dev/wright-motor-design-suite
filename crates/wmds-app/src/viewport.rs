@@ -131,6 +131,35 @@ impl Camera {
         self.distance = radius / (self.fov_y * 0.5).sin() * 1.1;
     }
 
+    /// Point the camera at one of the standard engineering views.
+    ///
+    /// Named views matter more here than in a general 3D viewer. Most of what goes wrong with a
+    /// modular vehicle, such as a handed part reaching the wrong way or a component fouling a
+    /// rail, is obvious from directly above or directly ahead and nearly invisible from a three
+    /// quarter view. Vehicle axes are x rearward, y to the left, z up.
+    pub fn set_view(&mut self, name: &str) -> bool {
+        use std::f32::consts::{FRAC_PI_2, PI};
+        let (yaw, pitch) = match name {
+            // Looking straight down. Yaw puts vehicle +x to the right of the image.
+            "top" => (PI, FRAC_PI_2 - 0.0001),
+            "bottom" => (PI, -FRAC_PI_2 + 0.0001),
+            // From the left of the vehicle, which is +y.
+            "left" => (FRAC_PI_2, 0.0),
+            "right" => (-FRAC_PI_2, 0.0),
+            // From in front, which is -x.
+            "front" => (PI, 0.0),
+            "rear" => (0.0, 0.0),
+            "iso" => (-0.8, 0.5),
+            _ => return false,
+        };
+        self.yaw = yaw;
+        self.pitch = pitch;
+        true
+    }
+
+    /// The names `set_view` accepts, for a menu or a command line.
+    pub const VIEWS: [&'static str; 7] = ["iso", "top", "bottom", "front", "rear", "left", "right"];
+
     /// Project a world point to viewport pixel coordinates within `rect`.
     pub fn project(&self, rect: egui::Rect, p: Vec3) -> Option<egui::Pos2> {
         let vp = self.view_proj(rect.aspect_ratio());

@@ -8,6 +8,7 @@
 //! has to type one.
 
 mod edit;
+mod part;
 mod viewport;
 
 use std::collections::{HashMap, HashSet};
@@ -51,11 +52,13 @@ fn main() -> eframe::Result {
     // Usage: wmds-app [file] [--project DIR] [--screenshot out.png]
     let mut file: Option<PathBuf> = None;
     let mut screenshot: Option<PathBuf> = None;
+    let mut view: Option<String> = None;
     let mut project = PathBuf::from(".");
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--screenshot" => screenshot = args.next().map(PathBuf::from),
+            "--view" => view = args.next(),
             "--project" => {
                 if let Some(p) = args.next() {
                     project = PathBuf::from(p);
@@ -78,6 +81,9 @@ fn main() -> eframe::Result {
         Box::new(move |cc| {
             let mut app = App::new(cc, file, project);
             app.screenshot = screenshot;
+            if let Some(v) = &view {
+                app.start_view = Some(v.clone());
+            }
             Ok(Box::new(app))
         }),
     )
@@ -140,6 +146,7 @@ enum Action {
     DeleteJoint(String),
     SetChassis,
     NewVehicle,
+    NewPart,
     Open(String),
     Save,
 }
@@ -216,6 +223,11 @@ struct App {
 
     // editing
     tab: Tab,
+    part_tab: PartTab,
+    /// Text being typed into a field, held until the field is finished with.
+    scratch: HashMap<String, String>,
+    part_note: String,
+    new_part_id: String,
     catalogue: Arc<Vec<CatalogueEntry>>,
     search: String,
     selected: Option<String>,
@@ -258,6 +270,8 @@ struct App {
     has_renderer: bool,
     framed: bool,
     screenshot: Option<PathBuf>,
+    /// A named view asked for on the command line, applied once the model has been framed.
+    start_view: Option<String>,
     frames_since_build: u32,
     screenshot_requested: bool,
 }
@@ -280,6 +294,10 @@ impl App {
             variants: Vec::new(),
             load_error: None,
             tab: Tab::Parts,
+            part_tab: PartTab::Shape,
+            scratch: HashMap::new(),
+            part_note: String::new(),
+            new_part_id: String::new(),
             catalogue: Arc::new(Vec::new()),
             search: String::new(),
             selected: None,
@@ -316,6 +334,7 @@ impl App {
             has_renderer,
             framed: false,
             screenshot: None,
+            start_view: None,
             frames_since_build: 0,
             screenshot_requested: false,
         };
@@ -395,6 +414,8 @@ impl App {
         }
         self.selected = None;
         self.inst_params.clear();
+        self.scratch.clear();
+        self.part_note.clear();
         self.clear_joint();
         self.unsaved = false;
         self.status = format!("opened {}", path.display());
@@ -733,11 +754,15 @@ impl App {
                 self.framed = false;
                 self.dirty = true;
             }
+            Action::NewPart => self.new_part(),
             Action::Open(p) => {
                 self.file = Some(PathBuf::from(p.trim()));
                 self.load();
             }
-            Action::Save => self.save(),
+            Action::Save => match self.doc {
+                Doc::Primitive(_) => self.save_part(),
+                _ => self.save(),
+            },
         }
     }
 
@@ -932,10 +957,784 @@ impl App {
                 self.volume_m3 = res.volume_m3;
                 if let (Some((lo, hi)), false) = (res.bounds, self.framed) {
                     self.camera.frame(lo, hi);
+                    if let Some(v) = self.start_view.take()
+                        && !self.camera.set_view(&v)
+                    {
+                        eprintln!("unknown view `{v}`; try one of {:?}", Camera::VIEWS);
+                    }
                     self.framed = true;
                 }
             }
         }
+    }
+
+
+    // ----------------------------------------------------------------- the part editor
+
+    /// Edit the open primitive: its dimensions, its shape and its mounting points.
+    ///
+    /// This is the half of the brief that had nothing behind it. A part used to mean a file
+    /// someone wrote by hand; here it is a list of dimensions, a list of shapes and a list of
+    /// ports, and the geometry rebuilds as each one changes.
+    fn part_panel(&mut self, ui: &mut egui::Ui) {
+        let mut acts: Vec<PartAction> = Vec::new();
+        let Doc::Primitive(def) = &self.doc else {
+            return;
+        };
+        let def = def.clone();
+
+        ui.horizontal(|ui| {
+            for (t, name) in [
+                (PartTab::Shape, "Shape"),
+                (PartTab::Ports, "Mounting"),
+                (PartTab::About, "About"),
+            ] {
+                if ui.selectable_label(self.part_tab == t, name).clicked() {
+                    self.part_tab = t;
+                }
+            }
+        });
+        ui.separator();
+
+        match self.part_tab {
+            PartTab::Shape => {
+                self.part_dimensions(ui, &def, &mut acts);
+                ui.separator();
+                self.part_geometry(ui, &def, &mut acts);
+                ui.separator();
+                self.part_variants(ui, &def, &mut acts);
+            }
+            PartTab::Ports => self.part_ports(ui, &def, &mut acts),
+            PartTab::About => self.part_about(ui, &def, &mut acts),
+        }
+
+        for a in acts {
+            self.apply_part(a);
+        }
+    }
+
+    fn part_dimensions(&mut self, ui: &mut egui::Ui, def: &PrimitiveDef, acts: &mut Vec<PartAction>) {
+        ui.heading("Dimensions");
+        ui.label(
+            egui::RichText::new(
+                "Every shape below is written in terms of these, so changing one here changes \
+                 the part everywhere it is used.",
+            )
+            .weak()
+            .small(),
+        );
+        let scratch = &mut self.scratch;
+        for (i, p) in def.params.iter().enumerate() {
+            let derived = p.expr.is_some();
+            ui.horizontal(|ui| {
+                if ui
+                    .small_button("x")
+                    .on_hover_text("remove this dimension")
+                    .clicked()
+                {
+                    acts.push(PartAction::RemoveParam(p.name.clone()));
+                }
+                if let Some(v) = edit_text(
+                    ui,
+                    scratch,
+                    &format!("pname:{i}"),
+                    &p.name,
+                    110.0,
+                    "name",
+                ) {
+                    acts.push(PartAction::RenameParam(p.name.clone(), v));
+                }
+                if derived {
+                    if let Some(v) = edit_text(
+                        ui,
+                        scratch,
+                        &format!("pexpr:{i}"),
+                        &p.expr.as_ref().map(wmds_schema::expr_text).unwrap_or_default(),
+                        170.0,
+                        "computed from the others",
+                    ) {
+                        acts.push(PartAction::SetParamField(p.name.clone(), "expr".into(), v));
+                    }
+                    ui.label(egui::RichText::new("computed").weak().small());
+                } else {
+                    if let Some(v) = edit_text(
+                        ui,
+                        scratch,
+                        &format!("pdef:{i}"),
+                        &p.default.as_ref().map(wmds_schema::expr_text).unwrap_or_default(),
+                        110.0,
+                        "default",
+                    ) {
+                        acts.push(PartAction::SetParamField(p.name.clone(), "default".into(), v));
+                    }
+                    if let Some(v) = edit_text(
+                        ui,
+                        scratch,
+                        &format!("pmin:{i}"),
+                        &p.min.as_ref().map(wmds_schema::expr_text).unwrap_or_default(),
+                        70.0,
+                        "min",
+                    ) {
+                        acts.push(PartAction::SetParamField(p.name.clone(), "min".into(), v));
+                    }
+                    if let Some(v) = edit_text(
+                        ui,
+                        scratch,
+                        &format!("pmax:{i}"),
+                        &p.max.as_ref().map(wmds_schema::expr_text).unwrap_or_default(),
+                        70.0,
+                        "max",
+                    ) {
+                        acts.push(PartAction::SetParamField(p.name.clone(), "max".into(), v));
+                    }
+                }
+            });
+            if let Some(d) = &p.doc {
+                ui.label(egui::RichText::new(format!("      {d}")).weak().small());
+            }
+        }
+        ui.horizontal(|ui| {
+            if ui.button("Add a dimension").clicked() {
+                acts.push(PartAction::AddParam);
+            }
+            if !self.part_note.is_empty() {
+                ui.colored_label(DANGER, egui::RichText::new(&self.part_note).small());
+            }
+        });
+    }
+
+    fn part_geometry(&mut self, ui: &mut egui::Ui, def: &PrimitiveDef, acts: &mut Vec<PartAction>) {
+        ui.heading("Shape");
+        for (li, lvl) in def.geometry.iter().enumerate() {
+            if def.geometry.len() > 1 {
+                ui.label(egui::RichText::new(&lvl.level).strong().small());
+            }
+            let count = lvl.features.len();
+            for (fi, f) in lvl.features.iter().enumerate() {
+                let kind = part::feature_kind(&f.op);
+                egui::Frame::group(ui.style()).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(&f.op).strong());
+                        if let Some(k) = kind {
+                            ui.label(egui::RichText::new(k.doc).weak().small());
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button("x").on_hover_text("remove").clicked() {
+                                acts.push(PartAction::RemoveFeature(li, fi));
+                            }
+                            if fi + 1 < count && ui.small_button("v").on_hover_text("later").clicked() {
+                                acts.push(PartAction::MoveFeature(li, fi, 1));
+                            }
+                            if fi > 0 && ui.small_button("^").on_hover_text("earlier").clicked() {
+                                acts.push(PartAction::MoveFeature(li, fi, -1));
+                            }
+                        });
+                    });
+                    if kind.map(|k| !k.args.is_empty()).unwrap_or(true) {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("name").small());
+                            if let Some(v) = edit_text(
+                                ui,
+                                &mut self.scratch,
+                                &format!("fname:{li}:{fi}"),
+                                f.name.as_deref().unwrap_or(""),
+                                120.0,
+                                "so a cut can name it",
+                            ) {
+                                acts.push(PartAction::SetFeatureName(li, fi, v));
+                            }
+                        });
+                    }
+                    // A boolean names bodies built before it, so offer those by name rather
+                    // than making someone remember them.
+                    let earlier = part::bodies_before(def, li, fi);
+                    for (key, hint, _) in kind.map(|k| k.args).unwrap_or(&[]) {
+                        let current = f
+                            .args
+                            .get(*key)
+                            .map(wmds_schema::expr_text)
+                            .unwrap_or_default();
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(*key).small().monospace());
+                            if kind.map(|k| k.boolean).unwrap_or(false)
+                                && matches!(*key, "a" | "b" | "of")
+                            {
+                                let mut chosen = current.clone();
+                                egui::ComboBox::from_id_salt(format!("fb:{li}:{fi}:{key}"))
+                                    .width(150.0)
+                                    .selected_text(if chosen.is_empty() {
+                                        "choose a shape".to_string()
+                                    } else {
+                                        chosen.clone()
+                                    })
+                                    .show_ui(ui, |ui| {
+                                        for b in &earlier {
+                                            ui.selectable_value(&mut chosen, b.clone(), b);
+                                        }
+                                    });
+                                if chosen != current {
+                                    acts.push(PartAction::SetFeatureArg(
+                                        li,
+                                        fi,
+                                        (*key).to_string(),
+                                        chosen,
+                                    ));
+                                }
+                                if earlier.is_empty() {
+                                    ui.colored_label(
+                                        DANGER,
+                                        egui::RichText::new("nothing is built before this")
+                                            .small(),
+                                    );
+                                }
+                            } else if let Some(v) = edit_text(
+                                ui,
+                                &mut self.scratch,
+                                &format!("farg:{li}:{fi}:{key}"),
+                                &current,
+                                200.0,
+                                hint,
+                            ) {
+                                acts.push(PartAction::SetFeatureArg(li, fi, (*key).to_string(), v));
+                            }
+                            ui.label(egui::RichText::new(*hint).weak().small());
+                        });
+                    }
+                });
+            }
+            ui.horizontal(|ui| {
+                ui.label("add");
+                for k in part::FEATURES {
+                    if ui.small_button(k.op).on_hover_text(k.doc).clicked() {
+                        acts.push(PartAction::AddFeature(li, k.op.to_string()));
+                    }
+                }
+            });
+        }
+    }
+
+    fn part_variants(&mut self, ui: &mut egui::Ui, def: &PrimitiveDef, acts: &mut Vec<PartAction>) {
+        egui::CollapsingHeader::new("Handed versions")
+            .default_open(!def.variants.is_empty())
+            .show(ui, |ui| {
+                ui.label(
+                    egui::RichText::new(
+                        "A handed part is authored once. The mirrored option reflects both the \
+                         shape and the mounting points, so one file serves both sides.",
+                    )
+                    .weak()
+                    .small(),
+                );
+                for (i, v) in def.variants.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        if ui.small_button("x").clicked() {
+                            acts.push(PartAction::RemoveVariant(v.name.clone()));
+                        }
+                        ui.label(egui::RichText::new(&v.name).monospace());
+                        ui.label(
+                            egui::RichText::new(v.options.join(" / ")).small(),
+                        );
+                        if let Some(m) = &v.mirror_when {
+                            ui.label(
+                                egui::RichText::new(format!("mirrors on {m} about {}", v.mirror_plane))
+                                    .weak()
+                                    .small(),
+                            );
+                        }
+                        let _ = i;
+                    });
+                }
+                if ui.button("Add a handed version").clicked() {
+                    acts.push(PartAction::AddVariant);
+                }
+            });
+    }
+
+    fn part_ports(&mut self, ui: &mut egui::Ui, def: &PrimitiveDef, acts: &mut Vec<PartAction>) {
+        ui.heading("Mounting points");
+        ui.label(
+            egui::RichText::new(
+                "A port is where this part bolts to something else. Its type decides what it \
+                 will fit, and the fields below come from that type, so the checker and the \
+                 editor can never disagree about what a joint needs.",
+            )
+            .weak()
+            .small(),
+        );
+        let lib = self.lib.clone();
+        let types: Vec<String> = lib
+            .as_ref()
+            .map(|l| l.port_types.keys().cloned().collect())
+            .unwrap_or_default();
+
+        for (i, p) in def.ports.iter().enumerate() {
+            egui::Frame::group(ui.style()).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.small_button("x").on_hover_text("remove").clicked() {
+                        acts.push(PartAction::RemovePort(p.name.clone()));
+                    }
+                    if let Some(v) = edit_text(
+                        ui,
+                        &mut self.scratch,
+                        &format!("portname:{i}"),
+                        &p.name,
+                        130.0,
+                        "name",
+                    ) {
+                        acts.push(PartAction::SetPortField(p.name.clone(), "name".into(), v));
+                    }
+                    let mut chosen = p.port_type.clone();
+                    egui::ComboBox::from_id_salt(format!("porttype:{i}"))
+                        .width(190.0)
+                        .selected_text(chosen.clone())
+                        .show_ui(ui, |ui| {
+                            for t in &types {
+                                let doc = lib
+                                    .as_ref()
+                                    .and_then(|l| l.port_types.get(t))
+                                    .map(|d| d.doc.clone())
+                                    .unwrap_or_default();
+                                ui.selectable_value(&mut chosen, t.clone(), t)
+                                    .on_hover_text(doc);
+                            }
+                        });
+                    if chosen != p.port_type {
+                        acts.push(PartAction::SetPortType(p.name.clone(), chosen));
+                    }
+                });
+                if let Some(d) = lib.as_ref().and_then(|l| l.port_types.get(&p.port_type)) {
+                    ui.label(egui::RichText::new(&d.doc).weak().small());
+                }
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("at").small().monospace());
+                    if let Some(v) = edit_text(
+                        ui,
+                        &mut self.scratch,
+                        &format!("portat:{i}"),
+                        &wmds_schema::expr_text(&p.at),
+                        190.0,
+                        "(x, y, z)",
+                    ) {
+                        acts.push(PartAction::SetPortField(p.name.clone(), "at".into(), v));
+                    }
+                    ui.label(egui::RichText::new("axis").small().monospace());
+                    if let Some(v) = edit_text(
+                        ui,
+                        &mut self.scratch,
+                        &format!("portax:{i}"),
+                        &part::axis_text(&p.axis),
+                        70.0,
+                        "z",
+                    ) {
+                        acts.push(PartAction::SetPortField(p.name.clone(), "axis".into(), v));
+                    }
+                    ui.label(egui::RichText::new("clock").small().monospace());
+                    let clock = p.clock.as_ref().map(part::axis_text).unwrap_or_default();
+                    if let Some(v) = edit_text(
+                        ui,
+                        &mut self.scratch,
+                        &format!("portck:{i}"),
+                        &clock,
+                        70.0,
+                        "x",
+                    ) {
+                        acts.push(PartAction::SetPortField(p.name.clone(), "clock".into(), v));
+                    }
+                });
+                if p.clock.is_none() {
+                    ui.colored_label(
+                        ACCENT,
+                        egui::RichText::new(
+                            "no clock: a bolted joint using this port can end up rotated any \
+                             way round the axis",
+                        )
+                        .small(),
+                    );
+                }
+                if let Some(l) = &lib {
+                    for slot in part::port_type_params(l, &p.port_type) {
+                        let current = p
+                            .params
+                            .get(&slot.name)
+                            .map(wmds_schema::expr_text)
+                            .unwrap_or_default();
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(&slot.name).small().monospace());
+                            if let Some(v) = edit_text(
+                                ui,
+                                &mut self.scratch,
+                                &format!("portp:{i}:{}", slot.name),
+                                &current,
+                                150.0,
+                                &slot.start,
+                            ) {
+                                acts.push(PartAction::SetPortParam(
+                                    p.name.clone(),
+                                    slot.name.clone(),
+                                    v,
+                                ));
+                            }
+                            let label = if slot.optional {
+                                format!("{} (optional)", slot.kind)
+                            } else {
+                                slot.kind.clone()
+                            };
+                            ui.label(egui::RichText::new(label).weak().small());
+                            if current.is_empty() && !slot.optional {
+                                ui.colored_label(
+                                    DANGER,
+                                    egui::RichText::new("required").small(),
+                                );
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        ui.horizontal(|ui| {
+            ui.label("add a mounting point");
+            let mut chosen = String::new();
+            egui::ComboBox::from_id_salt("addport")
+                .width(200.0)
+                .selected_text("choose a type")
+                .show_ui(ui, |ui| {
+                    for t in &types {
+                        let doc = lib
+                            .as_ref()
+                            .and_then(|l| l.port_types.get(t))
+                            .map(|d| d.doc.clone())
+                            .unwrap_or_default();
+                        if ui.selectable_label(false, t).on_hover_text(doc).clicked() {
+                            chosen = t.clone();
+                        }
+                    }
+                });
+            if !chosen.is_empty() {
+                acts.push(PartAction::AddPort(chosen));
+            }
+        });
+    }
+
+    fn part_about(&mut self, ui: &mut egui::Ui, def: &PrimitiveDef, acts: &mut Vec<PartAction>) {
+        let lib = self.lib.clone();
+        egui::Grid::new("about")
+            .num_columns(2)
+            .spacing([8.0, 6.0])
+            .show(ui, |ui| {
+                ui.label("id");
+                if let Some(v) = edit_text(ui, &mut self.scratch, "pid", &def.id, 260.0, "category/family/name") {
+                    acts.push(PartAction::SetAbout("id".into(), v));
+                }
+                ui.end_row();
+                ui.label("description");
+                if let Some(v) = edit_text(
+                    ui,
+                    &mut self.scratch,
+                    "pdesc",
+                    &def.description,
+                    260.0,
+                    "what it is",
+                ) {
+                    acts.push(PartAction::SetAbout("description".into(), v));
+                }
+                ui.end_row();
+                ui.label("category");
+                if let Some(v) = edit_text(ui, &mut self.scratch, "pcat", &def.category, 160.0, "suspension") {
+                    acts.push(PartAction::SetAbout("category".into(), v));
+                }
+                ui.end_row();
+                ui.label("material");
+                let mut chosen = def.material.clone().unwrap_or_default();
+                let materials: Vec<String> = lib
+                    .as_ref()
+                    .map(|l| l.materials.keys().cloned().collect())
+                    .unwrap_or_default();
+                egui::ComboBox::from_id_salt("pmat")
+                    .width(240.0)
+                    .selected_text(chosen.clone())
+                    .show_ui(ui, |ui| {
+                        for m in &materials {
+                            let d = lib
+                                .as_ref()
+                                .and_then(|l| l.materials.get(m))
+                                .map(|x| x.description.clone())
+                                .unwrap_or_default();
+                            ui.selectable_value(&mut chosen, m.clone(), m).on_hover_text(d);
+                        }
+                    });
+                if Some(&chosen) != def.material.as_ref() {
+                    acts.push(PartAction::SetAbout("material".into(), chosen));
+                }
+                ui.end_row();
+            });
+
+        ui.separator();
+        ui.heading("Mass");
+        let declared = matches!(def.massprops, wmds_schema::MassPropsDef::Declared { .. });
+        ui.horizontal(|ui| {
+            if ui
+                .selectable_label(!declared, "from the shape")
+                .on_hover_text("volume times the material density")
+                .clicked()
+                && declared
+            {
+                acts.push(PartAction::SetMassComputed);
+            }
+            if ui
+                .selectable_label(declared, "declared")
+                .on_hover_text("for a bought-in part drawn as an envelope")
+                .clicked()
+                && !declared
+            {
+                acts.push(PartAction::SetMassDeclared);
+            }
+        });
+        if let wmds_schema::MassPropsDef::Declared { mass, cg, .. } = &def.massprops {
+            ui.horizontal(|ui| {
+                ui.label("mass");
+                if let Some(v) = edit_text(
+                    ui,
+                    &mut self.scratch,
+                    "pmass",
+                    &wmds_schema::expr_text(mass),
+                    100.0,
+                    "3.4 kg",
+                ) {
+                    acts.push(PartAction::SetAbout("mass".into(), v));
+                }
+                ui.label("centre");
+                let c = cg.as_ref().map(wmds_schema::expr_text).unwrap_or_default();
+                if let Some(v) = edit_text(ui, &mut self.scratch, "pcg", &c, 180.0, "(0 mm, 0 mm, 0 mm)") {
+                    acts.push(PartAction::SetAbout("cg".into(), v));
+                }
+            });
+        }
+
+        ui.separator();
+        ui.heading("Compliance tags");
+        ui.label(
+            egui::RichText::new(
+                "What this part claims to be. The rules read these rather than part names, so a \
+                 bought-in part satisfies a rule as long as it says what it is.",
+            )
+            .weak()
+            .small(),
+        );
+        if let Some(v) = edit_text(
+            ui,
+            &mut self.scratch,
+            "ptags",
+            &def.compliance_tags.join(" "),
+            340.0,
+            "braking braking.disc",
+        ) {
+            acts.push(PartAction::SetAbout("tags".into(), v));
+        }
+    }
+
+    /// Apply one edit to the open part, then rebuild.
+    fn apply_part(&mut self, a: PartAction) {
+        let lib = self.lib.clone();
+        let Doc::Primitive(def) = &mut self.doc else {
+            return;
+        };
+        self.part_note.clear();
+        match a {
+            PartAction::AddParam => {
+                let n = part::add_param(def);
+                self.status = format!("added dimension {n}");
+            }
+            PartAction::RemoveParam(name) => match part::remove_param(def, &name) {
+                Ok(()) => self.status = format!("removed dimension {name}"),
+                Err(uses) => {
+                    // Refusing is the useful behaviour: deleting a dimension the shape depends
+                    // on produces a part that fails to resolve, and the error appears nowhere
+                    // near the cause.
+                    self.part_note = format!(
+                        "{name} is still used by {}. Change those first.",
+                        uses.join(", ")
+                    );
+                }
+            },
+            PartAction::RenameParam(from, to) => {
+                part::rename_param(def, &from, &to);
+                self.status = format!("renamed {from} to {to} everywhere it was used");
+            }
+            PartAction::SetParamField(name, field, value) => {
+                if let Some(p) = def.params.iter_mut().find(|p| p.name == name) {
+                    let e = if value.trim().is_empty() {
+                        None
+                    } else {
+                        Some(part::text_expr(&value))
+                    };
+                    match field.as_str() {
+                        "default" => p.default = e,
+                        "min" => p.min = e,
+                        "max" => p.max = e,
+                        "expr" => p.expr = e,
+                        _ => {}
+                    }
+                }
+            }
+            PartAction::AddFeature(level, op) => {
+                part::add_feature(def, level, &op);
+                self.status = format!("added a {op}");
+            }
+            PartAction::RemoveFeature(level, index) => part::remove_feature(def, level, index),
+            PartAction::MoveFeature(level, index, d) => part::move_feature(def, level, index, d),
+            PartAction::SetFeatureName(level, index, name) => {
+                part::set_feature_name(def, level, index, &name)
+            }
+            PartAction::SetFeatureArg(level, index, key, value) => {
+                part::set_feature_arg(def, level, index, &key, &value)
+            }
+            PartAction::AddVariant => {
+                part::add_variant(def);
+                self.status = "added a handed version; the mirrored option flips shape and ports".into();
+            }
+            PartAction::RemoveVariant(name) => part::remove_variant(def, &name),
+            PartAction::AddPort(t) => {
+                if let Some(l) = &lib {
+                    let n = part::add_port(def, l, &t);
+                    self.status = format!("added mounting point {n}");
+                }
+            }
+            PartAction::RemovePort(name) => part::remove_port(def, &name),
+            PartAction::SetPortType(name, t) => {
+                if let Some(l) = &lib {
+                    part::set_port_type(def, l, &name, &t);
+                }
+            }
+            PartAction::SetPortField(name, field, value) => {
+                part::set_port_field(def, &name, &field, &value)
+            }
+            PartAction::SetPortParam(name, key, value) => {
+                part::set_port_param(def, &name, &key, &value)
+            }
+            PartAction::SetMassComputed => def.massprops = wmds_schema::MassPropsDef::Computed,
+            PartAction::SetMassDeclared => {
+                def.massprops = wmds_schema::MassPropsDef::Declared {
+                    mass: part::text_expr("1 kg"),
+                    cg: Some(part::text_expr("(0 mm, 0 mm, 0 mm)")),
+                    inertia: None,
+                }
+            }
+            PartAction::SetAbout(field, value) => match field.as_str() {
+                "id" => def.id = value,
+                "description" => def.description = value,
+                "category" => def.category = value,
+                "material" => {
+                    def.material = if value.trim().is_empty() {
+                        None
+                    } else {
+                        Some(value)
+                    }
+                }
+                "tags" => {
+                    def.compliance_tags =
+                        value.split_whitespace().map(|s| s.to_string()).collect()
+                }
+                "mass" => {
+                    if let wmds_schema::MassPropsDef::Declared { mass, .. } = &mut def.massprops {
+                        *mass = part::text_expr(&value);
+                    }
+                }
+                "cg" => {
+                    if let wmds_schema::MassPropsDef::Declared { cg, .. } = &mut def.massprops {
+                        *cg = Some(part::text_expr(&value));
+                    }
+                }
+                _ => {}
+            },
+        }
+        // The preview sliders are derived from the definition, so they have to follow it.
+        let refreshed = match &self.doc {
+            Doc::Primitive(d) => Some((param_rows(d), d.variants.clone())),
+            _ => None,
+        };
+        if let Some((rows, variants)) = refreshed {
+            let keep: HashMap<String, f64> =
+                self.params.iter().map(|p| (p.name.clone(), p.value)).collect();
+            self.params = rows;
+            // Keep whatever the person had set on the preview sliders for dimensions that still
+            // exist, so editing the shape does not silently reset the view.
+            for p in &mut self.params {
+                if !p.derived
+                    && let Some(v) = keep.get(&p.name)
+                {
+                    p.value = (*v).clamp(p.min.min(p.max), p.max.max(p.min));
+                }
+            }
+            self.variants = variants
+                .iter()
+                .map(|v| (v.name.clone(), v.options.clone(), 0))
+                .collect();
+        }
+        self.unsaved = true;
+        self.dirty = true;
+    }
+
+    /// Write the open part to its file.
+    fn save_part(&mut self) {
+        let Doc::Primitive(def) = &self.doc else {
+            return;
+        };
+        let path = PathBuf::from(self.path_text.trim());
+        if path.as_os_str().is_empty() {
+            self.status = "give the part a file name first".into();
+            return;
+        }
+        // Refuse to write something that cannot be read back, rather than corrupting the file.
+        let text = wmds_schema::write_primitive(def);
+        let name = path
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "part.prim.kdl".into());
+        if let Err(e) = wmds_schema::parse_primitive(&name, &text) {
+            self.status = format!("not saved: the part is not valid yet. {}", miette_string(e));
+            return;
+        }
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            self.status = format!("cannot make {}: {e}", parent.display());
+            return;
+        }
+        match std::fs::write(&path, text) {
+            Ok(()) => {
+                self.file = Some(path.clone());
+                self.unsaved = false;
+                self.status = format!("saved {}", path.display());
+                // A new or changed part has to reach the catalogue, or it cannot be added to a
+                // vehicle until the application is restarted.
+                self.load_library();
+            }
+            Err(e) => self.status = format!("cannot write {}: {e}", path.display()),
+        }
+    }
+
+    /// Start a new part from scratch.
+    fn new_part(&mut self) {
+        let id = if self.new_part_id.trim().is_empty() {
+            "misc/new-part".to_string()
+        } else {
+            self.new_part_id.trim().to_string()
+        };
+        let def = part::new_primitive(&id);
+        self.params = param_rows(&def);
+        self.variants = Vec::new();
+        self.path_text = format!("library/{}.prim.kdl", id);
+        self.doc = Doc::Primitive(Box::new(def));
+        self.file = None;
+        self.scratch.clear();
+        self.part_tab = PartTab::Shape;
+        self.load_error = None;
+        self.status = format!("new part {id}: set its dimensions, shape and mounting points");
+        self.unsaved = true;
+        self.framed = false;
+        self.dirty = true;
     }
 
     // ----------------------------------------------------------------- the toolbar
@@ -945,6 +1744,9 @@ impl App {
         ui.horizontal(|ui| {
             if ui.button("New vehicle").clicked() {
                 actions.push(Action::NewVehicle);
+            }
+            if ui.button("New part").clicked() {
+                actions.push(Action::NewPart);
             }
             ui.add(
                 egui::TextEdit::singleline(&mut self.path_text)
@@ -956,7 +1758,7 @@ impl App {
                 actions.push(Action::Open(p));
             }
             let save = ui.add_enabled(
-                matches!(self.doc, Doc::Assembly(_)),
+                !matches!(self.doc, Doc::None),
                 egui::Button::new(if self.unsaved { "Save *" } else { "Save" }),
             );
             if save.clicked() {
@@ -964,6 +1766,13 @@ impl App {
             }
             if self.unsaved {
                 ui.colored_label(ACCENT, "unsaved changes");
+            }
+            ui.separator();
+            ui.label("view");
+            for v in Camera::VIEWS {
+                if ui.small_button(v).clicked() {
+                    self.camera.set_view(v);
+                }
             }
             ui.separator();
             if self.building {
@@ -1028,7 +1837,9 @@ impl App {
         ui.separator();
 
         if matches!(self.doc, Doc::Primitive(_)) {
-            self.primitive_panel(ui);
+            self.part_panel(ui);
+            ui.separator();
+            self.primitive_preview(ui);
             return;
         }
         if matches!(self.doc, Doc::None) {
@@ -1067,7 +1878,8 @@ impl App {
         }
     }
 
-    fn primitive_panel(&mut self, ui: &mut egui::Ui) {
+    /// The preview sliders: try the part at other sizes without changing its defaults.
+    fn primitive_preview(&mut self, ui: &mut egui::Ui) {
         let mut changed = false;
         if !self.variants.is_empty() {
             ui.heading("Variants");
@@ -1897,6 +2709,72 @@ impl eframe::App for App {
 }
 
 // --------------------------------------------------------------------------- small helpers
+
+/// An edit to the open part.
+enum PartAction {
+    AddParam,
+    RemoveParam(String),
+    RenameParam(String, String),
+    SetParamField(String, String, String),
+    AddFeature(usize, String),
+    RemoveFeature(usize, usize),
+    MoveFeature(usize, usize, isize),
+    SetFeatureName(usize, usize, String),
+    SetFeatureArg(usize, usize, String, String),
+    AddVariant,
+    RemoveVariant(String),
+    AddPort(String),
+    RemovePort(String),
+    SetPortType(String, String),
+    SetPortField(String, String, String),
+    SetPortParam(String, String, String),
+    SetAbout(String, String),
+    SetMassComputed,
+    SetMassDeclared,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PartTab {
+    Shape,
+    Ports,
+    About,
+}
+
+/// A text field whose value is committed when it loses focus or Enter is pressed.
+///
+/// Editing a live model character by character would reparse and rebuild on every keystroke, and
+/// half-typed text is rarely valid. The scratch map holds what is being typed until it is
+/// finished with, then hands it over once.
+fn edit_text(
+    ui: &mut egui::Ui,
+    scratch: &mut HashMap<String, String>,
+    key: &str,
+    current: &str,
+    width: f32,
+    hint: &str,
+) -> Option<String> {
+    let buf = scratch
+        .entry(key.to_string())
+        .or_insert_with(|| current.to_string());
+    let r = ui.add(
+        egui::TextEdit::singleline(buf)
+            .desired_width(width)
+            .hint_text(hint),
+    );
+    let done = r.lost_focus() || (r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+    if done {
+        let value = buf.clone();
+        scratch.remove(key);
+        if value != current {
+            return Some(value);
+        }
+    } else if !r.has_focus() && buf.as_str() != current {
+        // The model changed underneath, so show the model rather than a stale buffer.
+        scratch.remove(key);
+    }
+    None
+}
+
 
 fn combo(ui: &mut egui::Ui, label: &str, current: &mut String, options: &[String]) {
     egui::ComboBox::from_label(label)

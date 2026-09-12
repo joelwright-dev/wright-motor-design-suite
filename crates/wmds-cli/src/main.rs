@@ -116,6 +116,10 @@ enum VehCmd {
         step: Option<PathBuf>,
         #[arg(long, value_name = "FILE")]
         stl: Option<PathBuf>,
+        /// Print the built extent of every part in vehicle coordinates (implies --build).
+        /// The fastest way to find a part drawn the wrong way round.
+        #[arg(long)]
+        bounds: bool,
     },
 }
 
@@ -179,13 +183,15 @@ fn main() -> ExitCode {
                     build,
                     step,
                     stl,
+                    bounds,
                 },
         } => report::show_vehicle(
             &project,
             &file,
-            build || step.is_some() || stl.is_some(),
+            build || step.is_some() || stl.is_some() || bounds,
             step.as_deref(),
             stl.as_deref(),
+            bounds,
         ),
         Cmd::Check { file, json, all } => {
             report::check_vehicle(&project, &file, json.as_deref(), all)
