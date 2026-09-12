@@ -168,6 +168,35 @@ port_type "mcds.crossmember" {
     stage "kit"
 }
 
+// ------------------------------------------------------------------- springs and dampers
+
+port_type "damper.eye" {
+    doc "The eye at either end of a damper or coilover, and the bracket it bolts into"
+    params bolt="string" eye_id="mm"
+    dof "revolute"
+    mate_axis "aligned"
+    compatible_with "damper.eye" when="a.bolt == b.bolt and abs(a.eye_id - b.eye_id) < 0.5 mm"
+    stage "kit"
+}
+
+port_type "spring.perch" {
+    doc "Where a coil spring sits on a damper body or a platform"
+    params id="mm" seat_diameter="mm"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "spring.perch" when="abs(a.id - b.id) < 1 mm"
+    stage "factory"
+}
+
+port_type "antiroll.link" {
+    doc "Drop link between an anti-roll bar arm and a suspension arm"
+    params bolt="string"
+    dof "spherical"
+    mate_axis "aligned"
+    compatible_with "antiroll.link" when="a.bolt == b.bolt"
+    stage "kit"
+}
+
 // ---------------------------------------------------------------------------- braking
 
 port_type "brake.caliper-mount" {

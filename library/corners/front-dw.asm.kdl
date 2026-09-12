@@ -35,6 +35,12 @@ assembly "corners/front-dw" version="0.1.0" {
         upper_rise    unit="mm" default=250 doc="upper bush above the rail top"
         upper_inboard unit="mm" default=180
 
+        tyre_section  unit="mm" default=185 min=125 max=305 doc="tyre section width; wider grips more"
+        rim_width     unit="inch" default=6 min=4 max=12 doc="rim width"
+        spring_at     unit="mm" default=210 min=80 max=450 doc="where the spring pushes on the lower arm"
+        spring_wire   unit="mm" default=11  min=8 max=20   doc="spring wire diameter, which sets the rate"
+        spring_coils  default=7 min=4 max=14 doc="active coils, which also set the rate"
+        damper_stroke unit="mm" default=140 min=80 max=240 doc="damper stroke"
         disc_diameter unit="mm" default=280 min=200 max=400 doc="brake disc diameter"
         disc_thickness unit="mm" default=24 min=10 max=40 doc="brake disc thickness"
         hat_depth     unit="mm" default=45  min=10 max=90 doc="how far inboard of the hub face the friction ring sits"
@@ -47,6 +53,13 @@ assembly "corners/front-dw" version="0.1.0" {
         // The friction ring sits inboard of the hub face by the hat depth plus half the disc.
         // The upright has to put its caliper lugs in exactly that plane.
         disc_plane unit="mm" expr="60 mm - hat_depth - disc_thickness/2" doc="derived: disc mid-plane, outboard of the upright centreline"
+
+        // The damper stands on the arm and reaches up to the tower, so the tower height follows
+        // from the damper. Working it out here rather than typing it twice is what stops the two
+        // from drifting apart when the damper changes.
+        damper_length unit="mm" expr="damper_stroke * 1.6 + 120 mm + damper_stroke" doc="derived: eye to eye extended"
+        tower_height unit="mm" expr="damper_length + 7 mm - lower_drop" doc="derived: tower eye above the station face"
+        tower_inboard unit="mm" expr="lower_inboard - spring_at" doc="derived: tower eye inboard of the station"
     }
 
     instances {
@@ -69,7 +82,7 @@ assembly "corners/front-dw" version="0.1.0" {
         }
 
         instance "lower_arm" primitive="suspension/arms/lca-wishbone-a" {
-            set span=lower_span reach=lower_reach tube_od="28 mm"
+            set span=lower_span reach=lower_reach tube_od="28 mm" spring_at=spring_at
             variant hand=side
         }
         instance "upper_arm" primitive="suspension/arms/lca-wishbone-a" {
@@ -90,11 +103,24 @@ assembly "corners/front-dw" version="0.1.0" {
             variant side=side
         }
 
+        // Spring and damper. The spring rate comes from its wire and coils, so changing either
+        // changes the ride frequency and the roll stiffness the simulator reports.
+        instance "damper" primitive="suspension/dampers/twin-tube" {
+            set stroke=damper_stroke
+        }
+        instance "spring" primitive="suspension/springs/coil" {
+            set wire=spring_wire active=spring_coils free_length="damper_stroke + 180 mm"
+        }
+        instance "tower" primitive="suspension/brackets/damper-tower" {
+            set height=tower_height inboard=tower_inboard
+            variant side=side
+        }
+
         instance "wheel" primitive="wheels/wheel-steel" {
-            set diameter="15 inch" rim_width="6 inch" offset="40 mm"
+            set diameter="15 inch" rim_width=rim_width offset="40 mm"
         }
         instance "tyre" primitive="wheels/tyre" {
-            set section="185 mm" aspect=60 rim="15 inch"
+            set section=tyre_section aspect=60 rim="15 inch"
         }
     }
 
@@ -132,13 +158,30 @@ assembly "corners/front-dw" version="0.1.0" {
 
         // The disc goes on first and the wheel goes on over it, which is the order it is
         // assembled in and the order the ports describe.
+        // The disc is clamped by the wheel bolts once the wheel is on, but it needs a locating
+        // screw to hold it against the hub while the wheel is off, or it falls on your foot.
         mate "disc_on_hub" a="upright.hub" b="disc.hub" {
+            fasteners kind="screw" size="M8" grade="8.8" qty="1" torque="12 Nm"
             stage "kit"
         }
         mate "wheel_on_disc" a="disc.wheel" b="wheel.mount" {
             fasteners kind="bolt" size="M12x1.5" grade="10.9" qty="4" torque="110 Nm"
             stage "kit"
         }
+        // The damper stands on the arm, the spring sits on the damper, and the tower catches
+        // the top. The tower then has to land on a chassis station, which the vehicle checks.
+        mate "damper_on_arm" a="lower_arm.spring" b="damper.lower" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="80 Nm" nut="nyloc"
+            stage "kit"
+        }
+        mate "spring_on_damper" a="damper.spring_seat" b="spring.bottom" {
+            stage "factory"
+        }
+        mate "damper_to_tower" a="tower.eye" b="damper.upper" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="80 Nm" nut="nyloc"
+            stage "kit"
+        }
+
         mate "caliper_on_upright" a="upright.caliper" b="caliper.mount" {
             fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm" thread_locker="medium"
             stage "kit"
@@ -159,5 +202,9 @@ assembly "corners/front-dw" version="0.1.0" {
         // The steering arm, so a tie rod in the vehicle can reach it. A rear corner simply
         // leaves it unconnected, which is the honest way to say a rear wheel does not steer.
         export "upright.steering" as="steering_arm"
+        // The tower bolts to a fifth grid station.
+        export "tower.station" as="station_tower"
+        // The anti-roll bar lives in the vehicle, because it joins the two corners together.
+        export "lower_arm.antiroll" as="antiroll"
     }
 }

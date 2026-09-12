@@ -1,0 +1,75 @@
+// Twin tube damper, with a seat for a coil spring around it.
+//
+// Twin tube rather than monotube because it is cheaper, more tolerant of a dented body, and
+// rebuildable in a shed, which is the right trade for a vehicle meant to be assembled and
+// maintained by its owner.
+//
+// Local frame: the origin is the lower eye, z up the damper axis.
+
+primitive "suspension/dampers/twin-tube" version="0.1.0" {
+    description "Twin tube damper with an integral spring seat"
+    category "suspension" sub="damper"
+
+    params {
+        stroke      unit="mm" default=140 min=60  max=280 doc="usable stroke"
+        body_od     unit="mm" default=45  min=30  max=70  doc="outer body diameter"
+        rod         unit="mm" default=14  min=8   max=22  doc="rod diameter"
+        eye_id      unit="mm" default=14  min=10  max=22  doc="mounting eye bore"
+        seat_height unit="mm" default=120 min=40  max=300 doc="height of the lower spring seat above the bottom eye"
+        seat        unit="mm" default=100 min=60  max=220 doc="spring seat diameter"
+
+        // Damping, quoted as the force at one metre per second. PROVISIONAL: set from the usual
+        // damping ratio for a road car, and asymmetric because a damper always is.
+        bump_rate    unit="N*s/m" default=1400 min=300 max=6000 doc="compression damping"
+        rebound_rate unit="N*s/m" default=2600 min=400 max=9000 doc="extension damping"
+
+        closed_length unit="mm" expr="stroke * 1.6 + 120 mm" doc="derived: eye to eye, fully compressed"
+        open_length unit="mm" expr="closed_length + stroke" doc="derived: eye to eye, fully extended"
+    }
+
+    material "steel/e355-tube"
+
+    geometry level="display" {
+        cylinder "lower_eye" d="eye_id + 16 mm" h="26 mm" at="(0 mm, 0 mm, 0 mm)" axis="x"
+        tube "body" od=body_od wall="3 mm" \
+             from="(0 mm, 0 mm, 20 mm)" to="(0 mm, 0 mm, closed_length * 0.6)"
+        cylinder "rod_shaft" d=rod h="open_length * 0.45" \
+                 at="(0 mm, 0 mm, closed_length * 0.6 + open_length * 0.2)" axis="z"
+        cylinder "spring_seat" d=seat h="10 mm" at="(0 mm, 0 mm, seat_height)" axis="z"
+        cylinder "upper_eye" d="eye_id + 16 mm" h="26 mm" at="(0 mm, 0 mm, open_length)" axis="x"
+        union
+    }
+
+    massprops declared mass="2.3 kg" cg="(0 mm, 0 mm, open_length * 0.4)"
+
+    ports {
+        port "lower" type="damper.eye" at="(0 mm, 0 mm, 0 mm)" axis="x" clock="z" load_rating="12 kN" {
+            params bolt="M12" eye_id=eye_id
+        }
+        port "upper" type="damper.eye" at="(0 mm, 0 mm, open_length)" axis="x" clock="z" load_rating="12 kN" {
+            params bolt="M12" eye_id=eye_id
+        }
+        // The spring sits on this and is captured by the top mount.
+        port "spring_seat" type="spring.perch" at="(0 mm, 0 mm, seat_height + 5 mm)" axis="z" clock="x" {
+            params id="95 mm" seat_diameter=seat
+        }
+    }
+
+    behaviour "damper" {
+        model "bilinear"
+        bump_rate bump_rate
+        rebound_rate rebound_rate
+        stroke stroke
+    }
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            export "damper-spec"
+            cost fixed="0 AUD" per_unit="95 AUD"
+            note "PROVISIONAL: a valved damper is bought in and specified by its curve, which \
+                  is measured on a dynamometer rather than designed here."
+        }
+    }
+
+    compliance "suspension.damper" "structural"
+}

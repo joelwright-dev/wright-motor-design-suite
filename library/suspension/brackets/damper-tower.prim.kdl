@@ -1,0 +1,67 @@
+// Damper tower: what the top of a spring pushes against.
+//
+// It is the most heavily loaded bracket on the vehicle, because the whole corner load goes
+// through it, and on a modular chassis it has to do that while bolting to the same grid as
+// everything else rather than being welded to a structure that does not exist yet.
+//
+// Local frame: the origin is the station face where it bolts to the rail, z up, y outboard.
+
+primitive "suspension/brackets/damper-tower" version="0.1.0" {
+    description "Damper and spring top mount, bolted to the chassis grid"
+    category "suspension" sub="bracket"
+
+    params {
+        height   unit="mm" default=340 min=120 max=700 doc="eye height above the station face"
+        inboard  unit="mm" default=20  min=-150 max=250 doc="how far inboard of the station the eye sits"
+        eye_id   unit="mm" default=14  min=10 max=22 doc="mounting eye bore"
+        plate    unit="mm" default=8   min=4  max=16 doc="plate thickness"
+        width    unit="mm" default=90  min=50 max=200 doc="tower width"
+
+        // How far the tower leans. A tower that leans is carrying a bending moment it would
+        // rather not, so this is worth seeing.
+        lean unit="deg" expr="atan(inboard / height)" doc="derived: lean from vertical"
+    }
+
+    variants {
+        side "left" "right" mirror_when="right" mirror_plane="xz"
+    }
+
+    material "steel/s355-plate"
+
+    geometry level="manufacture" {
+        box "foot" size="(width, 70 mm, plate)" at="(0 mm, -20 mm, plate/2)"
+        box "web" size="(plate, 60 mm, height)" \
+            at="(0 mm, 0 mm - inboard/2 - 20 mm, height/2)"
+        box "gusset" size="(width, plate, height * 0.6)" \
+            at="(0 mm, -20 mm, height * 0.3)"
+        cylinder "eye_boss" d="eye_id + 18 mm" h="width" \
+                 at="(0 mm, 0 mm - inboard, height)" axis="x"
+        union
+    }
+
+    massprops computed=#true
+
+    ports {
+        // Bolts to a chassis grid station, face down onto the rail.
+        port "station" type="mcds.grid-mount" at="(0 mm, 0 mm, 0 mm)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        // Where the damper hangs from.
+        port "eye" type="damper.eye" at="(0 mm, 0 mm - inboard, height)" axis="x" clock="z" \
+             load_rating="14 kN" {
+            params bolt="M12" eye_id=eye_id
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "flat-cut-and-weld" scale="1..*" {
+            export "flat-pattern"
+            export "weld-fixture-drawing"
+            cost fixed="0 AUD" per_unit="38 AUD"
+        }
+    }
+
+    compliance "structural" "suspension.mount"
+}

@@ -15,7 +15,11 @@ primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
         sweep_angle unit="deg" default=12  min=0   max=30  doc="rearward sweep of the arm plane"
         bush_od     unit="mm"  default=45                  doc="inboard bush housing outside diameter"
         bj_stud     default="M14"                           doc="ball joint stud thread; an upper arm normally uses a smaller joint than a lower"
+        spring_at   unit="mm"  default=210 min=0 max=500    doc="where along the arm the spring and damper push down, measured from the pivot line. This is the motion ratio."
         leg_length  unit="mm"  expr="sqrt((span/2)^2 + reach^2)" doc="derived: centre-line length of each leg"
+        // The motion ratio: how far the spring moves for a given movement of the wheel. It is
+        // squared in the wheel rate, so it is the single most powerful number in a suspension.
+        motion_ratio expr="spring_at / reach" doc="derived: spring travel per unit of wheel travel"
     }
 
     variants {
@@ -30,6 +34,7 @@ primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
         cylinder "bj_boss"   d="45 mm"  h="40 mm" at="(0, reach, 0)"   axis="z"
         cylinder "bush_f"    d=bush_od  h="50 mm" at="(-span/2, 0, 0)" axis="x"
         cylinder "bush_r"    d=bush_od  h="50 mm" at="(span/2, 0, 0)"  axis="x"
+        cylinder "spring_pad" d="70 mm" h="14 mm" at="(0 mm, spring_at, 0 mm)" axis="z"
         union
     }
     geometry level="envelope" {
@@ -47,6 +52,16 @@ primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
         }
         port "balljoint" type="balljoint.taper" at="(0, reach, 0)" axis="z" clock="x" load_rating="35 kN" {
             params taper="1:8" stud=bj_stud
+        }
+        // Where the spring and damper land. How far out along the arm this sits is the motion
+        // ratio, and the wheel rate depends on the square of it.
+        port "spring" type="damper.eye" at="(0 mm, spring_at, 7 mm)" axis="x" clock="z" load_rating="12 kN" {
+            params bolt="M12" eye_id="14 mm"
+        }
+        // Where the anti-roll bar drop link pulls. Further out means more leverage, and the
+        // rate at the wheel goes with the square of it, the same as the spring.
+        port "antiroll" type="antiroll.link" at="(0 mm - span/4, spring_at, 0 mm)" axis="z" clock="x" {
+            params bolt="M10"
         }
     }
 

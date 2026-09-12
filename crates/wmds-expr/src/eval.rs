@@ -387,6 +387,42 @@ fn call(name: &str, args: Vec<Value>, env: &dyn Env) -> Result<Value, EvalError>
             };
             Ok(Value::Num(Quantity::new(v, q.dim)))
         }
+        // The inverse trigonometric functions return an angle, which is why they are worth
+        // having in a language with units: `atan(rise / run)` gives degrees or radians as
+        // asked for, and a lean angle stops being a number somebody worked out on paper.
+        "asin" | "acos" | "atan" => {
+            arity(1)?;
+            let q = expect_num(&args[0])?;
+            if !q.dim.is_dimensionless() {
+                return Err(EvalError::Type(format!(
+                    "{name} expects a ratio, which has no units, but was given {q}"
+                )));
+            }
+            if matches!(name, "asin" | "acos") && !(-1.0..=1.0).contains(&q.value) {
+                return Err(EvalError::Type(format!(
+                    "{name} is only defined between -1 and 1, and was given {}",
+                    q.value
+                )));
+            }
+            let v = match name {
+                "asin" => q.value.asin(),
+                "acos" => q.value.acos(),
+                _ => q.value.atan(),
+            };
+            Ok(Value::Num(Quantity::new(v, Dim::ANGLE)))
+        }
+        // Two arguments, so it gets the quadrant right and copes with a zero denominator.
+        "atan2" => {
+            arity(2)?;
+            let y = expect_num(&args[0])?;
+            let x = expect_num(&args[1])?;
+            if y.dim != x.dim {
+                return Err(EvalError::Type(
+                    "atan2 needs both arguments in the same units".into(),
+                ));
+            }
+            Ok(Value::Num(Quantity::new(y.value.atan2(x.value), Dim::ANGLE)))
+        }
         "sin" | "cos" | "tan" => {
             arity(1)?;
             let q = expect_num(&args[0])?;
@@ -399,16 +435,6 @@ fn call(name: &str, args: Vec<Value>, env: &dyn Env) -> Result<Value, EvalError>
                 _ => q.value.tan(),
             };
             Ok(Value::num(v))
-        }
-        "atan2" => {
-            arity(2)?;
-            let y = expect_num(&args[0])?;
-            let x = expect_num(&args[1])?;
-            y.same_dim(&x)?;
-            Ok(Value::Num(Quantity::new(
-                y.value.atan2(x.value),
-                Dim::ANGLE,
-            )))
         }
         "len" | "count" => {
             arity(1)?;

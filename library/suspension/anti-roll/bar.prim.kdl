@@ -1,0 +1,91 @@
+// Anti-roll bar: a torsion bar across the vehicle with an arm at each end.
+//
+// It resists roll without resisting both wheels moving together, which is why it is the tool for
+// shifting the balance of a car without making it ride worse. Its rate is computed from the bar
+// rather than declared, so changing the bar diameter in the editor changes the understeer
+// gradient the simulator reports.
+//
+//   torsion:  k_t = G * pi * d^4 / (32 * L)     bending of the arms is added in series
+//
+// Local frame: the origin is the centre of the bar, y across the vehicle, arms reaching rearward
+// in +x.
+
+primitive "suspension/anti-roll/bar" version="0.1.0" {
+    description "Anti-roll bar, rate computed from the bar and its arms"
+    category "suspension" sub="anti-roll-bar"
+
+    params {
+        bar         unit="mm" default=20  min=10 max=40  doc="bar diameter"
+        wall        unit="mm" default=0   min=0  max=8   doc="wall thickness; zero for a solid bar"
+        span        unit="mm" default=900 min=400 max=1600 doc="length of the torsion section, across the vehicle"
+        arm         unit="mm" default=180 min=80 max=400 doc="arm length from the bar to the drop link"
+        mount_span  unit="mm" default=960 min=200 max=1400 doc="distance between the two bush mounts; on MCDS this is the rail spacing"
+        mount_rise  unit="mm" default=150 min=0 max=400 doc="how far the mounting feet sit above the bar axis"
+
+        shear_modulus unit="GPa" default=79.3 doc="shear modulus of the bar"
+        youngs unit="GPa" default=206 doc="Young's modulus, for the bending of the arms"
+
+        // A tubular bar loses the middle, which carries almost no torque, so it is much lighter
+        // for the same rate. Zero wall means solid.
+        inner unit="mm" expr="if wall > 0 mm then bar - 2 * wall else 0 mm" doc="derived: bore"
+        polar unit="mm^4" expr="pi * (bar^4 - inner^4) / 32" doc="derived: polar second moment"
+        second unit="mm^4" expr="pi * (bar^4 - inner^4) / 64" doc="derived: second moment for the arms"
+
+        // Rate at the drop links, in force per unit of difference in their heights. The torsion
+        // section and the two arms act in series, which is why a long arm softens a bar far more
+        // than people expect.
+        twist_rate unit="N/mm" expr="shear_modulus * polar / (span * arm^2)" doc="derived: torsion only"
+        bend_rate unit="N/mm" expr="3 * youngs * second / arm^3" doc="derived: arm bending only"
+        rate unit="N/mm" expr="1 / (1 / twist_rate + 2 / bend_rate)" doc="derived: rate at the drop links"
+    }
+
+    material "steel/spring-chrome-silicon"
+
+    // SIMPLIFICATION: the drop links between the arm ends and the suspension arms are not
+    // modelled as separate parts, so the bar reaches the arm directly. That costs a little
+    // compliance and two small parts in the bill of materials.
+    geometry level="manufacture" {
+        tube "torsion" od=bar wall="if wall > 0 mm then wall else bar / 2 - 0.5 mm" \
+             from="(0 mm, 0 mm - span/2, 0 mm)" to="(0 mm, span/2, 0 mm)"
+        tube "arm_left" od=bar wall="if wall > 0 mm then wall else bar / 2 - 0.5 mm" \
+             from="(0 mm, span/2, 0 mm)" to="(arm, span/2, 0 mm)"
+        tube "arm_right" od=bar wall="if wall > 0 mm then wall else bar / 2 - 0.5 mm" \
+             from="(0 mm, 0 mm - span/2, 0 mm)" to="(arm, 0 mm - span/2, 0 mm)"
+        box "foot_l" size="(50 mm, 40 mm, mount_rise)" at="(0 mm, mount_span/2, mount_rise/2)"
+        box "foot_r" size="(50 mm, 40 mm, mount_rise)" at="(0 mm, 0 mm - mount_span/2, mount_rise/2)"
+        union
+    }
+
+    massprops computed=#true
+
+    ports {
+        // Bolts to the chassis grid through two rubber bushes.
+        port "mount_l" type="mcds.grid-mount" at="(0 mm, mount_span/2, mount_rise)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_r" type="mcds.grid-mount" at="(0 mm, 0 mm - mount_span/2, mount_rise)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "link_l" type="antiroll.link" at="(arm, span/2, 0 mm)" axis="z" clock="x" {
+            params bolt="M10"
+        }
+        port "link_r" type="antiroll.link" at="(arm, 0 mm - span/2, 0 mm)" axis="z" clock="x" {
+            params bolt="M10"
+        }
+    }
+
+    behaviour "anti-roll-bar" {
+        model "linear"
+        rate rate
+        arm arm
+    }
+
+    manufacturing {
+        method "bent-bar" scale="1..*" {
+            export "bend-drawing"
+            cost fixed="1800 AUD" per_unit="22 AUD"
+        }
+    }
+
+    compliance "suspension.anti-roll-bar" "structural"
+}

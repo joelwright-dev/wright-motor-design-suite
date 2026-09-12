@@ -1,0 +1,78 @@
+// Coil spring.
+//
+// The rate is computed from the wire, the coil diameter and the number of active coils, which is
+// what actually decides it. That matters more than it might look: it means changing a spring in
+// the editor changes the ride frequency, the roll stiffness and the handling result, rather than
+// changing a number somebody typed in twice.
+//
+//   k = G d^4 / (8 D^3 n)
+//
+// Local frame: the origin is the bottom seat, z up the spring axis.
+
+primitive "suspension/springs/coil" version="0.1.0" {
+    description "Coil spring, rate computed from its wire and coils"
+    category "suspension" sub="spring"
+
+    params {
+        wire        unit="mm" default=12   min=6   max=22  doc="wire diameter"
+        coil        unit="mm" default=95   min=50  max=200 doc="mean coil diameter"
+        active      default=7  min=3 max=16 doc="number of active coils"
+        free_length unit="mm" default=320  min=120 max=600 doc="free length"
+        seat        unit="mm" default=100  min=60  max=220 doc="seat diameter"
+
+        // Shear modulus of spring steel. PROVISIONAL: from the usual figure for hardened and
+        // tempered chrome silicon, not measured on ours.
+        shear_modulus unit="GPa" default=79.3 min=70 max=85 doc="shear modulus of the wire"
+
+        // The spring rate itself, and the travel before the coils touch.
+        rate unit="N/mm" \
+             expr="shear_modulus * wire^4 / (8 * coil^3 * active)" \
+             doc="derived: spring rate"
+        solid_height unit="mm" expr="(active + 2) * wire" doc="derived: length when fully compressed"
+        travel unit="mm" expr="free_length - solid_height" doc="derived: travel before it goes solid"
+    }
+
+    material "steel/spring-chrome-silicon"
+
+    // Drawn as the cylinder the spring sweeps, because a helix is not in the feature set and the
+    // envelope is what matters for packaging. The mass is declared for the same reason.
+    geometry level="envelope" {
+        tube "coils" od="coil + wire" wall="wire" \
+             from="(0 mm, 0 mm, 0 mm)" to="(0 mm, 0 mm, free_length)"
+    }
+
+    // Mass of the wire: the length of the helix times its section, times density. Declared
+    // because the envelope above is mostly air.
+    massprops declared \
+              mass="7850 kg/m^3 * pi * (wire/2)^2 * pi * coil * (active + 2)" \
+              cg="(0 mm, 0 mm, free_length/2)"
+
+    ports {
+        port "bottom" type="spring.perch" at="(0 mm, 0 mm, 0 mm)" axis="-z" clock="x" {
+            params id=coil seat_diameter=seat
+        }
+        port "top" type="spring.perch" at="(0 mm, 0 mm, free_length)" axis="z" clock="x" {
+            params id=coil seat_diameter=seat
+        }
+    }
+
+    behaviour "spring" {
+        model "linear"
+        rate rate
+        free_length free_length
+        travel travel
+    }
+
+    manufacturing {
+        method "coiled" scale="200..*" {
+            export "spring-spec"
+            cost fixed="3200 AUD" per_unit="9 AUD"
+        }
+        method "purchased" scale="1..200" {
+            export "spring-spec"
+            cost fixed="0 AUD" per_unit="55 AUD"
+        }
+    }
+
+    compliance "suspension.spring" "structural"
+}

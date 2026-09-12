@@ -53,7 +53,10 @@ pub struct SimVehicle {
     pub roll_stiffness_rear: f64,
     /// Roll damping, newton metre seconds per radian.
     pub roll_damping: f64,
+    /// The front tyre. Kept separate from the rear because a different tyre at each end is the
+    /// most direct way to change the balance of a car, and a model with one tyre cannot see it.
     pub tyre: Tyre,
+    pub rear_tyre: Tyre,
     /// Steering ratio: hand wheel angle over road wheel angle.
     pub steering_ratio: f64,
     /// Drive torque at the wheels, newton metres, as a function of road speed.
@@ -177,35 +180,73 @@ impl SimVehicle {
             Source::Assumed("estimated from the sprung mass and the roll arm"),
         );
 
-        // Roll stiffness. There are no springs in the library yet, so this is set from a ride
-        // frequency typical of a small road car and split slightly forward.
-        let ride_frequency = 1.35_f64;
-        let total_roll = {
-            let k_wheel = sprung_mass * (2.0 * std::f64::consts::PI * ride_frequency).powi(2) / 2.0;
-            let t = (front_track + rear_track) / 2.0;
-            k_wheel * t * t / 2.0
+        // Roll stiffness, from the springs and anti-roll bars in the vehicle if it has any.
+        let measured = roll_stiffness_from(asm, cg[0], front_track, rear_track);
+        let (roll_stiffness_front, roll_stiffness_rear) = match measured {
+            Some((f, r, wf, wr)) => {
+                // Ride frequency is worth reporting on its own: it is how a suspension is
+                // usually specified and it says immediately whether the springs are sensible.
+                let corner_mass_f = sprung_mass * (b / wheelbase) / 2.0;
+                let corner_mass_r = sprung_mass * (a / wheelbase) / 2.0;
+                note!(
+                    "front ride frequency",
+                    (wf / corner_mass_f).sqrt() / (2.0 * std::f64::consts::PI),
+                    "Hz",
+                    Source::Model,
+                );
+                note!(
+                    "rear ride frequency",
+                    (wr / corner_mass_r).sqrt() / (2.0 * std::f64::consts::PI),
+                    "Hz",
+                    Source::Model,
+                );
+                (
+                    note!("front roll stiffness", f, "Nm/rad", Source::Model),
+                    note!("rear roll stiffness", r, "Nm/rad", Source::Model),
+                )
+            }
+            None => {
+                let total_roll = {
+                    let k_wheel =
+                        sprung_mass * (2.0 * std::f64::consts::PI * 1.35).powi(2) / 2.0;
+                    let t = (front_track + rear_track) / 2.0;
+                    k_wheel * t * t / 2.0
+                };
+                (
+                    note!(
+                        "front roll stiffness",
+                        total_roll * 0.55,
+                        "Nm/rad",
+                        Source::Assumed("the vehicle has no springs; from a 1.35 Hz ride frequency"),
+                    ),
+                    note!(
+                        "rear roll stiffness",
+                        total_roll * 0.45,
+                        "Nm/rad",
+                        Source::Assumed("the vehicle has no springs; from a 1.35 Hz ride frequency"),
+                    ),
+                )
+            }
         };
-        let roll_stiffness_front = note!(
-            "front roll stiffness",
-            total_roll * 0.55,
-            "Nm/rad",
-            Source::Assumed("no springs in the library; from a 1.35 Hz ride frequency"),
-        );
-        let roll_stiffness_rear = note!(
-            "rear roll stiffness",
-            total_roll * 0.45,
-            "Nm/rad",
-            Source::Assumed("no springs in the library; from a 1.35 Hz ride frequency"),
-        );
         let roll_damping = note!(
             "roll damping",
-            2.0 * 0.35 * (total_roll * roll_inertia).sqrt(),
+            2.0 * 0.35
+                * ((roll_stiffness_front + roll_stiffness_rear) * roll_inertia).sqrt(),
             "Nms/rad",
             Source::Assumed("35 percent of critical, typical for a road car"),
         );
 
-        // The tyre, from the first one in the vehicle.
-        let (tyre, tyre_source) = tyre_from(asm);
+        // The tyres, one per axle.
+        let (tyre, tyre_source) = tyre_from(asm, cg[0], true);
+        let (rear_tyre, _) = tyre_from(asm, cg[0], false);
+        if (rear_tyre.cornering_c1 - tyre.cornering_c1).abs() > 1e-9 {
+            inputs.push(Input {
+                name: "rear tyre cornering stiffness",
+                value: rear_tyre.cornering_c1 / tyre.cornering_c1,
+                unit: "x front",
+                source: Source::Model,
+            });
+        }
         inputs.push(Input {
             name: "tyre peak friction",
             value: tyre.peak_friction_y,
@@ -299,6 +340,7 @@ impl SimVehicle {
             roll_stiffness_rear,
             roll_damping,
             tyre,
+            rear_tyre,
             steering_ratio,
             drive_torque,
             driven_axle,
@@ -332,12 +374,16 @@ impl SimVehicle {
     }
 }
 
-fn tyre_from(asm: &ResolvedAssembly) -> (Tyre, Source) {
+/// The tyre fitted to one axle.
+fn tyre_from(asm: &ResolvedAssembly, cg_x: f64, front: bool) -> (Tyre, Source) {
     for inst in &asm.instances {
         let Some(b) = &inst.primitive.behaviour else {
             continue;
         };
         if b.kind != "tyre" {
+            continue;
+        }
+        if (inst.placement.translation[0] < cg_x) != front {
             continue;
         }
         let d = Tyre::default();
@@ -434,4 +480,101 @@ fn tuple(b: &wmds_model::ResolvedBehaviour, name: &str) -> Vec<f64> {
         Some(v) => v.as_quantity().map(|q| vec![q.value]).unwrap_or_default(),
         None => Vec::new(),
     }
+}
+
+/// Roll stiffness at each axle, taken from the springs and anti-roll bars in the model.
+///
+/// This is the number that used to be assumed. It is worth reading properly because it decides
+/// how much load moves across each axle, and therefore the balance of the car: stiffening the
+/// front bar is how a rear-heavy design is pushed back toward understeer.
+///
+///   wheel rate  = spring rate x motion ratio squared
+///   roll rate   = wheel rate x track squared / 2
+///
+/// The motion ratio comes from where the spring sits along the suspension arm, which the model
+/// already knows, so moving the spring outboard in the editor stiffens the car here.
+fn roll_stiffness_from(
+    asm: &ResolvedAssembly,
+    cg_x: f64,
+    front_track: f64,
+    rear_track: f64,
+) -> Option<(f64, f64, f64, f64)> {
+    // Motion ratio per corner, from the lower arm in each sub-assembly.
+    let mut ratio_of: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    for i in &asm.instances {
+        let Some((unit, _)) = i.id.split_once('.') else {
+            continue;
+        };
+        if let Some(mr) = i
+            .primitive
+            .params
+            .get("motion_ratio")
+            .and_then(|v| v.as_quantity())
+            .map(|q| q.value)
+            && mr > 0.0
+        {
+            ratio_of.insert(unit.to_string(), mr);
+        }
+    }
+
+    // Wheel rate at each corner, from its spring.
+    let mut front_wheel_rate = 0.0;
+    let mut rear_wheel_rate = 0.0;
+    let mut front_count = 0;
+    let mut rear_count = 0;
+    for i in &asm.instances {
+        let Some(b) = &i.primitive.behaviour else {
+            continue;
+        };
+        if b.kind != "spring" {
+            continue;
+        }
+        let Some(rate) = b.num("rate") else { continue };
+        let unit = i.id.split('.').next().unwrap_or("");
+        // Without a motion ratio the spring is acting directly on the wheel, which is what a
+        // strut does and is the right fallback.
+        let mr = ratio_of.get(unit).copied().unwrap_or(1.0);
+        let wheel_rate = rate * mr * mr;
+        if i.placement.translation[0] < cg_x {
+            front_wheel_rate += wheel_rate;
+            front_count += 1;
+        } else {
+            rear_wheel_rate += wheel_rate;
+            rear_count += 1;
+        }
+    }
+    if front_count == 0 || rear_count == 0 {
+        return None;
+    }
+    front_wheel_rate /= front_count as f64;
+    rear_wheel_rate /= rear_count as f64;
+
+    // Anti-roll bars, added to the axle they sit on. Their rate is quoted at the drop links,
+    // which hang from the same point on the arm as the spring, so the motion ratio is the same.
+    let mut front_bar = 0.0;
+    let mut rear_bar = 0.0;
+    for i in &asm.instances {
+        let Some(b) = &i.primitive.behaviour else {
+            continue;
+        };
+        if b.kind != "anti-roll-bar" {
+            continue;
+        }
+        let Some(rate) = b.num("rate") else { continue };
+        let front = i.placement.translation[0] < cg_x;
+        // Use the motion ratio of a corner on the same axle.
+        let mr = ratio_of.values().copied().next().unwrap_or(1.0);
+        let at_wheel = rate * mr * mr;
+        if front {
+            front_bar += at_wheel;
+        } else {
+            rear_bar += at_wheel;
+        }
+    }
+
+    // Roll stiffness. A pair of springs at half a track either side of the roll axis gives
+    // k t squared over two. An anti-roll bar works only in roll, so it adds on top.
+    let f = (front_wheel_rate + front_bar) * front_track * front_track / 2.0;
+    let r = (rear_wheel_rate + rear_bar) * rear_track * rear_track / 2.0;
+    Some((f, r, front_wheel_rate, rear_wheel_rate))
 }

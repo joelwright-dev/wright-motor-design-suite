@@ -97,13 +97,17 @@ fn reference_vehicle_resolves_and_places_everything() {
     );
 
     // The battery hangs from four grid stations; check it landed where the geometry says it must.
-    // Front feet at station 1 (x = 100 mm) with a 1000 mm foot spacing puts the centre at 600 mm,
-    // laterally centred, and sitting on top of the rails at z = +75 mm (half its height). The
-    // rear feet at station 11 (x = 1100 mm) give the same answer, which is what makes the other
-    // three mates a real check rather than a restatement.
+    // Front feet at station 0 with an 800 mm foot spacing puts the centre at 400 mm, laterally
+    // centred, and sitting on top of the rails at z = +75 mm (half its height). The rear feet at
+    // station 8 give the same answer, which is what makes the other three mates a real check
+    // rather than a restatement.
+    //
+    // It moved forward and shortened when the damper towers arrived: each corner leaves one grid
+    // station free in the middle of its four brackets, and the tower takes it, which pushed the
+    // drive unit forward and the battery ahead of that.
     let battery = asm.instance("battery").expect("battery instance");
     let t = battery.placement.translation;
-    assert!((mm(t[0]) - 600.0).abs() < 0.5, "battery x was {}", mm(t[0]));
+    assert!((mm(t[0]) - 400.0).abs() < 0.5, "battery x was {}", mm(t[0]));
     assert!(
         mm(t[1]).abs() < 0.5,
         "battery should be laterally centred, was {}",

@@ -60,6 +60,33 @@ pub fn write_text(h: &Handling) -> String {
         );
     }
 
+    let ride: Vec<&crate::Input> = v
+        .inputs
+        .iter()
+        .filter(|i| i.name.contains("ride frequency"))
+        .collect();
+    if !ride.is_empty() {
+        let _ = writeln!(s, "
+springs and bars, read from the vehicle");
+        for i in &ride {
+            let _ = writeln!(
+                s,
+                "  {:<16} {:.2} Hz ride frequency",
+                i.name.replace(" ride frequency", ""),
+                i.value
+            );
+        }
+        let total = v.roll_stiffness_front + v.roll_stiffness_rear;
+        let _ = writeln!(
+            s,
+            "  roll stiffness   {:.0} front, {:.0} rear Nm per degree, a {:.0}/{:.0} split",
+            v.roll_stiffness_front.to_radians(),
+            v.roll_stiffness_rear.to_radians(),
+            v.roll_stiffness_front / total * 100.0,
+            v.roll_stiffness_rear / total * 100.0
+        );
+    }
+
     let _ = writeln!(s, "\nstep steer, 80 km/h, 2 degrees at the road wheel");
     let _ = writeln!(
         s,
@@ -157,9 +184,17 @@ the model contradicts itself");
     }
     let _ = writeln!(
         s,
-        "\nEvery number above is only as good as the tyre coefficients and the assumptions listed.\n\
-         The tyre model has not been measured against a real tyre, and there are no springs in\n\
-         the library yet, so roll stiffness is an assumption rather than a result."
+        "
+Every number above is only as good as the tyre coefficients and the assumptions listed."
     );
+    let _ = writeln!(
+        s,
+        "The tyre model has not been measured against a real tyre, which is the largest single"
+    );
+    let _ = writeln!(
+        s,
+        "source of error here. There are also no suspension kinematics, so camber and toe do not"
+    );
+    let _ = writeln!(s, "change as the wheels move.");
     s
 }

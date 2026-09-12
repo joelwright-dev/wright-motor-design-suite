@@ -69,6 +69,8 @@ const RR: usize = 3;
 pub fn derivatives(veh: &SimVehicle, s: &State, c: &Controls) -> (State, Outputs) {
     let g = 9.81;
     let u = s.u.max(0.1);
+    // Front wheels are 0 and 1, rear are 2 and 3.
+    let tyre_of = |i: usize| if i < 2 { &veh.tyre } else { &veh.rear_tyre };
 
     // Wheel positions relative to the centre of gravity.
     let ax = [veh.a, veh.a, -veh.b, -veh.b];
@@ -124,19 +126,20 @@ pub fn derivatives(veh: &SimVehicle, s: &State, c: &Controls) -> (State, Outputs
                 1.0 - veh.brake_bias_front
             };
             let b = brake_force * bias / 2.0;
-            let rolling = veh.tyre.rolling_resistance * loads[i];
+            let rolling = tyre_of(i).rolling_resistance * loads[i];
             fx[i] = d - b - rolling;
         }
 
         // Tyre forces, with each wheel's own load.
         for i in 0..4 {
+            let ty = tyre_of(i);
             let fz = loads[i].max(0.0);
             // Longitudinal force is demanded rather than solved from a slip ratio: the wheel
             // rotational states are not modelled, so the demand is capped by the tyre instead.
-            let max_x = veh.tyre.mu_x(fz).max(0.0) * fz;
+            let max_x = ty.mu_x(fz).max(0.0) * fz;
             let fx_d = fx[i].clamp(-max_x, max_x);
-            let fy_pure = veh.tyre.lateral(s.slip[i], fz);
-            let max_y = veh.tyre.mu_y(fz).max(0.0) * fz;
+            let fy_pure = ty.lateral(s.slip[i], fz);
+            let max_y = ty.mu_y(fz).max(0.0) * fz;
             let used = if max_x > 0.0 { (fx_d / max_x).powi(2) } else { 0.0 };
             let left = (1.0 - used).max(0.0).sqrt();
             fy[i] = if max_y > 0.0 {
@@ -202,7 +205,7 @@ pub fn derivatives(veh: &SimVehicle, s: &State, c: &Controls) -> (State, Outputs
         let vy = s.v + s.r * ax[i];
         let vx = u - s.r * ay[i];
         let target = (vy / vx.max(0.1)).atan() - steer[i];
-        let rate = u / veh.tyre.relaxation_length.max(0.05);
+        let rate = u / tyre_of(i).relaxation_length.max(0.05);
         slip_dot[i] = rate * (target - s.slip[i]);
     }
 

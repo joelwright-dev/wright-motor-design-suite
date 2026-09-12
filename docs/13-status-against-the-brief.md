@@ -24,9 +24,9 @@ harder to fool yourself with.
 
 | # | Pillar | State | The gap |
 |---|--------|-------|---------|
-| 1 | Library of primitives for every vehicle | **Thin** | 17 primitives. No body, interior, seats, lights, glazing, springs, dampers, anti-roll bars, driveshafts, hubs as separate parts, fuel system, internal combustion powertrain, cooling, HVAC, wiring, or pedals. |
+| 1 | Library of primitives for every vehicle | **Thin** | 22 primitives. Suspension, steering and braking are now complete enough to simulate. Still missing: body, interior, seats, lights, glazing, driveshafts, fuel system, internal combustion powertrain, cooling, wiring and pedals. |
 | 2 | Regulatory compliance | **Half** | The engine is real and honest. The Australian Design Rules pack is a five-rule unverified template. Nobody has read the actual standards against it. |
-| 3 | Realistic driving dynamics simulator | **Started** | A transient four-wheel model with a Magic Formula tyre, load transfer split by roll stiffness, and a friction ellipse. Skidpad, step steer, braking, acceleration and a double lane change. No suspension kinematics and no springs, so roll stiffness is assumed and the report says so. |
+| 3 | Realistic driving dynamics simulator | **Started** | A transient four-wheel model with a Magic Formula tyre per axle, load transfer split by roll stiffness, and a friction ellipse. Skidpad, step steer, braking, acceleration and a double lane change. Roll stiffness now comes from the springs and bars in the model. Still no suspension kinematics, so camber and toe do not change with wheel travel. |
 | 4 | Realistic crash simulator | **Not started** | Nothing at all. No solver, no deck export, no material cards for crash. |
 | 5 | Build primitives without programming | **Started** | The application edits a part: dimensions, shapes and mounting points, with the geometry rebuilding as you go, and writes the file. Chassis systems still have no editor. |
 | 6 | Build new MCDS chassis without programming | **Not started** | Chassis systems are data rather than code, which is the hard half, but there is no editor for them. |
@@ -43,6 +43,7 @@ harder to fool yourself with.
 | Versatile: different styles, purposes, sizes | Two length configurations and two widths, generated from data. Front and central sections only; the rear section kind is defined but no vehicle uses one. |
 | Lightweight | Rails and cross-members are modelled; the floor, inserts, joint fittings and brackets are not, so the chassis mass is optimistic and says so. |
 | Durable | No fatigue model, no corrosion model, no structural analysis at all. |
+| Tunable | Spring rate comes from the wire and coils, anti-roll bar rate from the bar and arms, and the motion ratio from where the spring sits on the arm. Changing any of them changes the handling result. |
 | Cheap | Cost figures exist per manufacturing method and are provisional. Nothing rolls them up into a vehicle cost. |
 | Easy to manufacture at several scales | Each primitive declares methods with scale ranges and costs. Nothing selects between them or reports which would be used. |
 | Assemblable by anyone who can build a flatpack shelf | Fasteners, torques and kit-versus-factory stages are in the model. No instructions are produced. |
@@ -59,8 +60,8 @@ stop having nothing behind them.
    and pictures are what is missing.
 4. ~~Driving dynamics~~ (pillar 3). Done, except that it has no springs or suspension
    kinematics to read, which is what the next item unblocks.
-5. **Springs, dampers and anti-roll bars in the library**, so roll stiffness stops being an
-   assumption and becomes a result of the design.
+5. ~~Springs, dampers and anti-roll bars~~. Done. Roll stiffness, ride frequency and the
+   understeer gradient are now consequences of the parts fitted.
 6. **Crash** (pillar 4). Explicit finite element is the only honest answer for a real crash
    result. The plan is a deck exporter for OpenRadioss plus a lumped-mass nonlinear-spring model
    for early-phase work, clearly labelled as the screening tool it is.

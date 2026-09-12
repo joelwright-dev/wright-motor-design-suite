@@ -18,6 +18,11 @@ primitive "wheels/tyre" version="0.1.0" {
         sidewall unit="mm" expr="section * aspect / 100" doc="derived"
         overall  unit="mm" expr="rim * 25.4 mm / 1 inch + 2 * sidewall" doc="derived: overall diameter"
         radius   unit="mm" expr="overall / 2" doc="derived: unloaded radius"
+
+        // Grip scales with how much rubber is on the road. Both of these are referenced to a
+        // 185 section, which is the size these coefficients were written for.
+        cornering_c1 expr="26.0 * section / 185 mm" doc="derived: cornering stiffness coefficient"
+        peak_friction_y expr="1.05 * (section / 185 mm)^0.12" doc="derived: peak lateral friction"
     }
 
     material "rubber/tyre-compound"
@@ -49,12 +54,14 @@ primitive "wheels/tyre" version="0.1.0" {
         // Nominal vertical load the coefficients are quoted at.
         nominal_load "3500 N"
         // Peak friction at the nominal load, and how much of it is lost as load doubles.
-        peak_friction_y 1.05
         peak_friction_x 1.15
         load_sensitivity 0.10
 
         // Cornering stiffness: c1 * Fz0 * sin(2 * atan(Fz / (c2 * Fz0))) newtons per radian.
-        cornering_c1 26.0
+        // Scaled by section width, because that is most of why a wider tyre corners better.
+        cornering_c1 cornering_c1
+        // Peak friction also rises a little with width, though far less than people assume.
+        peak_friction_y peak_friction_y
         cornering_c2 2.2
         // Longitudinal slip stiffness, as a multiple of the vertical load.
         slip_stiffness 18.0

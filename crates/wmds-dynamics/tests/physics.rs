@@ -32,7 +32,8 @@ fn car() -> SimVehicle {
         roll_stiffness_front: 30000.0,
         roll_stiffness_rear: 22000.0,
         roll_damping: 4000.0,
-        tyre,
+        tyre: tyre.clone(),
+        rear_tyre: tyre,
         steering_ratio: 16.0,
         drive_torque: vec![(0.0, 1400.0), (15.0, 1400.0), (40.0, 700.0), (60.0, 300.0)],
         driven_axle: -1,
@@ -143,6 +144,8 @@ fn halving_the_friction_roughly_doubles_the_stopping_distance() {
         let mut v = car();
         v.tyre.peak_friction_x *= 0.5;
         v.tyre.peak_friction_y *= 0.5;
+        v.rear_tyre.peak_friction_x *= 0.5;
+        v.rear_tyre.peak_friction_y *= 0.5;
         wmds_dynamics::braking(&v, 100.0).distance
     };
     let ratio = wet / dry;
@@ -247,4 +250,64 @@ fn a_vehicle_with_nothing_in_it_still_says_what_it_assumed() {
     let a = listed.assumptions();
     assert_eq!(a.len(), 1);
     assert!(a[0].contains("no springs"));
+}
+
+#[test]
+fn stiffening_the_front_anti_roll_bar_adds_understeer() {
+    // The reason anti-roll bars exist. More roll stiffness at one end puts more load transfer
+    // through that axle, its loaded tyre gives less grip per newton than the unloaded one gains,
+    // and that end gives up first.
+    let balanced = {
+        let mut v = car();
+        v.roll_stiffness_front = 26000.0;
+        v.roll_stiffness_rear = 26000.0;
+        wmds_dynamics::steady_state(&v, 30.0).understeer_gradient
+    };
+    let front_stiff = {
+        let mut v = car();
+        v.roll_stiffness_front = 44000.0;
+        v.roll_stiffness_rear = 8000.0;
+        wmds_dynamics::steady_state(&v, 30.0).understeer_gradient
+    };
+    assert!(
+        front_stiff > balanced,
+        "stiffening the front bar should add understeer: {front_stiff:.2} against {balanced:.2} \
+         degrees per g"
+    );
+}
+
+#[test]
+fn a_wider_tyre_at_one_end_moves_the_balance_toward_the_other() {
+    // The most direct tool there is for balance, and the one the reference vehicle needed.
+    let same = wmds_dynamics::steady_state(&car(), 30.0).understeer_gradient;
+    let wide_rear = {
+        let mut v = car();
+        v.rear_tyre.cornering_c1 *= 1.25;
+        v.rear_tyre.peak_friction_y *= 1.03;
+        wmds_dynamics::steady_state(&v, 30.0).understeer_gradient
+    };
+    assert!(
+        wide_rear > same,
+        "a wider rear tyre should add understeer: {wide_rear:.2} against {same:.2} degrees per g"
+    );
+}
+
+#[test]
+fn a_wheel_lifting_is_reported_rather_than_ignored() {
+    // A tall narrow vehicle lifts its inside wheel before the tyres let go, which is the start
+    // of a rollover and has to be said out loud.
+    let mut v = car();
+    v.cg_height = 0.95;
+    v.front_track = 1.25;
+    v.rear_track = 1.25;
+    v.roll_stiffness_front = 60000.0;
+    v.roll_stiffness_rear = 10000.0;
+    let r = wmds_dynamics::steady_state(&v, 30.0);
+    assert!(
+        r.lifted_a_wheel,
+        "a vehicle with its mass at 950 mm on a 1250 mm track should lift a wheel; it reached \
+         {:.2} g and said: {}",
+        r.max_lateral_g,
+        r.limit
+    );
 }

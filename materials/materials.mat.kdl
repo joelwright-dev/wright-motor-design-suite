@@ -188,3 +188,16 @@ material "steel/4140-bar" version="0.1.0" {
     cost "7.20 AUD/kg"
     source "PROVISIONAL: AISI 4140 quenched and tempered nominal properties"
 }
+
+material "steel/spring-chrome-silicon" version="0.1.0" {
+    description "Chrome silicon spring steel, hardened and tempered. For coil springs and \
+                 anti-roll bars, where the whole part is worked close to its fatigue limit."
+    family "metal"
+    form "bar"
+    density "7850 kg/m^3"
+    isotropic e="206 GPa" nu=0.30
+    strength yield="1400 MPa" ultimate="1650 MPa"
+    environment corrosion="shot-peen-and-coat"
+    cost "6.40 AUD/kg"
+    source "PROVISIONAL: SAE 9254 nominal properties"
+}
