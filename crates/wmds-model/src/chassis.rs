@@ -30,11 +30,20 @@ pub enum ChassisError {
     #[error("chassis `{system}` has no rail section `{name}`")]
     UnknownRailSection { system: String, name: String },
     #[error("section `{kind}`: length {given} is outside the allowed {min} to {max}")]
-    LengthOutOfRange { kind: String, given: Quantity, min: Quantity, max: Quantity },
+    LengthOutOfRange {
+        kind: String,
+        given: Quantity,
+        min: Quantity,
+        max: Quantity,
+    },
     #[error("section `{0}` needs a length")]
     MissingLength(String),
     #[error("section `{kind}`: length {given} is not a whole number of {pitch} grid steps")]
-    OffGrid { kind: String, given: Quantity, pitch: Quantity },
+    OffGrid {
+        kind: String,
+        given: Quantity,
+        pitch: Quantity,
+    },
     #[error("the rail primitive `{0}` is not in the library")]
     MissingRail(String),
     #[error("{0}")]
@@ -62,18 +71,24 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
         .get(&req.system)
         .ok_or_else(|| ChassisError::UnknownSystem(req.system.clone()))?;
 
-    let sections = def.configuration(&req.configuration).ok_or_else(|| ChassisError::UnknownConfiguration {
-        system: def.id.clone(),
-        name: req.configuration.clone(),
+    let sections = def.configuration(&req.configuration).ok_or_else(|| {
+        ChassisError::UnknownConfiguration {
+            system: def.id.clone(),
+            name: req.configuration.clone(),
+        }
     })?;
-    let inner_spacing = def.width(&req.width).ok_or_else(|| ChassisError::UnknownWidth {
-        system: def.id.clone(),
-        name: req.width.clone(),
-    })?;
-    let rail = def.rail_section(&req.rail_section).ok_or_else(|| ChassisError::UnknownRailSection {
-        system: def.id.clone(),
-        name: req.rail_section.clone(),
-    })?;
+    let inner_spacing = def
+        .width(&req.width)
+        .ok_or_else(|| ChassisError::UnknownWidth {
+            system: def.id.clone(),
+            name: req.width.clone(),
+        })?;
+    let rail =
+        def.rail_section(&req.rail_section)
+            .ok_or_else(|| ChassisError::UnknownRailSection {
+                system: def.id.clone(),
+                name: req.rail_section.clone(),
+            })?;
 
     // Section lengths, validated against their kind's range and the grid.
     let pitch = def.grid_pitch;
@@ -95,7 +110,11 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
         }
         let steps = q.value / pitch.value;
         if (steps - steps.round()).abs() > 1e-6 {
-            return Err(ChassisError::OffGrid { kind: kind.clone(), given: q, pitch });
+            return Err(ChassisError::OffGrid {
+                kind: kind.clone(),
+                given: q,
+                pitch,
+            });
         }
         lengths.insert(kind.clone(), q.value);
     }
@@ -132,11 +151,15 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
         for (side, sign) in [("left", 1.0f64), ("right", -1.0f64)] {
             let id = format!("{kind}_rail_{side}");
             let mut o = Overrides::default();
-            o.params.insert("length".into(), Value::Num(Quantity::new(length, Dim::LENGTH)));
+            o.params.insert(
+                "length".into(),
+                Value::Num(Quantity::new(length, Dim::LENGTH)),
+            );
             o.params.insert("height".into(), Value::Num(rail.height));
             o.params.insert("width".into(), Value::Num(rail.width));
             o.params.insert("wall".into(), Value::Num(rail.wall));
-            let mut resolved = resolve(rail_def, &o).map_err(|e| ChassisError::Build(format!("rail `{id}`: {e}")))?;
+            let mut resolved = resolve(rail_def, &o)
+                .map_err(|e| ChassisError::Build(format!("rail `{id}`: {e}")))?;
 
             // Station ports along this rail, at every grid pitch inside the section.
             let first = (x0 / pitch.value).round() as i32;
@@ -168,7 +191,10 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
                     load_rating: None,
                     grid: true,
                 };
-                exports.insert(format!("station_{side}_{s}"), (id.clone(), port.name.clone()));
+                exports.insert(
+                    format!("station_{side}_{s}"),
+                    (id.clone(), port.name.clone()),
+                );
                 resolved.ports.push(port);
             }
 
@@ -200,7 +226,10 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
                     load_rating: None,
                     grid: false,
                 };
-                exports.insert(format!("joint_{kind}_{side}_{end}"), (id.clone(), port.name.clone()));
+                exports.insert(
+                    format!("joint_{kind}_{side}_{end}"),
+                    (id.clone(), port.name.clone()),
+                );
                 resolved.ports.push(port);
             }
 
@@ -233,7 +262,10 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
                 }
                 let id = format!("{kind}_crossmember_{i}");
                 let mut o = Overrides::default();
-                o.params.insert("length".into(), Value::Num(Quantity::new(span, Dim::LENGTH)));
+                o.params.insert(
+                    "length".into(),
+                    Value::Num(Quantity::new(span, Dim::LENGTH)),
+                );
                 let resolved = match resolve(cm_def, &o) {
                     Ok(r) => r,
                     Err(e) => {
@@ -258,7 +290,9 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
         ));
     }
     if crossmember_count == 0 {
-        warnings.push("no cross-members were generated; torsional stiffness will be far too low".into());
+        warnings.push(
+            "no cross-members were generated; torsional stiffness will be far too low".into(),
+        );
     }
 
     let station_range = (

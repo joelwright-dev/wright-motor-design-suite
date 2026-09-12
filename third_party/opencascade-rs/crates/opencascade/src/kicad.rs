@@ -36,7 +36,10 @@ impl From<&GraphicCircle> for Face {
         let delta = (center - end).abs();
 
         let radius = (delta.x * delta.x + delta.y * delta.y).sqrt();
-        Workplane::xy().translated(center.extend(0.0)).circle(center.x, center.y, radius).to_face()
+        Workplane::xy()
+            .translated(center.extend(0.0))
+            .circle(center.x, center.y, radius)
+            .to_face()
     }
 }
 
@@ -46,7 +49,10 @@ impl From<&GraphicRect> for Face {
         let end = DVec2::from(rect.end_point);
 
         let dimensions = (end - start).abs();
-        Workplane::xy().translated(start.extend(0.0)).rect(dimensions.x, dimensions.y).to_face()
+        Workplane::xy()
+            .translated(start.extend(0.0))
+            .rect(dimensions.x, dimensions.y)
+            .to_face()
     }
 }
 
@@ -56,7 +62,9 @@ pub struct KicadPcb {
 
 impl KicadPcb {
     pub fn from_file<P: AsRef<Path>>(file: P) -> Result<Self, Error> {
-        Ok(Self { board: KicadBoard::from_file(file)? })
+        Ok(Self {
+            board: KicadBoard::from_file(file)?,
+        })
     }
 
     pub fn edge_cuts(&self) -> Wire {
@@ -87,27 +95,37 @@ impl KicadPcb {
 
                     Edge::segment(start.extend(0.0), end.extend(0.0))
                 })
-                .chain(footprint.arcs().filter(|arc| arc.layer == *layer).map(move |arc| {
-                    let start = arc.start_point;
-                    let mid = arc.mid_point;
-                    let end = arc.end_point;
-                    let start = DVec2::from(start);
-                    let mid = DVec2::from(mid);
-                    let end = DVec2::from(end);
+                .chain(
+                    footprint
+                        .arcs()
+                        .filter(|arc| arc.layer == *layer)
+                        .map(move |arc| {
+                            let start = arc.start_point;
+                            let mid = arc.mid_point;
+                            let end = arc.end_point;
+                            let start = DVec2::from(start);
+                            let mid = DVec2::from(mid);
+                            let end = DVec2::from(end);
 
-                    let start = translate + angle_vec.rotate(start);
-                    let mid = translate + angle_vec.rotate(mid);
-                    let end = translate + angle_vec.rotate(end);
+                            let start = translate + angle_vec.rotate(start);
+                            let mid = translate + angle_vec.rotate(mid);
+                            let end = translate + angle_vec.rotate(end);
 
-                    Edge::arc(start.extend(0.0), mid.extend(0.0), end.extend(0.0))
-                }))
+                            Edge::arc(start.extend(0.0), mid.extend(0.0), end.extend(0.0))
+                        }),
+                )
         });
 
         self.board
             .lines()
             .filter(|line| line.layer == *layer)
             .map(Edge::from)
-            .chain(self.board.arcs().filter(|arc| arc.layer == *layer).map(Edge::from))
+            .chain(
+                self.board
+                    .arcs()
+                    .filter(|arc| arc.layer == *layer)
+                    .map(Edge::from),
+            )
             .chain(footprint_edges)
     }
 }

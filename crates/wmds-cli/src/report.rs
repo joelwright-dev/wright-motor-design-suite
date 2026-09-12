@@ -32,7 +32,13 @@ fn mm(q: Quantity) -> f64 {
 
 // ------------------------------------------------------------------------------- primitives
 
-pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&Path>, stl: Option<&Path>) -> ExitCode {
+pub fn show_primitive(
+    file: &Path,
+    sets: &[String],
+    build: bool,
+    step: Option<&Path>,
+    stl: Option<&Path>,
+) -> ExitCode {
     let src = match std::fs::read_to_string(file) {
         Ok(s) => s,
         Err(e) => {
@@ -40,7 +46,10 @@ pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&P
             return ExitCode::FAILURE;
         }
     };
-    let name = file.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let name = file
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
     let def = match wmds_schema::parse_primitive(&name, &src) {
         Ok(d) => d,
         Err(e) => {
@@ -67,7 +76,14 @@ pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&P
     if !def.description.is_empty() {
         println!("  {}", def.description);
     }
-    println!("  category: {}{}", def.category, def.sub.as_ref().map(|s| format!(" / {s}")).unwrap_or_default());
+    println!(
+        "  category: {}{}",
+        def.category,
+        def.sub
+            .as_ref()
+            .map(|s| format!(" / {s}"))
+            .unwrap_or_default()
+    );
     if let Some(m) = &r.material {
         println!("  material: {m}");
     }
@@ -81,7 +97,13 @@ pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&P
     for p in &def.params {
         let v = &r.params[&p.name];
         let kind = if p.expr.is_some() { "derived" } else { "" };
-        println!("  {:<14} {:<18} {:<8} {}", p.name, v.to_string(), kind, p.doc.clone().unwrap_or_default());
+        println!(
+            "  {:<14} {:<18} {:<8} {}",
+            p.name,
+            v.to_string(),
+            kind,
+            p.doc.clone().unwrap_or_default()
+        );
     }
     println!("\nports");
     if r.ports.is_empty() {
@@ -98,10 +120,20 @@ pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&P
             p.axis[0],
             p.axis[1],
             p.axis[2],
-            p.load_rating.map(|q| format!("  rating {q}")).unwrap_or_default()
+            p.load_rating
+                .map(|q| format!("  rating {q}"))
+                .unwrap_or_default()
         );
         if !p.params.is_empty() {
-            println!("  {:<14} {}", "", p.params.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join(" "));
+            println!(
+                "  {:<14} {}",
+                "",
+                p.params
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            );
         }
     }
     println!("\ngeometry");
@@ -109,14 +141,27 @@ pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&P
         println!("  level {}", lvl.level);
         for f in &lvl.features {
             let args: Vec<String> = f.args.iter().map(|(k, v)| format!("{k}={v}")).collect();
-            println!("    {:<10} {:<12} {}", f.op, f.name.clone().unwrap_or_default(), args.join(" "));
+            println!(
+                "    {:<10} {:<12} {}",
+                f.op,
+                f.name.clone().unwrap_or_default(),
+                args.join(" ")
+            );
         }
     }
     match &r.massprops {
-        ResolvedMassProps::Computed => println!("\nmassprops: computed from geometry (pass --build to compute)"),
+        ResolvedMassProps::Computed => {
+            println!("\nmassprops: computed from geometry (pass --build to compute)")
+        }
         ResolvedMassProps::Declared { mass, cg, .. } => println!(
             "\nmassprops: declared mass {mass}{}",
-            cg.map(|c| format!(", cg ({:.1}, {:.1}, {:.1}) mm", mm(c[0]), mm(c[1]), mm(c[2]))).unwrap_or_default()
+            cg.map(|c| format!(
+                ", cg ({:.1}, {:.1}, {:.1}) mm",
+                mm(c[0]),
+                mm(c[1]),
+                mm(c[2])
+            ))
+            .unwrap_or_default()
         ),
     }
     println!("\nmanufacturing");
@@ -125,8 +170,12 @@ pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&P
             "  {:<24} scale {:<10} fixed {:<12} per unit {:<14} exports {}",
             m.method,
             m.scale.clone().unwrap_or_default(),
-            m.cost_fixed.map(|q| q.to_string()).unwrap_or_else(|| "-".into()),
-            m.cost_per_unit.map(|q| q.to_string()).unwrap_or_else(|| "-".into()),
+            m.cost_fixed
+                .map(|q| q.to_string())
+                .unwrap_or_else(|| "-".into()),
+            m.cost_per_unit
+                .map(|q| q.to_string())
+                .unwrap_or_else(|| "-".into()),
             m.exports.join(", ")
         );
     }
@@ -146,14 +195,26 @@ pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&P
         }
     };
     println!("\nbuilt geometry with {KERNEL_NAME}");
-    let density = r.material.as_deref().and_then(wmds_geom::placeholder_density);
+    let density = r
+        .material
+        .as_deref()
+        .and_then(wmds_geom::placeholder_density);
     for (level, solid) in &built.levels {
-        let Ok(mp) = k.mass_props(solid) else { continue };
+        let Ok(mp) = k.mass_props(solid) else {
+            continue;
+        };
         let bounds = k
             .tessellate(solid, 1e-3)
             .ok()
             .and_then(|m| m.bounds())
-            .map(|(lo, hi)| format!("{:.1} x {:.1} x {:.1} mm", (hi[0] - lo[0]) * 1e3, (hi[1] - lo[1]) * 1e3, (hi[2] - lo[2]) * 1e3))
+            .map(|(lo, hi)| {
+                format!(
+                    "{:.1} x {:.1} x {:.1} mm",
+                    (hi[0] - lo[0]) * 1e3,
+                    (hi[1] - lo[1]) * 1e3,
+                    (hi[2] - lo[2]) * 1e3
+                )
+            })
             .unwrap_or_default();
         println!(
             "  {:<12} volume {:>9.1} cm3   centroid ({:.1}, {:.1}, {:.1}) mm   bounds {}",
@@ -165,20 +226,33 @@ pub fn show_primitive(file: &Path, sets: &[String], build: bool, step: Option<&P
             bounds
         );
         if let Some(d) = density {
-            println!("  {:<12} mass {:.3} kg at {d} kg/m3 (placeholder density)", "", mp.volume * d);
+            println!(
+                "  {:<12} mass {:.3} kg at {d} kg/m3 (placeholder density)",
+                "",
+                mp.volume * d
+            );
         }
     }
     export(&k, &built, step, stl)
 }
 
-fn export<K: GeomKernel>(k: &K, built: &wmds_geom::BuiltGeometry<K::Solid>, step: Option<&Path>, stl: Option<&Path>) -> ExitCode {
+fn export<K: GeomKernel>(
+    k: &K,
+    built: &wmds_geom::BuiltGeometry<K::Solid>,
+    step: Option<&Path>,
+    stl: Option<&Path>,
+) -> ExitCode {
     let Some((level, solid)) = built.best() else {
         eprintln!("no geometry level was built");
         return ExitCode::FAILURE;
     };
     for (path, what) in [(step, "STEP"), (stl, "STL")] {
         let Some(p) = path else { continue };
-        let r = if what == "STEP" { k.write_step(solid, p) } else { k.write_stl(solid, p) };
+        let r = if what == "STEP" {
+            k.write_step(solid, p)
+        } else {
+            k.write_stl(solid, p)
+        };
         match r {
             Ok(()) => println!("  wrote {what} ({level} level) to {}", p.display()),
             Err(e) => {
@@ -215,10 +289,15 @@ pub fn show_chassis(
         eprintln!("warning: {}: {e}", f.display());
     }
     let Some(def) = lib.chassis.get(system) else {
-        eprintln!("unknown chassis system `{system}`. Known: {}", lib.chassis.keys().cloned().collect::<Vec<_>>().join(", "));
+        eprintln!(
+            "unknown chassis system `{system}`. Known: {}",
+            lib.chassis.keys().cloned().collect::<Vec<_>>().join(", ")
+        );
         return ExitCode::FAILURE;
     };
-    let rail_section = rail.map(|s| s.to_string()).unwrap_or_else(|| def.rail_sections.keys().next().cloned().unwrap_or_default());
+    let rail_section = rail
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| def.rail_sections.keys().next().cloned().unwrap_or_default());
 
     // Section lengths: use what the caller gave, otherwise the middle of each allowed range
     // rounded to the grid, so the command is useful with no options at all.
@@ -229,7 +308,10 @@ pub fn show_chassis(
         let mid = (sk.length_min.value + sk.length_max.value) / 2.0;
         let pitch = def.grid_pitch.value;
         let snapped = (mid / pitch).round() * pitch;
-        section_lengths.insert(kind.clone(), wmds_expr::Expr::Num(Quantity::new(snapped, Dim::LENGTH)));
+        section_lengths.insert(
+            kind.clone(),
+            wmds_expr::Expr::Num(Quantity::new(snapped, Dim::LENGTH)),
+        );
     }
     for s in sections {
         let Some((kind, len)) = s.split_once('=') else {
@@ -274,28 +356,64 @@ pub fn show_chassis(
 
 fn print_chassis(chassis: &wmds_model::GeneratedChassis, req: &ChassisRef, list_parts: bool) {
     println!("{}", chassis.assembly.id);
-    println!("  configuration {}  width {}  rail {}", req.configuration, req.width, req.rail_section);
-    println!("  overall length {:.0} mm, width across rails {:.0} mm", mm(chassis.length), mm(chassis.width));
-    println!("  grid pitch {:.0} mm, stations {} to {}", mm(chassis.grid_pitch), chassis.station_range.0, chassis.station_range.1);
+    println!(
+        "  configuration {}  width {}  rail {}",
+        req.configuration, req.width, req.rail_section
+    );
+    println!(
+        "  overall length {:.0} mm, width across rails {:.0} mm",
+        mm(chassis.length),
+        mm(chassis.width)
+    );
+    println!(
+        "  grid pitch {:.0} mm, stations {} to {}",
+        mm(chassis.grid_pitch),
+        chassis.station_range.0,
+        chassis.station_range.1
+    );
     println!("\nsections");
     for (kind, x0, x1, len) in wmds_model::chassis::describe_sections(chassis) {
-        println!("  {kind:<8} x {:>7.0} to {:>7.0} mm   length {:>6.0} mm", mm(x0), mm(x1), mm(len));
+        println!(
+            "  {kind:<8} x {:>7.0} to {:>7.0} mm   length {:>6.0} mm",
+            mm(x0),
+            mm(x1),
+            mm(len)
+        );
     }
     if list_parts {
         println!("\nparts ({})", chassis.assembly.instances.len());
         for i in &chassis.assembly.instances {
             let t = i.placement.translation;
-            println!("  {:<26} {:<32} at ({:>7.0}, {:>7.0}, {:>7.0}) mm", i.id, i.source_id, t[0] * 1e3, t[1] * 1e3, t[2] * 1e3);
+            println!(
+                "  {:<26} {:<32} at ({:>7.0}, {:>7.0}, {:>7.0}) mm",
+                i.id,
+                i.source_id,
+                t[0] * 1e3,
+                t[1] * 1e3,
+                t[2] * 1e3
+            );
         }
     } else {
-        println!("  {} chassis parts, included in the list below", chassis.assembly.instances.len());
+        println!(
+            "  {} chassis parts, included in the list below",
+            chassis.assembly.instances.len()
+        );
     }
-    println!("\nmount points: {} grid stations and section joints exported", chassis.assembly.exports.len());
+    println!(
+        "\nmount points: {} grid stations and section joints exported",
+        chassis.assembly.exports.len()
+    );
 }
 
 // --------------------------------------------------------------------------------- vehicles
 
-pub fn show_vehicle(project: &Path, file: &Path, build: bool, step: Option<&Path>, stl: Option<&Path>) -> ExitCode {
+pub fn show_vehicle(
+    project: &Path,
+    file: &Path,
+    build: bool,
+    step: Option<&Path>,
+    stl: Option<&Path>,
+) -> ExitCode {
     let lib = match Library::load(project) {
         Ok(l) => l,
         Err(e) => {
@@ -344,7 +462,15 @@ pub fn show_vehicle(project: &Path, file: &Path, build: bool, step: Option<&Path
         println!("  {}", def.description);
     }
     if let Some(v) = &def.vehicle {
-        println!("  category {}  markets {}", v.category, if v.markets.is_empty() { "-".into() } else { v.markets.join(", ") });
+        println!(
+            "  category {}  markets {}",
+            v.category,
+            if v.markets.is_empty() {
+                "-".into()
+            } else {
+                v.markets.join(", ")
+            }
+        );
         if !v.rule_packs.is_empty() {
             println!("  rule packs {}", v.rule_packs.join(", "));
         }
@@ -363,7 +489,15 @@ pub fn show_vehicle(project: &Path, file: &Path, build: bool, step: Option<&Path
             PlacedBy::Free(why) => format!("placed: {why}"),
             PlacedBy::Unreached => "NOT PLACED".to_string(),
         };
-        println!("  {:<28} {:<30} ({:>7.0}, {:>7.0}, {:>7.0}) mm  {}", i.id, i.source_id, t[0] * 1e3, t[1] * 1e3, t[2] * 1e3, how);
+        println!(
+            "  {:<28} {:<30} ({:>7.0}, {:>7.0}, {:>7.0}) mm  {}",
+            i.id,
+            i.source_id,
+            t[0] * 1e3,
+            t[1] * 1e3,
+            t[2] * 1e3,
+            how
+        );
     }
 
     if !asm.mates.is_empty() {
@@ -378,7 +512,17 @@ pub fn show_vehicle(project: &Path, file: &Path, build: bool, step: Option<&Path
                 .as_ref()
                 .map(|f| format!("  {}x {} {} {}", f.quantity, f.kind, f.size, f.grade))
                 .unwrap_or_default();
-            println!("  {:<22} {}.{} <-> {}.{}  {} {}{}", m.id, m.a, m.a_port, m.b, m.b_port, m.dof.name(), m.stage.name(), f);
+            println!(
+                "  {:<22} {}.{} <-> {}.{}  {} {}{}",
+                m.id,
+                m.a,
+                m.a_port,
+                m.b,
+                m.b_port,
+                m.dof.name(),
+                m.stage.name(),
+                f
+            );
             if status != "ok" {
                 println!("  {:<22} {status}", "");
             }
@@ -388,7 +532,15 @@ pub fn show_vehicle(project: &Path, file: &Path, build: bool, step: Option<&Path
     if !asm.point_masses.is_empty() {
         println!("\npoint masses");
         for p in &asm.point_masses {
-            println!("  {:<20} {:>8} at ({:.0}, {:.0}, {:.0}) mm  [{}]", p.id, p.mass.to_string(), mm(p.at[0]), mm(p.at[1]), mm(p.at[2]), p.state);
+            println!(
+                "  {:<20} {:>8} at ({:.0}, {:.0}, {:.0}) mm  [{}]",
+                p.id,
+                p.mass.to_string(),
+                mm(p.at[0]),
+                mm(p.at[1]),
+                mm(p.at[2]),
+                p.state
+            );
         }
     }
 
@@ -400,7 +552,11 @@ pub fn show_vehicle(project: &Path, file: &Path, build: bool, step: Option<&Path
     }
 
     if !build {
-        return if asm.is_ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE };
+        return if asm.is_ok() {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
     }
     let code = build_and_report(&asm, step, stl);
     if asm.is_ok() { code } else { ExitCode::FAILURE }
@@ -427,14 +583,25 @@ fn build_and_report(asm: &ResolvedAssembly, step: Option<&Path>, stl: Option<&Pa
         e.2 |= m.from_declaration;
     }
     for (source, (count, mass, declared)) in &by_source {
-        let how = if *declared { "declared" } else { "from geometry" };
+        let how = if *declared {
+            "declared"
+        } else {
+            "from geometry"
+        };
         println!("  {:<40} x{:<4} {:>8.2} kg   {}", source, count, mass, how);
     }
-    println!("\ntotal mass {total:.1} kg at cg ({:.0}, {:.0}, {:.0}) mm", cg[0] * 1e3, cg[1] * 1e3, cg[2] * 1e3);
+    println!(
+        "\ntotal mass {total:.1} kg at cg ({:.0}, {:.0}, {:.0}) mm",
+        cg[0] * 1e3,
+        cg[1] * 1e3,
+        cg[2] * 1e3
+    );
     if unknown > 0 {
         println!("  {unknown} part(s) have no density yet and are not counted");
     }
-    println!("  masses marked \"from geometry\" use placeholder densities; the material database is not built yet");
+    println!(
+        "  masses marked \"from geometry\" use placeholder densities; the material database is not built yet"
+    );
 
     let mut point_total = 0.0;
     for p in &asm.point_masses {
@@ -465,7 +632,11 @@ fn build_and_report(asm: &ResolvedAssembly, step: Option<&Path>, stl: Option<&Pa
         };
         for (path, what) in [(step, "STEP"), (stl, "STL")] {
             let Some(p) = path else { continue };
-            let r = if what == "STEP" { k.write_step(&solid, p) } else { k.write_stl(&solid, p) };
+            let r = if what == "STEP" {
+                k.write_step(&solid, p)
+            } else {
+                k.write_stl(&solid, p)
+            };
             match r {
                 Ok(()) => println!("  wrote {what} to {}", p.display()),
                 Err(e) => {
@@ -476,4 +647,177 @@ fn build_and_report(asm: &ResolvedAssembly, step: Option<&Path>, stl: Option<&Pa
         }
     }
     ExitCode::SUCCESS
+}
+
+// -------------------------------------------------------------------------------- compliance
+
+/// Resolve a vehicle, build it, and check it against the rule packs it names.
+pub fn check_vehicle(project: &Path, file: &Path, json: Option<&Path>, show_all: bool) -> ExitCode {
+    let lib = match Library::load(project) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    for (f, e) in &lib.failures {
+        eprintln!("warning: {}: {e}", f.display());
+    }
+    let def = match Library::load_assembly_file(file) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut extra = Vec::new();
+    let mut generated = None;
+    if let Some(req) = &def.chassis {
+        match wmds_model::generate_chassis(&lib, req) {
+            Ok(g) => {
+                extra.push((req.id.clone(), g.assembly.clone()));
+                generated = Some(g);
+            }
+            Err(e) => {
+                eprintln!("error: chassis: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    let asm = match wmds_model::resolve_assembly(&lib, &def, &Overrides::default(), extra) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // Facts that need geometry: part masses and the overall centre of gravity.
+    let k = kernel();
+    let built = wmds_geom::build_assembly(&k, &asm);
+    let masses = wmds_geom::assembly_masses(&k, &built);
+    let mut facts = wmds_rules::Facts::from_assembly(&asm, &def);
+    for p in &mut facts.parts {
+        if let Some(m) = masses.iter().find(|m| m.id == p.id) {
+            p.mass = m.mass.unwrap_or(0.0);
+        }
+    }
+    let (modelled, _, _) = wmds_geom::roll_up(&masses);
+    facts.modelled_mass = modelled;
+
+    // The centre of gravity that matters is the whole kerb vehicle, so fold in the point masses
+    // that belong to the kerb state. Leaving them out would flatter the cg height.
+    let mut total = 0.0;
+    let mut moment = [0.0f64; 3];
+    for m in &masses {
+        if let Some(mass) = m.mass {
+            total += mass;
+            for i in 0..3 {
+                moment[i] += mass * m.centroid[i];
+            }
+        }
+    }
+    for p in asm.point_masses.iter().filter(|p| p.state == "kerb") {
+        total += p.mass.value;
+        for i in 0..3 {
+            moment[i] += p.mass.value * p.at[i].value;
+        }
+    }
+    if total > 0.0 {
+        facts.cg = [moment[0] / total, moment[1] / total, moment[2] / total];
+    }
+    facts.bounds = wmds_geom::assembly_mesh(&k, &built, 1e-3).bounds();
+
+    if let (Some(g), Some(req)) = (&generated, &def.chassis) {
+        let prefix = format!("{}.", req.id);
+        let chassis_mass: f64 = masses
+            .iter()
+            .filter(|m| m.id.starts_with(&prefix))
+            .filter_map(|m| m.mass)
+            .sum();
+        facts.chassis = Some(wmds_rules::ChassisFacts {
+            system: req.system.clone(),
+            configuration: req.configuration.clone(),
+            width_config: req.width.clone(),
+            rail_section: req.rail_section.clone(),
+            length: g.length.value,
+            width: g.width.value,
+            grid_pitch: g.grid_pitch.value,
+            mass: chassis_mass,
+            section_count: g.sections.len(),
+        });
+    }
+
+    let (packs, failures) = wmds_rules::load_packs(&project.join("rules"));
+    for (p, e) in &failures {
+        eprintln!("warning: rule pack {p}: {e}");
+    }
+    let selected: Vec<String> = def
+        .vehicle
+        .as_ref()
+        .map(|v| v.rule_packs.clone())
+        .unwrap_or_default();
+    if selected.is_empty() {
+        println!("This vehicle names no rule packs, so nothing was checked.");
+        println!("Add `rule_packs \"wright-internal\"` to the vehicle to turn checking on.");
+        println!(
+            "Packs available: {}",
+            packs
+                .iter()
+                .map(|p| p.id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        return ExitCode::from(2);
+    }
+    let mut missing = Vec::new();
+    for want in &selected {
+        if !packs.iter().any(|p| &p.id == want) {
+            missing.push(want.clone());
+        }
+    }
+    if !missing.is_empty() {
+        // A pack the vehicle asked for and did not get is a hole in the checking, not a detail.
+        // Reporting "all clear" while silently skipping a rule pack would be the worst thing
+        // this command could do.
+        eprintln!("error: rule pack(s) not found: {}", missing.join(", "));
+        eprintln!("       the checks in them were not run, so this vehicle is not checked");
+        if !failures.is_empty() {
+            eprintln!("       one or more packs failed to parse; see the warnings above");
+        }
+        return ExitCode::FAILURE;
+    }
+
+    let report = wmds_rules::evaluate(&packs, &selected, &facts);
+    let mut text = wmds_rules::render_text(&report);
+    if !show_all {
+        text.push_str("\nPass --all to list the rules that do not apply.\n");
+    }
+    print!("{text}");
+
+    // Anything the resolver itself rejected is a defect in the model rather than in the design,
+    // and it would make the compliance result meaningless, so say so loudly.
+    if !asm.errors.is_empty() {
+        println!(
+            "\nThe model itself has {} error(s); fix these before trusting the report above:",
+            asm.errors.len()
+        );
+        for e in &asm.errors {
+            println!("  {e}");
+        }
+    }
+
+    if let Some(p) = json {
+        match std::fs::write(p, wmds_rules::render_json(&report)) {
+            Ok(()) => println!("\nwrote {}", p.display()),
+            Err(e) => eprintln!("could not write {}: {e}", p.display()),
+        }
+    }
+
+    if report.is_clear() && asm.errors.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }

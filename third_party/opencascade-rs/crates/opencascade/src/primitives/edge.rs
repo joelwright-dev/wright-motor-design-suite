@@ -31,7 +31,7 @@ impl From<ffi::geom_abs::GeomAbs_CurveType> for EdgeType {
             ffi::geom_abs::GeomAbs_CurveType::GeomAbs_OtherCurve => Self::OtherCurve,
             ffi::geom_abs::GeomAbs_CurveType { repr } => {
                 panic!("Unexpected curve type: {repr}")
-            },
+            }
         }
     }
 }
@@ -72,7 +72,9 @@ impl Edge {
         let points: Vec<_> = points.into_iter().collect();
         let mut array = ffi::t_col_gp::TColgp_HArray1OfPnt_new(1, points.len() as i32);
         for (index, point) in points.into_iter().enumerate() {
-            array.pin_mut().SetValue(index as i32 + 1, &make_point(point));
+            array
+                .pin_mut()
+                .SetValue(index as i32 + 1, &make_point(point));
         }
 
         let bezier = ffi::geom::Geom_BezierCurve_new_points(&array);
@@ -104,7 +106,9 @@ impl Edge {
         let points: Vec<_> = points.into_iter().collect();
         let mut array = ffi::t_col_gp::TColgp_HArray1OfPnt_new(1, points.len() as i32);
         for (index, point) in points.into_iter().enumerate() {
-            array.pin_mut().SetValue(index as i32 + 1, &make_point(point));
+            array
+                .pin_mut()
+                .SetValue(index as i32 + 1, &make_point(point));
         }
         let array_handle =
             ffi::t_col_gp::new_HandleTColgpHArray1OfPnt_from_TColgpHArray1OfPnt(array);
@@ -114,7 +118,9 @@ impl Edge {
         let mut interpolate =
             ffi::geom_api::GeomAPI_Interpolate_new(&array_handle, periodic, tolerance);
         if let Some((t_start, t_end)) = tangents {
-            interpolate.pin_mut().Load(&make_vec(t_start), &make_vec(t_end), true);
+            interpolate
+                .pin_mut()
+                .Load(&make_vec(t_start), &make_vec(t_end), true);
         }
 
         interpolate.pin_mut().Perform();
@@ -164,7 +170,10 @@ impl Edge {
         let adaptor_curve = ffi::b_rep_adaptor::BRepAdaptor_Curve_new(&self.inner);
         let approximator = ffi::gc_pnts::TangentialDeflection_new(&adaptor_curve, 0.1, 0.1);
 
-        ApproximationSegmentIterator { count: 1, approximator }
+        ApproximationSegmentIterator {
+            count: 1,
+            approximator,
+        }
     }
 
     pub fn tangent_arc(_p1: DVec3, _tangent: DVec3, _p3: DVec3) {}

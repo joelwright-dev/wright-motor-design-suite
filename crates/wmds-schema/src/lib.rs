@@ -17,11 +17,13 @@ mod assembly;
 mod chassis;
 mod ports;
 mod primitive;
+mod rules;
 
 pub use assembly::*;
 pub use chassis::*;
 pub use ports::*;
 pub use primitive::*;
+pub use rules::*;
 
 use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use miette::{Diagnostic, NamedSource, SourceSpan};

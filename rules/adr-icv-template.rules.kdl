@@ -1,0 +1,79 @@
+// TEMPLATE ONLY. Not a usable Australian Design Rules pack.
+//
+// This file shows the shape of a regulatory pack and nothing more. Every rule in it is
+// deliberately left unverified, so every one of them prints "NOT VERIFIED" in the report. Do not
+// treat any limit here as the real requirement: none has been read against the source document.
+//
+// Filling this in properly means, for each rule: finding the clause in the Australian Design
+// Rules or in VSB 14 (the National Code of Practice for Light Vehicle Construction and
+// Modification), reading what it actually requires, writing the check, and signing the
+// `verified` line. Doing that is a job for someone with the standards in front of them, and it
+// is the point at which this stops being a template.
+//
+// See docs/05-compliance.md for how the regime choice (individually constructed vehicle versus
+// low-volume type approval) changes which rules apply. That question is open and needs
+// regulatory advice.
+
+rulepack "adr/icv-template" version="0.0.1" {
+    description "TEMPLATE: the shape of an ADR pack for individually constructed vehicles"
+    source "PLACEHOLDER. Populate from VSB 14 Section LO and the relevant ADRs."
+    jurisdiction "AU"
+
+    rule "template.dimensions-overall" {
+        title "Overall dimensions within the limits for the category"
+        source "PLACEHOLDER: ADR 43 covers vehicle configuration and dimensions"
+        applies_when "vehicle.category in [\"MA\", \"MB\", \"MC\", \"NA\"]"
+        evidence "calculation"
+        // PLACEHOLDER limits. Written so the mechanism can be demonstrated, not because these
+        // are the real numbers.
+        check "vehicle.length <= 12500 mm and vehicle.width <= 2500 mm"
+        on_fail "The vehicle exceeds the placeholder dimension limits in this template."
+        note "PLACEHOLDER limits. Do not rely on them."
+        severity "advisory"
+    }
+
+    rule "template.lighting-height" {
+        title "Headlamp mounting height"
+        source "PLACEHOLDER: ADR 13 covers installation of lighting and light signalling devices"
+        applies_when "vehicle.category in [\"MA\", \"MB\", \"MC\", \"NA\"]"
+        evidence "calculation"
+        check "count(filter(parts, p -> p.category == \"lighting\")) > 0"
+        on_fail "No lighting is modelled yet, so lamp heights cannot be checked."
+        note "PLACEHOLDER. Becomes a real height check once lighting primitives exist and the \
+              facts layer exposes laden ride height."
+        severity "advisory"
+    }
+
+    rule "template.seatbelt-anchorages" {
+        title "Seatbelt anchorage strength"
+        source "PLACEHOLDER: ADR 5 covers anchorages for seatbelts"
+        applies_when "vehicle.category in [\"MA\", \"MB\", \"MC\"]"
+        evidence "physical-test"
+        note "Anchorage strength is demonstrated by a pull test on the actual structure. No \
+              simulation substitutes for it."
+        severity "fail"
+    }
+
+    rule "template.glazing" {
+        title "Glazing materials are certified"
+        source "PLACEHOLDER: ADR 8 covers safety glazing material"
+        applies_when "vehicle.category in [\"MA\", \"MB\", \"MC\", \"NA\"]"
+        evidence "declaration"
+        note "Satisfied by the glazing supplier's certification, attached to the project."
+        severity "fail"
+    }
+
+    rule "template.frontal-impact" {
+        title "Frontal impact occupant protection"
+        source "PLACEHOLDER: ADR 69 covers full frontal impact occupant protection"
+        applies_when "vehicle.category == \"MA\""
+        evidence "simulation" sim="crash.frontal-full-width"
+        // PLACEHOLDER screening thresholds. The regulation is dummy-based and these are not it.
+        check "result.compartment_intrusion <= 150 mm"
+        on_fail "Occupant compartment intrusion exceeds the internal screening threshold."
+        note "PLACEHOLDER screening values, not the regulation's criteria. The real requirement is \
+              measured on an instrumented dummy in a physical test."
+        physical_test_required #true
+        severity "fail"
+    }
+}

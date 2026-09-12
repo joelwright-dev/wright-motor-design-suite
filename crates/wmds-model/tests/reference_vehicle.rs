@@ -10,7 +10,9 @@ use wmds_model::{Library, Overrides, PlacedBy, generate_chassis, resolve_assembl
 
 fn project_root() -> PathBuf {
     // crates/wmds-model -> repository root
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
 }
 
 fn mm(v: f64) -> f64 {
@@ -23,10 +25,16 @@ fn library_loads_without_failures() {
     assert!(
         lib.failures.is_empty(),
         "definition files failed to load: {:#?}",
-        lib.failures.iter().map(|(p, e)| format!("{}: {e}", p.display())).collect::<Vec<_>>()
+        lib.failures
+            .iter()
+            .map(|(p, e)| format!("{}: {e}", p.display()))
+            .collect::<Vec<_>>()
     );
     assert!(!lib.primitives.is_empty(), "no primitives were loaded");
-    assert!(lib.port_types.contains_key("mcds.grid-station"), "port registry is missing the grid station");
+    assert!(
+        lib.port_types.contains_key("mcds.grid-station"),
+        "port registry is missing the grid station"
+    );
     assert!(lib.chassis.contains_key("mcds-v1"), "MCDSv1 is missing");
 }
 
@@ -34,27 +42,58 @@ fn library_loads_without_failures() {
 fn reference_vehicle_resolves_and_places_everything() {
     let root = project_root();
     let lib = Library::load(&root).expect("library should load");
-    let file = root.join("vehicles").join("reference-city-ev").join("reference-city-ev.veh.kdl");
+    let file = root
+        .join("vehicles")
+        .join("reference-city-ev")
+        .join("reference-city-ev.veh.kdl");
     let def = Library::load_assembly_file(&file).expect("reference vehicle should parse");
 
-    let req = def.chassis.as_ref().expect("the reference vehicle has a chassis");
+    let req = def
+        .chassis
+        .as_ref()
+        .expect("the reference vehicle has a chassis");
     let chassis = generate_chassis(&lib, req).expect("chassis should generate");
 
     // A 1100 mm front plus a 1900 mm central section, with the joint plane at the origin.
     assert!((mm(chassis.length.value) - 3000.0).abs() < 1e-6);
     assert_eq!(chassis.station_range, (-11, 19));
     let (x0, x1) = chassis.sections["front"];
-    assert!((mm(x0) + 1100.0).abs() < 1e-6 && x1.abs() < 1e-9, "front section should end at the origin");
-
-    let asm = resolve_assembly(&lib, &def, &Overrides::default(), vec![(req.id.clone(), chassis.assembly.clone())])
-        .expect("vehicle should resolve");
-
-    assert!(asm.errors.is_empty(), "resolution reported errors: {:#?}", asm.errors);
-    assert!(asm.mates.iter().all(|m| m.compatible.is_ok()), "a mate was rejected: {:#?}", asm.mates.iter().filter(|m| m.compatible.is_err()).collect::<Vec<_>>());
     assert!(
-        asm.instances.iter().all(|i| i.placed_by != PlacedBy::Unreached),
+        (mm(x0) + 1100.0).abs() < 1e-6 && x1.abs() < 1e-9,
+        "front section should end at the origin"
+    );
+
+    let asm = resolve_assembly(
+        &lib,
+        &def,
+        &Overrides::default(),
+        vec![(req.id.clone(), chassis.assembly.clone())],
+    )
+    .expect("vehicle should resolve");
+
+    assert!(
+        asm.errors.is_empty(),
+        "resolution reported errors: {:#?}",
+        asm.errors
+    );
+    assert!(
+        asm.mates.iter().all(|m| m.compatible.is_ok()),
+        "a mate was rejected: {:#?}",
+        asm.mates
+            .iter()
+            .filter(|m| m.compatible.is_err())
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        asm.instances
+            .iter()
+            .all(|i| i.placed_by != PlacedBy::Unreached),
         "unplaced parts: {:?}",
-        asm.instances.iter().filter(|i| i.placed_by == PlacedBy::Unreached).map(|i| &i.id).collect::<Vec<_>>()
+        asm.instances
+            .iter()
+            .filter(|i| i.placed_by == PlacedBy::Unreached)
+            .map(|i| &i.id)
+            .collect::<Vec<_>>()
     );
 
     // The battery hangs from four grid stations; check it landed where the geometry says it must.
@@ -63,11 +102,19 @@ fn reference_vehicle_resolves_and_places_everything() {
     let battery = asm.instance("battery").expect("battery instance");
     let t = battery.placement.translation;
     assert!((mm(t[0]) - 800.0).abs() < 0.5, "battery x was {}", mm(t[0]));
-    assert!(mm(t[1]).abs() < 0.5, "battery should be laterally centred, was {}", mm(t[1]));
+    assert!(
+        mm(t[1]).abs() < 0.5,
+        "battery should be laterally centred, was {}",
+        mm(t[1])
+    );
     assert!((mm(t[2]) - 75.0).abs() < 0.5, "battery z was {}", mm(t[2]));
 
     // No mate should be left dangling in space: every warning about closure is a real defect.
-    let closure: Vec<&String> = asm.warnings.iter().filter(|w| w.contains("does not close")).collect();
+    let closure: Vec<&String> = asm
+        .warnings
+        .iter()
+        .filter(|w| w.contains("does not close"))
+        .collect();
     assert!(closure.is_empty(), "mates that do not close: {closure:#?}");
 }
 
@@ -77,13 +124,22 @@ fn changing_a_section_length_moves_everything_downstream() {
     // it follow, because position comes from the mate graph rather than from stored coordinates.
     let root = project_root();
     let lib = Library::load(&root).expect("library should load");
-    let file = root.join("vehicles").join("reference-city-ev").join("reference-city-ev.veh.kdl");
+    let file = root
+        .join("vehicles")
+        .join("reference-city-ev")
+        .join("reference-city-ev.veh.kdl");
     let mut def = Library::load_assembly_file(&file).expect("reference vehicle should parse");
 
     let baseline = {
         let req = def.chassis.as_ref().unwrap();
         let chassis = generate_chassis(&lib, req).unwrap();
-        let asm = resolve_assembly(&lib, &def, &Overrides::default(), vec![(req.id.clone(), chassis.assembly)]).unwrap();
+        let asm = resolve_assembly(
+            &lib,
+            &def,
+            &Overrides::default(),
+            vec![(req.id.clone(), chassis.assembly)],
+        )
+        .unwrap();
         asm.instance("drive").unwrap().placement.translation
     };
 
@@ -99,7 +155,13 @@ fn changing_a_section_length_moves_everything_downstream() {
     let req = def.chassis.as_ref().unwrap();
     let chassis = generate_chassis(&lib, req).expect("stretched chassis should generate");
     assert!((mm(chassis.length.value) - 3300.0).abs() < 1e-6);
-    let asm = resolve_assembly(&lib, &def, &Overrides::default(), vec![(req.id.clone(), chassis.assembly)]).unwrap();
+    let asm = resolve_assembly(
+        &lib,
+        &def,
+        &Overrides::default(),
+        vec![(req.id.clone(), chassis.assembly)],
+    )
+    .unwrap();
     let moved = asm.instance("drive").unwrap().placement.translation;
     for i in 0..3 {
         assert!(
@@ -137,10 +199,19 @@ vehicle "test/bad-mate" version="0.0.1" {
     let def = wmds_schema::parse_assembly("bad.veh.kdl", src).expect("should parse");
     let req = def.chassis.as_ref().unwrap();
     let chassis = generate_chassis(&lib, req).unwrap();
-    let asm = resolve_assembly(&lib, &def, &Overrides::default(), vec![(req.id.clone(), chassis.assembly)]).unwrap();
+    let asm = resolve_assembly(
+        &lib,
+        &def,
+        &Overrides::default(),
+        vec![(req.id.clone(), chassis.assembly)],
+    )
+    .unwrap();
     assert!(
         asm.mates.iter().any(|m| m.compatible.is_err()),
         "an incompatible mate was accepted"
     );
-    assert!(!asm.is_ok(), "the assembly should not report itself as sound");
+    assert!(
+        !asm.is_ok(),
+        "the assembly should not report itself as sound"
+    );
 }

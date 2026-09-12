@@ -31,23 +31,27 @@ impl GraphicLine {
                 "start" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     start_point = Some(coords);
-                },
+                }
                 "end" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     end_point = Some(coords);
-                },
+                }
                 "layer" => {
                     if let Sexp::Atom(Atom::S(layer_str)) = &rest[0] {
                         let layer_valid = layer_str.as_str().into();
                         layer = Some(layer_valid);
                     }
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
         if let (Some(start_point), Some(end_point), Some(layer)) = (start_point, end_point, layer) {
-            Ok(Self { start_point, end_point, layer })
+            Ok(Self {
+                start_point,
+                end_point,
+                layer,
+            })
         } else {
             Err(Error::IncompleteGraphicLine(list.to_vec()))
         }
@@ -84,28 +88,33 @@ impl GraphicArc {
                 "start" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     start_point = Some(coords);
-                },
+                }
                 "mid" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     mid_point = Some(coords);
-                },
+                }
                 "end" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     end_point = Some(coords);
-                },
+                }
                 "layer" => {
                     if let Sexp::Atom(Atom::S(layer_str)) = &rest[0] {
                         layer = Some(layer_str.as_str().into());
                     }
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
         if let (Some(start_point), Some(mid_point), Some(end_point), Some(layer)) =
             (start_point, mid_point, end_point, layer)
         {
-            Ok(Self { start_point, mid_point, end_point, layer })
+            Ok(Self {
+                start_point,
+                mid_point,
+                end_point,
+                layer,
+            })
         } else {
             Err(Error::IncompleteGraphicArc(list.to_vec()))
         }
@@ -140,23 +149,27 @@ impl GraphicCircle {
                 "center" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     center_point = Some(coords);
-                },
+                }
                 "end" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     end_point = Some(coords);
-                },
+                }
                 "layer" => {
                     if let Sexp::Atom(Atom::S(layer_str)) = &rest[0] {
                         layer = Some(layer_str.as_str().into());
                     }
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
         if let (Some(center_point), Some(end_point), Some(layer)) = (center_point, end_point, layer)
         {
-            Ok(Self { center_point, end_point, layer })
+            Ok(Self {
+                center_point,
+                end_point,
+                layer,
+            })
         } else {
             Err(Error::IncompleteGraphicCircle(list.to_vec()))
         }
@@ -191,22 +204,26 @@ impl GraphicRect {
                 "start" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     start_point = Some(coords);
-                },
+                }
                 "end" => {
                     let coords = extract_coords(&rest[0], &rest[1])?;
                     end_point = Some(coords);
-                },
+                }
                 "layer" => {
                     if let Sexp::Atom(Atom::S(layer_str)) = &rest[0] {
                         layer = Some(layer_str.as_str().into());
                     }
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
         if let (Some(start_point), Some(end_point), Some(layer)) = (start_point, end_point, layer) {
-            Ok(Self { start_point, end_point, layer })
+            Ok(Self {
+                start_point,
+                end_point,
+                layer,
+            })
         } else {
             Err(Error::IncompleteGraphicRect(list.to_vec()))
         }

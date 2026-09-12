@@ -9,8 +9,10 @@ pub struct Surface {
 
 impl Surface {
     pub fn bezier(poles: impl IntoIterator<Item = impl IntoIterator<Item = DVec3>>) -> Self {
-        let poles: Vec<Vec<_>> =
-            poles.into_iter().map(|poles| poles.into_iter().collect()).collect();
+        let poles: Vec<Vec<_>> = poles
+            .into_iter()
+            .map(|poles| poles.into_iter().collect())
+            .collect();
 
         let mut pole_array = ffi::t_col_gp::TColgp_Array2OfPnt_new(
             0,
@@ -22,7 +24,9 @@ impl Surface {
         for (row, poles) in poles.iter().enumerate() {
             for (column, pole) in poles.iter().enumerate() {
                 let pole = &make_point(*pole);
-                pole_array.pin_mut().SetValue(row as i32, column as i32, pole);
+                pole_array
+                    .pin_mut()
+                    .SetValue(row as i32, column as i32, pole);
             }
         }
 

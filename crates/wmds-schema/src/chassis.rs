@@ -77,17 +77,27 @@ pub fn parse_chassis(name: &str, src: &str) -> Result<ChassisDef, SchemaErrors> 
             let errors = e
                 .diagnostics
                 .iter()
-                .map(|d| SchemaError { msg: d.to_string(), span: Some(d.span) })
+                .map(|d| SchemaError {
+                    msg: d.to_string(),
+                    span: Some(d.span),
+                })
                 .collect();
             return Err(SchemaErrors::new(name, src, errors));
         }
     };
     let mut ctx = Ctx { errors: Vec::new() };
-    let roots: Vec<&KdlNode> = doc.nodes().iter().filter(|n| n.name().value() == "chassis").collect();
+    let roots: Vec<&KdlNode> = doc
+        .nodes()
+        .iter()
+        .filter(|n| n.name().value() == "chassis")
+        .collect();
     let def = match roots.as_slice() {
         [one] => parse_root(&mut ctx, one),
         [] => {
-            ctx.errors.push(SchemaError { msg: "file has no `chassis` node".into(), span: None });
+            ctx.errors.push(SchemaError {
+                msg: "file has no `chassis` node".into(),
+                span: None,
+            });
             None
         }
         _ => {
@@ -127,7 +137,9 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<ChassisDef> {
         }
     };
     let version = prop_string(node, "version").unwrap_or_else(|| "0.0.0".into());
-    let description = child(node, "description").and_then(first_positional_string).unwrap_or_default();
+    let description = child(node, "description")
+        .and_then(first_positional_string)
+        .unwrap_or_default();
 
     let grid_pitch = child(node, "grid_pitch")
         .and_then(first_positional_string)
@@ -136,7 +148,10 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<ChassisDef> {
     let grid_pitch = match grid_pitch {
         Some(q) if q.value > 0.0 => q,
         _ => {
-            ctx.err(node, "chassis needs a positive `grid_pitch`, e.g. grid_pitch \"100 mm\"");
+            ctx.err(
+                node,
+                "chassis needs a positive `grid_pitch`, e.g. grid_pitch \"100 mm\"",
+            );
             Quantity::from_unit(100.0, "mm").unwrap()
         }
     };
@@ -152,7 +167,13 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<ChassisDef> {
                 if let Some(q) = length(ctx, n, "inner_rail_spacing") {
                     width_configs.insert(n.name().value().to_string(), q);
                 } else {
-                    ctx.err(n, format!("width config `{}` needs inner_rail_spacing=", n.name().value()));
+                    ctx.err(
+                        n,
+                        format!(
+                            "width config `{}` needs inner_rail_spacing=",
+                            n.name().value()
+                        ),
+                    );
                 }
             }
         }
@@ -163,14 +184,25 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<ChassisDef> {
     match child(node, "rail_sections") {
         Some(b) => {
             for n in children(b) {
-                let sname = first_positional_string(n).unwrap_or_else(|| n.name().value().to_string());
-                let (h, w, wall) = (length(ctx, n, "height"), length(ctx, n, "width"), length(ctx, n, "wall"));
+                let sname =
+                    first_positional_string(n).unwrap_or_else(|| n.name().value().to_string());
+                let (h, w, wall) = (
+                    length(ctx, n, "height"),
+                    length(ctx, n, "width"),
+                    length(ctx, n, "wall"),
+                );
                 let (Some(height), Some(width), Some(wall)) = (h, w, wall) else {
-                    ctx.err(n, format!("rail section `{sname}` needs height=, width= and wall="));
+                    ctx.err(
+                        n,
+                        format!("rail section `{sname}` needs height=, width= and wall="),
+                    );
                     continue;
                 };
                 if wall.value * 2.0 >= width.value.min(height.value) {
-                    ctx.err(n, format!("rail section `{sname}`: wall is too thick for the section"));
+                    ctx.err(
+                        n,
+                        format!("rail section `{sname}`: wall is too thick for the section"),
+                    );
                 }
                 rail_sections.insert(
                     sname.clone(),
@@ -192,12 +224,20 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<ChassisDef> {
         Some(b) => {
             for n in children(b) {
                 let kname = n.name().value().to_string();
-                let (Some(length_min), Some(length_max)) = (length(ctx, n, "length_min"), length(ctx, n, "length_max")) else {
-                    ctx.err(n, format!("section kind `{kname}` needs length_min= and length_max="));
+                let (Some(length_min), Some(length_max)) =
+                    (length(ctx, n, "length_min"), length(ctx, n, "length_max"))
+                else {
+                    ctx.err(
+                        n,
+                        format!("section kind `{kname}` needs length_min= and length_max="),
+                    );
                     continue;
                 };
                 if length_min.value > length_max.value {
-                    ctx.err(n, format!("section kind `{kname}`: length_min exceeds length_max"));
+                    ctx.err(
+                        n,
+                        format!("section kind `{kname}`: length_min exceeds length_max"),
+                    );
                 }
                 let joints: Vec<String> = prop_string(n, "joints")
                     .unwrap_or_default()
@@ -206,10 +246,21 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<ChassisDef> {
                     .collect();
                 for j in &joints {
                     if j != "front" && j != "rear" {
-                        ctx.err(n, format!("section kind `{kname}`: unknown joint end `{j}`"));
+                        ctx.err(
+                            n,
+                            format!("section kind `{kname}`: unknown joint end `{j}`"),
+                        );
                     }
                 }
-                section_kinds.insert(kname.clone(), SectionKindDef { name: kname, length_min, length_max, joints });
+                section_kinds.insert(
+                    kname.clone(),
+                    SectionKindDef {
+                        name: kname,
+                        length_min,
+                        length_max,
+                        joints,
+                    },
+                );
             }
         }
         None => ctx.err(node, "missing `section_kinds`"),
@@ -219,18 +270,25 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<ChassisDef> {
     match child(node, "configurations") {
         Some(b) => {
             for n in children(b) {
-                let cname = first_positional_string(n).unwrap_or_else(|| n.name().value().to_string());
+                let cname =
+                    first_positional_string(n).unwrap_or_else(|| n.name().value().to_string());
                 let sections: Vec<String> = prop_string(n, "sections")
                     .unwrap_or_default()
                     .split_whitespace()
                     .map(|s| s.to_string())
                     .collect();
                 if sections.is_empty() {
-                    ctx.err(n, format!("configuration `{cname}` needs sections=\"front central ...\""));
+                    ctx.err(
+                        n,
+                        format!("configuration `{cname}` needs sections=\"front central ...\""),
+                    );
                 }
                 for s in &sections {
                     if !section_kinds.contains_key(s) {
-                        ctx.err(n, format!("configuration `{cname}` uses unknown section kind `{s}`"));
+                        ctx.err(
+                            n,
+                            format!("configuration `{cname}` uses unknown section kind `{s}`"),
+                        );
                     }
                 }
                 configurations.insert(cname, sections);
@@ -241,12 +299,21 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<ChassisDef> {
 
     let parts = match child(node, "parts") {
         Some(b) => ChassisParts {
-            rail: child(b, "rail").and_then(|n| prop_string(n, "primitive")).unwrap_or_default(),
-            crossmember: child(b, "crossmember").and_then(|n| prop_string(n, "primitive")).unwrap_or_default(),
-            joint_fitting: child(b, "joint_fitting").and_then(|n| prop_string(n, "primitive")).unwrap_or_default(),
+            rail: child(b, "rail")
+                .and_then(|n| prop_string(n, "primitive"))
+                .unwrap_or_default(),
+            crossmember: child(b, "crossmember")
+                .and_then(|n| prop_string(n, "primitive"))
+                .unwrap_or_default(),
+            joint_fitting: child(b, "joint_fitting")
+                .and_then(|n| prop_string(n, "primitive"))
+                .unwrap_or_default(),
         },
         None => {
-            ctx.err(node, "missing `parts` block naming the rail, crossmember and joint fitting primitives");
+            ctx.err(
+                node,
+                "missing `parts` block naming the rail, crossmember and joint fitting primitives",
+            );
             ChassisParts::default()
         }
     };
@@ -315,13 +382,25 @@ chassis "mcds-v1" version="0.1.0" {
 
     #[test]
     fn parses_chassis() {
-        let c = parse_chassis("mcds.chassis.kdl", SRC).map_err(|e| format!("{e:?}")).unwrap();
+        let c = parse_chassis("mcds.chassis.kdl", SRC)
+            .map_err(|e| format!("{e:?}"))
+            .unwrap();
         assert_eq!(c.id, "mcds-v1");
         assert_eq!(c.grid_pitch.to_unit("mm").unwrap(), 100.0);
         assert_eq!(c.width("narrow").unwrap().to_unit("mm").unwrap(), 900.0);
-        assert_eq!(c.rail_section("120x60").unwrap().height.to_unit("mm").unwrap(), 120.0);
+        assert_eq!(
+            c.rail_section("120x60")
+                .unwrap()
+                .height
+                .to_unit("mm")
+                .unwrap(),
+            120.0
+        );
         assert_eq!(c.section_kinds["central"].joints, vec!["front", "rear"]);
-        assert_eq!(c.configuration("2/3-length").unwrap(), &vec!["front".to_string(), "central".to_string()]);
+        assert_eq!(
+            c.configuration("2/3-length").unwrap(),
+            &vec!["front".to_string(), "central".to_string()]
+        );
         assert_eq!(c.parts.rail, "chassis/mcds-v1/rail-box");
         assert_eq!(c.station_bolt, "M12");
     }
@@ -329,14 +408,25 @@ chassis "mcds-v1" version="0.1.0" {
     #[test]
     fn rejects_unknown_section_in_configuration() {
         let bad = SRC.replace("sections=\"front central\"", "sections=\"front middle\"");
-        let e = parse_chassis("x.chassis.kdl", &bad).err().expect("should fail");
-        assert!(e.errors.iter().any(|x| x.msg.contains("middle")), "{:?}", e.errors);
+        let e = parse_chassis("x.chassis.kdl", &bad).expect_err("should fail");
+        assert!(
+            e.errors.iter().any(|x| x.msg.contains("middle")),
+            "{:?}",
+            e.errors
+        );
     }
 
     #[test]
     fn rejects_reversed_length_range() {
-        let bad = SRC.replace("length_min=\"900 mm\"  length_max=\"1500 mm\"", "length_min=\"1900 mm\" length_max=\"1500 mm\"");
-        let e = parse_chassis("x.chassis.kdl", &bad).err().expect("should fail");
-        assert!(e.errors.iter().any(|x| x.msg.contains("exceeds")), "{:?}", e.errors);
+        let bad = SRC.replace(
+            "length_min=\"900 mm\"  length_max=\"1500 mm\"",
+            "length_min=\"1900 mm\" length_max=\"1500 mm\"",
+        );
+        let e = parse_chassis("x.chassis.kdl", &bad).expect_err("should fail");
+        assert!(
+            e.errors.iter().any(|x| x.msg.contains("exceeds")),
+            "{:?}",
+            e.errors
+        );
     }
 }

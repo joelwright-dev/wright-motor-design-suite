@@ -12,7 +12,10 @@ pub mod features;
 pub mod mesh;
 pub mod mesh_kernel;
 
-pub use assembly_geom::{BuiltAssembly, BuiltPart, PartMass, assembly_masses, assembly_mesh, build_assembly, placeholder_density, roll_up};
+pub use assembly_geom::{
+    BuiltAssembly, BuiltPart, PartMass, assembly_masses, assembly_mesh, build_assembly,
+    placeholder_density, roll_up,
+};
 pub use features::{BuiltGeometry, build_level, build_primitive};
 pub use mesh::{MassProps, Mesh};
 pub use mesh_kernel::MeshKernel;
@@ -81,7 +84,10 @@ pub trait GeomKernel {
         }
         let outer = self.make_box(size, centre)?;
         // Run the bore past both ends so the subtraction leaves no sliver.
-        let inner = self.make_box([size[0] + 1e-3, size[1] - 2.0 * wall, size[2] - 2.0 * wall], centre)?;
+        let inner = self.make_box(
+            [size[0] + 1e-3, size[1] - 2.0 * wall, size[2] - 2.0 * wall],
+            centre,
+        )?;
         self.subtract(&outer, &inner)
     }
 

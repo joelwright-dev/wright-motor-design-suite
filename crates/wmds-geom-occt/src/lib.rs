@@ -47,7 +47,11 @@ impl GeomKernel for OcctKernel {
         if (pb - pa).length() == 0.0 {
             return Err(GeomError::Kernel("cylinder endpoints coincide".into()));
         }
-        Ok(OcctSolid(Arc::new(Shape::cylinder_from_points(pa, pb, r * M_TO_MM))))
+        Ok(OcctSolid(Arc::new(Shape::cylinder_from_points(
+            pa,
+            pb,
+            r * M_TO_MM,
+        ))))
     }
 
     fn union(&self, a: &OcctSolid, b: &OcctSolid) -> Result<OcctSolid> {

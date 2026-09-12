@@ -51,7 +51,9 @@ impl Mesher {
 
             for i in 1..=face_point_count {
                 let mut point = ffi::poly::Poly_Triangulation_Node(triangulation, i);
-                point.pin_mut().Transform(&ffi::top_loc::TopLoc_Location_Transformation(&location));
+                point
+                    .pin_mut()
+                    .Transform(&ffi::top_loc::TopLoc_Location_Transformation(&location));
                 vertices.push(dvec3(point.X(), point.Y(), point.Z()));
             }
 
@@ -114,6 +116,11 @@ impl Mesher {
             }
         }
 
-        Ok(Mesh { vertices, uvs, normals, indices })
+        Ok(Mesh {
+            vertices,
+            uvs,
+            normals,
+            indices,
+        })
     }
 }

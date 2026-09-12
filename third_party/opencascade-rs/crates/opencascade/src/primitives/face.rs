@@ -49,7 +49,9 @@ impl Face {
         for hole in holes {
             make_face.pin_mut().add_wire(&hole.inner);
         }
-        make_face.pin_mut().Build(&ffi::message::Message_ProgressRange_new());
+        make_face
+            .pin_mut()
+            .Build(&ffi::message::Message_ProgressRange_new());
         Self::from_make_face(make_face)
     }
 
@@ -127,7 +129,9 @@ impl Face {
     pub fn revolve(&self, origin: DVec3, axis: DVec3, angle: Option<Angle>) -> Solid {
         let revol_vec = make_axis_1(origin, axis);
 
-        let angle = angle.map(Angle::radians).unwrap_or(std::f64::consts::PI * 2.0);
+        let angle = angle
+            .map(Angle::radians)
+            .unwrap_or(std::f64::consts::PI * 2.0);
         let copy = false;
 
         let inner_shape = ffi::topo_ds::cast_face_to_shape(&self.inner);
@@ -163,7 +167,9 @@ impl Face {
             );
         }
 
-        make_fillet.pin_mut().Build(&ffi::message::Message_ProgressRange_new());
+        make_fillet
+            .pin_mut()
+            .Build(&ffi::message::Message_ProgressRange_new());
 
         let result_shape = make_fillet.pin_mut().Shape();
         let result_face = ffi::topo_ds::TopoDS::Face(result_shape);
@@ -258,7 +264,9 @@ impl Face {
         let mut make_pipe_shell =
             make_pipe_shell_with_law_function(&profile_wire, &path.inner, &law_handle);
 
-        make_pipe_shell.pin_mut().Build(&ffi::message::Message_ProgressRange_new());
+        make_pipe_shell
+            .pin_mut()
+            .Build(&ffi::message::Message_ProgressRange_new());
         make_pipe_shell.pin_mut().MakeSolid();
         let pipe_shape = make_pipe_shell.pin_mut().Shape();
         let result_solid = ffi::topo_ds::TopoDS::Solid(pipe_shape);
@@ -466,7 +474,9 @@ impl CompoundFace {
     pub fn revolve(&self, origin: DVec3, axis: DVec3, angle: Option<Angle>) -> Shape {
         let revol_axis = make_axis_1(origin, axis);
 
-        let angle = angle.map(Angle::radians).unwrap_or(std::f64::consts::PI * 2.0);
+        let angle = angle
+            .map(Angle::radians)
+            .unwrap_or(std::f64::consts::PI * 2.0);
         let copy = false;
 
         let inner_shape = ffi::topo_ds::cast_compound_to_shape(&self.inner);
@@ -551,7 +561,7 @@ impl From<ffi::top_abs::TopAbs_Orientation> for FaceOrientation {
             ffi::top_abs::TopAbs_Orientation::TopAbs_EXTERNAL => Self::External,
             ffi::top_abs::TopAbs_Orientation { repr } => {
                 panic!("TopAbs_Orientation had an unrepresentable value: {repr}")
-            },
+            }
         }
     }
 }

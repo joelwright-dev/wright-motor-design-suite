@@ -3789,6 +3789,7 @@ dependencies = [
  "wmds-geom",
  "wmds-geom-occt",
  "wmds-model",
+ "wmds-rules",
  "wmds-schema",
  "wmds-units",
 ]
@@ -3828,6 +3829,18 @@ dependencies = [
  "indexmap",
  "thiserror 2.0.20",
  "wmds-expr",
+ "wmds-schema",
+ "wmds-units",
+]
+
+[[package]]
+name = "wmds-rules"
+version = "0.0.1"
+dependencies = [
+ "indexmap",
+ "thiserror 2.0.20",
+ "wmds-expr",
+ "wmds-model",
  "wmds-schema",
  "wmds-units",
 ]

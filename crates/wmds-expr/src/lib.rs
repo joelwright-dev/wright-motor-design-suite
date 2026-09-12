@@ -85,7 +85,9 @@ impl Expr {
             Expr::Num(_) => true,
             Expr::Bool(_) | Expr::Str(_) | Expr::Path(_) => false,
             Expr::Tuple(v) | Expr::List(v) => v.iter().any(|e| e.contains_number()),
-            Expr::Unary(_, e) | Expr::Lambda(_, e) | Expr::Member(e, _) | Expr::TextOr(_, e) => e.contains_number(),
+            Expr::Unary(_, e) | Expr::Lambda(_, e) | Expr::Member(e, _) | Expr::TextOr(_, e) => {
+                e.contains_number()
+            }
             Expr::Binary(_, a, b) => a.contains_number() || b.contains_number(),
             Expr::If(c, a, b) => c.contains_number() || a.contains_number() || b.contains_number(),
             // A function call is never a stray word, so treat it as formula-like.

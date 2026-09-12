@@ -196,6 +196,7 @@ fn unit_table(symbol: &str) -> Option<UnitDef> {
         "GPa" => d(1e9, Dim::PRESSURE),
         "bar" => d(1e5, Dim::PRESSURE),
         "Nm" => d(1.0, Dim::TORQUE),
+        "kNm" => d(1e3, Dim::TORQUE),
         "J" => d(1.0, Dim::TORQUE),
         "kJ" => d(1e3, Dim::TORQUE),
         "kWh" => d(3.6e6, Dim::TORQUE),

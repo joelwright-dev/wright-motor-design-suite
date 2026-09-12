@@ -26,7 +26,11 @@ fn cross(a: Vec3, b: Vec3) -> Vec3 {
 
 /// Two unit vectors perpendicular to `n` and to each other.
 fn basis(n: Vec3) -> (Vec3, Vec3) {
-    let helper = if n[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let helper = if n[0].abs() < 0.9 {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
     let u = normalize(cross(n, helper)).unwrap_or([0.0, 1.0, 0.0]);
     let v = cross(n, u);
     (u, v)
@@ -121,7 +125,9 @@ impl GeomKernel for MeshKernel {
 
     fn cylinder_between(&self, a: Vec3, b: Vec3, r: f64) -> Result<Mesh> {
         if r <= 0.0 {
-            return Err(GeomError::Kernel(format!("cylinder radius {r} must be positive")));
+            return Err(GeomError::Kernel(format!(
+                "cylinder radius {r} must be positive"
+            )));
         }
         let n = normalize(sub(b, a))?;
         let ra = ring(a, n, r);
@@ -135,11 +141,18 @@ impl GeomKernel for MeshKernel {
 
     fn tube_between(&self, a: Vec3, b: Vec3, od: f64, wall_t: f64) -> Result<Mesh> {
         if wall_t <= 0.0 || wall_t * 2.0 >= od {
-            return Err(GeomError::Kernel(format!("tube wall {wall_t} is not valid for od {od}")));
+            return Err(GeomError::Kernel(format!(
+                "tube wall {wall_t} is not valid for od {od}"
+            )));
         }
         let n = normalize(sub(b, a))?;
         let (ro, ri) = (od / 2.0, od / 2.0 - wall_t);
-        let (oa, ob, ia, ib) = (ring(a, n, ro), ring(b, n, ro), ring(a, n, ri), ring(b, n, ri));
+        let (oa, ob, ia, ib) = (
+            ring(a, n, ro),
+            ring(b, n, ro),
+            ring(a, n, ri),
+            ring(b, n, ri),
+        );
         let mut m = Mesh::default();
         wall_between(&mut m, &oa, &ob, true);
         wall_between(&mut m, &ia, &ib, false);
@@ -180,11 +193,15 @@ impl GeomKernel for MeshKernel {
     }
 
     fn subtract(&self, _a: &Mesh, _b: &Mesh) -> Result<Mesh> {
-        Err(GeomError::Unsupported("subtract (mesh kernel has no booleans)".into()))
+        Err(GeomError::Unsupported(
+            "subtract (mesh kernel has no booleans)".into(),
+        ))
     }
 
     fn intersect(&self, _a: &Mesh, _b: &Mesh) -> Result<Mesh> {
-        Err(GeomError::Unsupported("intersect (mesh kernel has no booleans)".into()))
+        Err(GeomError::Unsupported(
+            "intersect (mesh kernel has no booleans)".into(),
+        ))
     }
 
     fn translated(&self, s: &Mesh, offset: Vec3) -> Result<Mesh> {
@@ -262,18 +279,30 @@ mod tests {
         let c = k.cylinder_between([0.0; 3], [0.0, 0.0, 0.5], 0.1).unwrap();
         let mp = c.mass_props();
         let expected = std::f64::consts::PI * 0.01 * 0.5;
-        assert!(close(mp.volume, expected, 0.01), "{} vs {}", mp.volume, expected);
+        assert!(
+            close(mp.volume, expected, 0.01),
+            "{} vs {}",
+            mp.volume,
+            expected
+        );
         assert!(close(mp.centroid[2], 0.25, 1e-6));
     }
 
     #[test]
     fn tube_volume_matches_analytic() {
         let k = MeshKernel;
-        let t = k.tube_between([0.0; 3], [0.3, 0.0, 0.0], 0.028, 0.0025).unwrap();
+        let t = k
+            .tube_between([0.0; 3], [0.3, 0.0, 0.0], 0.028, 0.0025)
+            .unwrap();
         let mp = t.mass_props();
         let (ro, ri): (f64, f64) = (0.014, 0.0115);
         let expected = std::f64::consts::PI * (ro * ro - ri * ri) * 0.3;
-        assert!(close(mp.volume, expected, 0.01), "{} vs {}", mp.volume, expected);
+        assert!(
+            close(mp.volume, expected, 0.01),
+            "{} vs {}",
+            mp.volume,
+            expected
+        );
         assert!(close(mp.centroid[0], 0.15, 1e-6));
     }
 

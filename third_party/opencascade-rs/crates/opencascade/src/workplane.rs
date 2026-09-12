@@ -18,7 +18,10 @@ pub enum Plane {
     Right,
     Top,
     Bottom,
-    Custom { x_dir: (f64, f64, f64), normal_dir: (f64, f64, f64) },
+    Custom {
+        x_dir: (f64, f64, f64),
+        normal_dir: (f64, f64, f64),
+    },
 }
 
 impl Plane {
@@ -46,7 +49,7 @@ impl Plane {
                 let y_axis = z_axis.cross(x_axis).normalize();
 
                 DAffine3::from_cols(x_axis, y_axis, z_axis, DVec3::ZERO)
-            },
+            }
         }
     }
 }
@@ -68,27 +71,39 @@ impl Workplane {
     }
 
     pub fn xy() -> Self {
-        Self { transform: Plane::XY.transform() }
+        Self {
+            transform: Plane::XY.transform(),
+        }
     }
 
     pub fn yz() -> Self {
-        Self { transform: Plane::YZ.transform() }
+        Self {
+            transform: Plane::YZ.transform(),
+        }
     }
 
     pub fn zx() -> Self {
-        Self { transform: Plane::ZX.transform() }
+        Self {
+            transform: Plane::ZX.transform(),
+        }
     }
 
     pub fn xz() -> Self {
-        Self { transform: Plane::XZ.transform() }
+        Self {
+            transform: Plane::XZ.transform(),
+        }
     }
 
     pub fn zy() -> Self {
-        Self { transform: Plane::ZY.transform() }
+        Self {
+            transform: Plane::ZY.transform(),
+        }
     }
 
     pub fn yx() -> Self {
-        Self { transform: Plane::YX.transform() }
+        Self {
+            transform: Plane::YX.transform(),
+        }
     }
 
     pub fn origin(&self) -> DVec3 {
@@ -109,8 +124,12 @@ impl Workplane {
 
     // TODO(bschwind) - Test this.
     pub fn set_rotation(&mut self, (rot_x, rot_y, rot_z): (Angle, Angle, Angle)) {
-        let rotation_matrix =
-            DMat3::from_euler(EulerRot::XYZ, rot_x.radians(), rot_y.radians(), rot_z.radians());
+        let rotation_matrix = DMat3::from_euler(
+            EulerRot::XYZ,
+            rot_x.radians(),
+            rot_y.radians(),
+            rot_z.radians(),
+        );
 
         let translation = self.transform.translation;
 
@@ -127,8 +146,12 @@ impl Workplane {
     }
 
     pub fn rotate_by(&mut self, (rot_x, rot_y, rot_z): (Angle, Angle, Angle)) {
-        let rotation_matrix =
-            DMat3::from_euler(EulerRot::XYZ, rot_x.radians(), rot_y.radians(), rot_z.radians());
+        let rotation_matrix = DMat3::from_euler(
+            EulerRot::XYZ,
+            rot_x.radians(),
+            rot_y.radians(),
+            rot_z.radians(),
+        );
 
         let translation = self.transform.translation;
 
@@ -225,7 +248,12 @@ pub struct Sketch {
 
 impl Sketch {
     fn new(cursor: DVec3, workplane: Workplane) -> Self {
-        Self { first_point: None, cursor, workplane, edges: Vec::new() }
+        Self {
+            first_point: None,
+            cursor,
+            workplane,
+            edges: Vec::new(),
+        }
     }
 
     fn add_edge(&mut self, edge: Edge) {
@@ -253,7 +281,9 @@ impl Sketch {
 
     pub fn line_dx(mut self, dx: f64) -> Self {
         let cursor = self.workplane.to_local_pos(self.cursor);
-        let new_point = self.workplane.to_world_pos(dvec3(cursor.x + dx, cursor.y, 0.0));
+        let new_point = self
+            .workplane
+            .to_world_pos(dvec3(cursor.x + dx, cursor.y, 0.0));
         let new_edge = Edge::segment(self.cursor, new_point);
         self.cursor = new_point;
 
@@ -264,7 +294,9 @@ impl Sketch {
 
     pub fn line_dy(mut self, dy: f64) -> Self {
         let cursor = self.workplane.to_local_pos(self.cursor);
-        let new_point = self.workplane.to_world_pos(dvec3(cursor.x, cursor.y + dy, 0.0));
+        let new_point = self
+            .workplane
+            .to_world_pos(dvec3(cursor.x, cursor.y + dy, 0.0));
         let new_edge = Edge::segment(self.cursor, new_point);
         self.cursor = new_point;
 
@@ -275,7 +307,9 @@ impl Sketch {
 
     pub fn line_dx_dy(mut self, dx: f64, dy: f64) -> Self {
         let cursor = self.workplane.to_local_pos(self.cursor);
-        let new_point = self.workplane.to_world_pos(dvec3(cursor.x + dx, cursor.y + dy, 0.0));
+        let new_point = self
+            .workplane
+            .to_world_pos(dvec3(cursor.x + dx, cursor.y + dy, 0.0));
         let new_edge = Edge::segment(self.cursor, new_point);
         self.cursor = new_point;
 

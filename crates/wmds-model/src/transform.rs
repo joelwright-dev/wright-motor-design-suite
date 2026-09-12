@@ -32,7 +32,11 @@ pub fn norm(a: Vec3) -> f64 {
 }
 pub fn normalize(a: Vec3) -> Option<Vec3> {
     let n = norm(a);
-    if n < 1e-12 { None } else { Some(scale(a, 1.0 / n)) }
+    if n < 1e-12 {
+        None
+    } else {
+        Some(scale(a, 1.0 / n))
+    }
 }
 
 /// A rigid (or mirrored) transform: `y = m * x + t`, with `m` stored as three columns.
@@ -55,12 +59,18 @@ impl Transform {
     };
 
     pub fn translation(t: Vec3) -> Transform {
-        Transform { translation: t, ..Transform::IDENTITY }
+        Transform {
+            translation: t,
+            ..Transform::IDENTITY
+        }
     }
 
     /// From orthonormal basis columns and an origin.
     pub fn from_basis(x: Vec3, y: Vec3, z: Vec3, origin: Vec3) -> Transform {
-        Transform { cols: [x, y, z], translation: origin }
+        Transform {
+            cols: [x, y, z],
+            translation: origin,
+        }
     }
 
     /// Rotation of `angle` radians about a unit axis (Rodrigues).
@@ -162,9 +172,15 @@ impl Transform {
                 [a[2] / d, b[2] / d, c[2] / d],
             ]
         };
-        let inv = Transform { cols: inv_cols, translation: [0.0; 3] };
+        let inv = Transform {
+            cols: inv_cols,
+            translation: [0.0; 3],
+        };
         let t = inv.direction(self.translation);
-        Transform { cols: inv_cols, translation: scale(t, -1.0) }
+        Transform {
+            cols: inv_cols,
+            translation: scale(t, -1.0),
+        }
     }
 }
 
@@ -186,7 +202,11 @@ impl Frame {
             .clock
             .and_then(|c| normalize(sub(c, scale(z, dot(c, z)))))
             .unwrap_or_else(|| {
-                let helper = if z[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+                let helper = if z[0].abs() < 0.9 {
+                    [1.0, 0.0, 0.0]
+                } else {
+                    [0.0, 1.0, 0.0]
+                };
                 normalize(cross(helper, z)).unwrap_or([1.0, 0.0, 0.0])
             });
         let y = cross(z, x);
@@ -226,7 +246,12 @@ impl MateAxis {
 /// * `axis` - the mating convention
 /// * `offset` - optional extra transform expressed in port A's frame, so a positive z offset is
 ///   a shim that pushes the two parts apart along the mating axis
-pub fn solve_mate(a_world: &Transform, b_local: &Transform, axis: MateAxis, offset: Option<Transform>) -> Transform {
+pub fn solve_mate(
+    a_world: &Transform,
+    b_local: &Transform,
+    axis: MateAxis,
+    offset: Option<Transform>,
+) -> Transform {
     let base = match offset {
         Some(o) => o.then(a_world),
         None => *a_world,
@@ -268,7 +293,11 @@ mod tests {
 
     #[test]
     fn frame_axis_becomes_local_z() {
-        let f = Frame { origin: [1.0, 0.0, 0.0], axis: [1.0, 0.0, 0.0], clock: None };
+        let f = Frame {
+            origin: [1.0, 0.0, 0.0],
+            axis: [1.0, 0.0, 0.0],
+            clock: None,
+        };
         let t = f.to_transform();
         assert!(close3(t.direction([0.0, 0.0, 1.0]), [1.0, 0.0, 0.0]));
         assert!(close3(t.point([0.0, 0.0, 0.0]), [1.0, 0.0, 0.0]));
@@ -278,20 +307,44 @@ mod tests {
     #[test]
     fn opposed_mate_brings_ports_together_facing() {
         // Port A at the origin of the world facing +z.
-        let a_world = Frame { origin: [0.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], clock: None }.to_transform();
+        let a_world = Frame {
+            origin: [0.0, 0.0, 0.0],
+            axis: [0.0, 0.0, 1.0],
+            clock: None,
+        }
+        .to_transform();
         // Port B sits 2 m along its own instance's x axis, facing +x.
-        let b_local = Frame { origin: [2.0, 0.0, 0.0], axis: [1.0, 0.0, 0.0], clock: None }.to_transform();
+        let b_local = Frame {
+            origin: [2.0, 0.0, 0.0],
+            axis: [1.0, 0.0, 0.0],
+            clock: None,
+        }
+        .to_transform();
         let placement = solve_mate(&a_world, &b_local, MateAxis::Opposed, None);
         // After placement, port B in world coordinates must sit at A's origin, facing -z.
         let b_world = b_local.then(&placement);
-        assert!(close3(b_world.translation, [0.0; 3]), "{:?}", b_world.translation);
+        assert!(
+            close3(b_world.translation, [0.0; 3]),
+            "{:?}",
+            b_world.translation
+        );
         assert!(close3(b_world.direction([0.0, 0.0, 1.0]), [0.0, 0.0, -1.0]));
     }
 
     #[test]
     fn aligned_mate_keeps_axes_parallel() {
-        let a_world = Frame { origin: [1.0, 0.0, 0.0], axis: [1.0, 0.0, 0.0], clock: None }.to_transform();
-        let b_local = Frame { origin: [0.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], clock: None }.to_transform();
+        let a_world = Frame {
+            origin: [1.0, 0.0, 0.0],
+            axis: [1.0, 0.0, 0.0],
+            clock: None,
+        }
+        .to_transform();
+        let b_local = Frame {
+            origin: [0.0, 0.0, 0.0],
+            axis: [0.0, 0.0, 1.0],
+            clock: None,
+        }
+        .to_transform();
         let placement = solve_mate(&a_world, &b_local, MateAxis::Aligned, None);
         let b_world = b_local.then(&placement);
         assert!(close3(b_world.translation, [1.0, 0.0, 0.0]));
@@ -300,11 +353,20 @@ mod tests {
 
     #[test]
     fn mate_offset_shifts_along_the_axis() {
-        let a_world = Frame { origin: [0.0; 3], axis: [0.0, 0.0, 1.0], clock: None }.to_transform();
+        let a_world = Frame {
+            origin: [0.0; 3],
+            axis: [0.0, 0.0, 1.0],
+            clock: None,
+        }
+        .to_transform();
         let b_local = Transform::IDENTITY;
         let offset = Transform::translation([0.0, 0.0, 0.005]);
         let placement = solve_mate(&a_world, &b_local, MateAxis::Opposed, Some(offset));
         let b_world = b_local.then(&placement);
-        assert!(close3(b_world.translation, [0.0, 0.0, 0.005]), "{:?}", b_world.translation);
+        assert!(
+            close3(b_world.translation, [0.0, 0.0, 0.005]),
+            "{:?}",
+            b_world.translation
+        );
     }
 }

@@ -42,6 +42,16 @@ enum Cmd {
         #[command(subcommand)]
         cmd: VehCmd,
     },
+    /// Check a vehicle against its rule packs
+    Check {
+        file: PathBuf,
+        /// Write the machine-readable report here as well
+        #[arg(long, value_name = "FILE")]
+        json: Option<PathBuf>,
+        /// Also list the rules that do not apply
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -117,16 +127,68 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let project = cli.project.clone().unwrap_or_else(|| PathBuf::from("."));
     match cli.cmd {
-        Cmd::Lib { cmd: LibCmd::Validate { paths } } => validate(&project, &paths),
-        Cmd::Lib { cmd: LibCmd::Show { file, sets, build, step, stl } } => {
-            report::show_primitive(&file, &sets, build || step.is_some() || stl.is_some(), step.as_deref(), stl.as_deref())
-        }
-        Cmd::Chassis { cmd: ChassisCmd::List } => list_chassis(&project),
-        Cmd::Chassis { cmd: ChassisCmd::Show { system, config, width, rail, sections, build, step, stl } } => {
-            report::show_chassis(&project, &system, &config, &width, rail.as_deref(), &sections, build || step.is_some() || stl.is_some(), step.as_deref(), stl.as_deref())
-        }
-        Cmd::Veh { cmd: VehCmd::Show { file, build, step, stl } } => {
-            report::show_vehicle(&project, &file, build || step.is_some() || stl.is_some(), step.as_deref(), stl.as_deref())
+        Cmd::Lib {
+            cmd: LibCmd::Validate { paths },
+        } => validate(&project, &paths),
+        Cmd::Lib {
+            cmd:
+                LibCmd::Show {
+                    file,
+                    sets,
+                    build,
+                    step,
+                    stl,
+                },
+        } => report::show_primitive(
+            &file,
+            &sets,
+            build || step.is_some() || stl.is_some(),
+            step.as_deref(),
+            stl.as_deref(),
+        ),
+        Cmd::Chassis {
+            cmd: ChassisCmd::List,
+        } => list_chassis(&project),
+        Cmd::Chassis {
+            cmd:
+                ChassisCmd::Show {
+                    system,
+                    config,
+                    width,
+                    rail,
+                    sections,
+                    build,
+                    step,
+                    stl,
+                },
+        } => report::show_chassis(
+            &project,
+            &system,
+            &config,
+            &width,
+            rail.as_deref(),
+            &sections,
+            build || step.is_some() || stl.is_some(),
+            step.as_deref(),
+            stl.as_deref(),
+        ),
+        Cmd::Veh {
+            cmd:
+                VehCmd::Show {
+                    file,
+                    build,
+                    step,
+                    stl,
+                },
+        } => report::show_vehicle(
+            &project,
+            &file,
+            build || step.is_some() || stl.is_some(),
+            step.as_deref(),
+            stl.as_deref(),
+        ),
+        Cmd::Check { file, json, all } => {
+            report::check_vehicle(&project, &file, json.as_deref(), all)
         }
     }
 }
@@ -152,14 +214,31 @@ fn list_chassis(project: &Path) -> ExitCode {
         Err(c) => return c,
     };
     if lib.chassis.is_empty() {
-        println!("no chassis systems found (looked in {}/chassis)", project.display());
+        println!(
+            "no chassis systems found (looked in {}/chassis)",
+            project.display()
+        );
         return ExitCode::from(2);
     }
     for (id, c) in &lib.chassis {
         println!("{id} v{}  {}", c.version, c.description);
         println!("  grid pitch {}", c.grid_pitch);
-        println!("  widths: {}", c.width_configs.keys().cloned().collect::<Vec<_>>().join(", "));
-        println!("  rail sections: {}", c.rail_sections.keys().cloned().collect::<Vec<_>>().join(", "));
+        println!(
+            "  widths: {}",
+            c.width_configs
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        println!(
+            "  rail sections: {}",
+            c.rail_sections
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
         for (name, sections) in &c.configurations {
             println!("  configuration {name}: {}", sections.join(" + "));
         }
@@ -196,11 +275,25 @@ fn collect_files(paths: &[PathBuf], suffixes: &[&str]) -> Vec<PathBuf> {
 
 fn validate(project: &Path, paths: &[PathBuf]) -> ExitCode {
     let paths: Vec<PathBuf> = if paths.is_empty() {
-        vec![project.join("library"), project.join("chassis")]
+        vec![
+            project.join("library"),
+            project.join("chassis"),
+            project.join("rules"),
+            project.join("vehicles"),
+        ]
     } else {
         paths.to_vec()
     };
-    let files = collect_files(&paths, &[".prim.kdl", ".asm.kdl", ".veh.kdl", ".chassis.kdl"]);
+    let files = collect_files(
+        &paths,
+        &[
+            ".prim.kdl",
+            ".asm.kdl",
+            ".veh.kdl",
+            ".chassis.kdl",
+            ".rules.kdl",
+        ],
+    );
     if files.is_empty() {
         eprintln!("no definition files found under {paths:?}");
         return ExitCode::from(2);
@@ -219,7 +312,10 @@ fn validate(project: &Path, paths: &[PathBuf]) -> ExitCode {
         }
     }
     for f in &files {
-        let name = f.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let name = f
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
         let src = match std::fs::read_to_string(f) {
             Ok(s) => s,
             Err(e) => {
@@ -233,16 +329,43 @@ fn validate(project: &Path, paths: &[PathBuf]) -> ExitCode {
                 .map_err(|e| format!("{:?}", miette::Report::new(e)))
                 .and_then(|d| {
                     resolve(&d, &Overrides::default())
-                        .map(|r| format!("{} v{}, {} params, {} ports", d.id, d.version, r.params.len(), r.ports.len()))
+                        .map(|r| {
+                            format!(
+                                "{} v{}, {} params, {} ports",
+                                d.id,
+                                d.version,
+                                r.params.len(),
+                                r.ports.len()
+                            )
+                        })
                         .map_err(|e| e.to_string())
                 })
+        } else if name.ends_with(".rules.kdl") {
+            wmds_schema::parse_rules(&name, &src)
+                .map(|d| format!("{} v{}, {} rules", d.id, d.version, d.rules.len()))
+                .map_err(|e| format!("{:?}", miette::Report::new(e)))
         } else if name.ends_with(".chassis.kdl") {
             wmds_schema::parse_chassis(&name, &src)
-                .map(|d| format!("{} v{}, {} configurations", d.id, d.version, d.configurations.len()))
+                .map(|d| {
+                    format!(
+                        "{} v{}, {} configurations",
+                        d.id,
+                        d.version,
+                        d.configurations.len()
+                    )
+                })
                 .map_err(|e| format!("{:?}", miette::Report::new(e)))
         } else {
             wmds_schema::parse_assembly(&name, &src)
-                .map(|d| format!("{} v{}, {} instances, {} mates", d.id, d.version, d.instances.len(), d.mates.len()))
+                .map(|d| {
+                    format!(
+                        "{} v{}, {} instances, {} mates",
+                        d.id,
+                        d.version,
+                        d.instances.len(),
+                        d.mates.len()
+                    )
+                })
                 .map_err(|e| format!("{:?}", miette::Report::new(e)))
         };
         match outcome {
@@ -255,5 +378,9 @@ fn validate(project: &Path, paths: &[PathBuf]) -> ExitCode {
         }
     }
     println!("{} file(s), {failures} failure(s)", files.len());
-    if failures == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+    if failures == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }

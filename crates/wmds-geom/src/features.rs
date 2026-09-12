@@ -171,13 +171,16 @@ pub fn build_level<K: GeomKernel>(
                 bodies.push((name_of(f), solid));
             }
             "box_tube" => {
-                let size = vec3_len(
-                    f.args
-                        .get("size")
-                        .ok_or_else(|| ferr("box_tube needs size=(length, width, height)".into()))?,
-                )
+                let size =
+                    vec3_len(f.args.get("size").ok_or_else(|| {
+                        ferr("box_tube needs size=(length, width, height)".into())
+                    })?)
+                    .map_err(ferr)?;
+                let wall = len(f
+                    .args
+                    .get("wall")
+                    .ok_or_else(|| ferr("box_tube needs wall=".into()))?)
                 .map_err(ferr)?;
-                let wall = len(f.args.get("wall").ok_or_else(|| ferr("box_tube needs wall=".into()))?).map_err(ferr)?;
                 let centre = match f.args.get("at") {
                     Some(v) => vec3_len(v).map_err(ferr)?,
                     None => [0.0; 3],

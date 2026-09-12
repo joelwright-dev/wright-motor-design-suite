@@ -40,7 +40,10 @@ impl Library {
         if !lib_root.is_dir() {
             return Err(LibraryError::Missing(lib_root.display().to_string()));
         }
-        let mut lib = Library { root: lib_root.clone(), ..Default::default() };
+        let mut lib = Library {
+            root: lib_root.clone(),
+            ..Default::default()
+        };
 
         let ports_file = lib_root.join("ports.kdl");
         if ports_file.is_file() {
@@ -56,7 +59,10 @@ impl Library {
         collect(&project_root.join("chassis"), &mut files);
 
         for f in files {
-            let name = f.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            let name = f
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
             let src = match std::fs::read_to_string(&f) {
                 Ok(s) => s,
                 Err(e) => {
@@ -94,7 +100,10 @@ impl Library {
     /// Load a single vehicle or assembly file that lives outside the library.
     pub fn load_assembly_file(path: &Path) -> Result<AssemblyDef, LibraryError> {
         let src = read(path)?;
-        let name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
         wmds_schema::parse_assembly(&name, &src).map_err(|e| LibraryError::Load {
             path: path.display().to_string(),
             message: format!("{e:?}"),
@@ -131,7 +140,9 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     if !dir.is_dir() {
         return;
     }
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
     paths.sort();
     for p in paths {
@@ -145,7 +156,9 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
 
 /// Warn when a definition's declared id does not match its path under the library root.
 fn check_id(lib: &mut Library, file: &Path, root: &Path, id: &str, suffix: &str) {
-    let Ok(rel) = file.strip_prefix(root) else { return };
+    let Ok(rel) = file.strip_prefix(root) else {
+        return;
+    };
     let expected = rel.to_string_lossy().replace('\\', "/");
     let expected = expected.trim_end_matches(suffix);
     if expected != id {

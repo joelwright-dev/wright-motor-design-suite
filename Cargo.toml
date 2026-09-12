@@ -6,6 +6,7 @@ members = [
     "crates/wmds-schema",
     "crates/wmds-model",
     "crates/wmds-geom",
+    "crates/wmds-rules",
     "crates/wmds-geom-occt",
     "crates/wmds-cli",
     "crates/wmds-app",
@@ -26,6 +27,7 @@ wmds-expr = { path = "crates/wmds-expr" }
 wmds-schema = { path = "crates/wmds-schema" }
 wmds-model = { path = "crates/wmds-model" }
 wmds-geom = { path = "crates/wmds-geom" }
+wmds-rules = { path = "crates/wmds-rules" }
 wmds-geom-occt = { path = "crates/wmds-geom-occt" }
 
 kdl = "6"

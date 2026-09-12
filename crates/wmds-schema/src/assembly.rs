@@ -104,7 +104,10 @@ impl PortRef {
         if i.is_empty() || p.is_empty() {
             return None;
         }
-        Some(PortRef { instance: i.to_string(), port: p.to_string() })
+        Some(PortRef {
+            instance: i.to_string(),
+            port: p.to_string(),
+        })
     }
 }
 
@@ -160,7 +163,10 @@ pub fn parse_assembly(name: &str, src: &str) -> Result<AssemblyDef, SchemaErrors
             let errors = e
                 .diagnostics
                 .iter()
-                .map(|d| SchemaError { msg: d.to_string(), span: Some(d.span) })
+                .map(|d| SchemaError {
+                    msg: d.to_string(),
+                    span: Some(d.span),
+                })
                 .collect();
             return Err(SchemaErrors::new(name, src, errors));
         }
@@ -181,7 +187,10 @@ pub fn parse_assembly(name: &str, src: &str) -> Result<AssemblyDef, SchemaErrors
             None
         }
         _ => {
-            ctx.err(roots[1], "only one `assembly` or `vehicle` node is allowed per file");
+            ctx.err(
+                roots[1],
+                "only one `assembly` or `vehicle` node is allowed per file",
+            );
             None
         }
     };
@@ -192,7 +201,11 @@ pub fn parse_assembly(name: &str, src: &str) -> Result<AssemblyDef, SchemaErrors
 }
 
 fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
-    let kind = if node.name().value() == "vehicle" { AssemblyKind::Vehicle } else { AssemblyKind::Assembly };
+    let kind = if node.name().value() == "vehicle" {
+        AssemblyKind::Vehicle
+    } else {
+        AssemblyKind::Assembly
+    };
     let id = match first_positional_string(node) {
         Some(s) => s,
         None => {
@@ -201,8 +214,12 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
         }
     };
     let version = prop_string(node, "version").unwrap_or_else(|| "0.0.0".to_string());
-    let description = child(node, "description").and_then(first_positional_string).unwrap_or_default();
-    let params = child(node, "params").map(|p| parse_params_block(ctx, p)).unwrap_or_default();
+    let description = child(node, "description")
+        .and_then(first_positional_string)
+        .unwrap_or_default();
+    let params = child(node, "params")
+        .map(|p| parse_params_block(ctx, p))
+        .unwrap_or_default();
 
     // instances
     let mut instances = Vec::new();
@@ -220,7 +237,10 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
                 (Some(p), None) => InstanceSource::Primitive(p),
                 (None, Some(a)) => InstanceSource::Assembly(a),
                 (Some(_), Some(_)) => {
-                    ctx.err(n, format!("instance `{iid}` sets both primitive= and assembly="));
+                    ctx.err(
+                        n,
+                        format!("instance `{iid}` sets both primitive= and assembly="),
+                    );
                     continue;
                 }
                 (None, None) => {
@@ -250,10 +270,10 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
                 mirror: prop_string(p, "mirror"),
                 justification: prop_string(p, "because").unwrap_or_default(),
             });
-            if let Some(pl) = &placement {
-                if pl.justification.is_empty() {
-                    ctx.err(n, format!("instance `{iid}`: free placement needs because=\"...\" explaining why it is not mated"));
-                }
+            if let Some(pl) = &placement
+                && pl.justification.is_empty()
+            {
+                ctx.err(n, format!("instance `{iid}`: free placement needs because=\"...\" explaining why it is not mated"));
             }
             instances.push(InstanceDef {
                 id: iid,
@@ -274,13 +294,20 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
                 ctx.err(n, "only `mate` nodes are allowed inside `mates`");
                 continue;
             }
-            let mid = first_positional_string(n).unwrap_or_else(|| format!("mate{}", mates.len() + 1));
+            let mid =
+                first_positional_string(n).unwrap_or_else(|| format!("mate{}", mates.len() + 1));
             let (Some(a), Some(b)) = (prop_string(n, "a"), prop_string(n, "b")) else {
-                ctx.err(n, format!("mate `{mid}` needs a=\"instance.port\" and b=\"instance.port\""));
+                ctx.err(
+                    n,
+                    format!("mate `{mid}` needs a=\"instance.port\" and b=\"instance.port\""),
+                );
                 continue;
             };
             let (Some(a), Some(b)) = (PortRef::parse(&a), PortRef::parse(&b)) else {
-                ctx.err(n, format!("mate `{mid}`: port references must be `instance.port`"));
+                ctx.err(
+                    n,
+                    format!("mate `{mid}`: port references must be `instance.port`"),
+                );
                 continue;
             };
             let dof = match prop_string(n, "dof") {
@@ -293,7 +320,10 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
                 },
                 None => None,
             };
-            let stage = match child(n, "stage").and_then(first_positional_string).or_else(|| prop_string(n, "stage")) {
+            let stage = match child(n, "stage")
+                .and_then(first_positional_string)
+                .or_else(|| prop_string(n, "stage"))
+            {
                 Some(s) => match Stage::parse(&s) {
                     Some(v) => Some(v),
                     None => {
@@ -307,7 +337,9 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
                 kind: prop_string(f, "kind").unwrap_or_else(|| "bolt".into()),
                 size: prop_string(f, "size").unwrap_or_default(),
                 grade: prop_string(f, "grade").unwrap_or_default(),
-                quantity: prop_string(f, "qty").and_then(|q| q.parse().ok()).unwrap_or(1),
+                quantity: prop_string(f, "qty")
+                    .and_then(|q| q.parse().ok())
+                    .unwrap_or(1),
                 torque: prop_expr(f, "torque"),
                 nut: prop_string(f, "nut"),
                 washer: prop_string(f, "washer"),
@@ -332,7 +364,10 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
     if let Some(block) = child(node, "ports") {
         for n in children(block) {
             if n.name().value() != "export" {
-                ctx.err(n, "only `export` nodes are allowed inside an assembly's `ports`");
+                ctx.err(
+                    n,
+                    "only `export` nodes are allowed inside an assembly's `ports`",
+                );
                 continue;
             }
             let Some(src) = first_positional_string(n).and_then(|s| PortRef::parse(&s)) else {
@@ -351,7 +386,8 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
                 ctx.err(n, "only `mass` nodes are allowed inside `masses`");
                 continue;
             }
-            let mid = first_positional_string(n).unwrap_or_else(|| format!("mass{}", point_masses.len() + 1));
+            let mid = first_positional_string(n)
+                .unwrap_or_else(|| format!("mass{}", point_masses.len() + 1));
             let (Some(mass), Some(at)) = (prop_expr(n, "value"), prop_expr(n, "at")) else {
                 ctx.err(n, format!("mass `{mid}` needs value= and at="));
                 continue;
@@ -370,12 +406,24 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
     let mut chassis = None;
     if kind == AssemblyKind::Vehicle {
         let meta = VehicleMeta {
-            category: child(node, "category").and_then(first_positional_string).unwrap_or_default(),
+            category: child(node, "category")
+                .and_then(first_positional_string)
+                .unwrap_or_default(),
             markets: child(node, "markets")
-                .map(|m| crate::positional(m).iter().map(|v| value_to_string(v)).collect())
+                .map(|m| {
+                    crate::positional(m)
+                        .iter()
+                        .map(|v| value_to_string(v))
+                        .collect()
+                })
                 .unwrap_or_default(),
             rule_packs: child(node, "rule_packs")
-                .map(|m| crate::positional(m).iter().map(|v| value_to_string(v)).collect())
+                .map(|m| {
+                    crate::positional(m)
+                        .iter()
+                        .map(|v| value_to_string(v))
+                        .collect()
+                })
                 .unwrap_or_default(),
         };
         if meta.category.is_empty() {
@@ -387,12 +435,28 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
             let system = prop_string(c, "system").or_else(|| first_positional_string(c));
             let Some(system) = system else {
                 ctx.err(c, "chassis needs system=\"mcds-v1\"");
-                return finish(kind, id, version, description, params, instances, mates, root, exports, point_masses, vehicle, None);
+                return finish(
+                    kind,
+                    id,
+                    version,
+                    description,
+                    params,
+                    instances,
+                    mates,
+                    root,
+                    exports,
+                    point_masses,
+                    vehicle,
+                    None,
+                );
             };
             let mut section_lengths = IndexMap::new();
             for s in children(c).iter().filter(|n| n.name().value() == "section") {
                 let Some(kindname) = first_positional_string(s) else {
-                    ctx.err(s, "section needs a kind, e.g. section \"front\" length=\"1100 mm\"");
+                    ctx.err(
+                        s,
+                        "section needs a kind, e.g. section \"front\" length=\"1100 mm\"",
+                    );
                     continue;
                 };
                 match prop_expr(s, "length") {
@@ -404,9 +468,15 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
             }
             chassis = Some(ChassisRef {
                 system,
-                configuration: child(c, "configuration").and_then(first_positional_string).unwrap_or_else(|| "full-length".into()),
-                width: child(c, "width").and_then(first_positional_string).unwrap_or_else(|| "standard".into()),
-                rail_section: child(c, "rail_section").and_then(first_positional_string).unwrap_or_default(),
+                configuration: child(c, "configuration")
+                    .and_then(first_positional_string)
+                    .unwrap_or_else(|| "full-length".into()),
+                width: child(c, "width")
+                    .and_then(first_positional_string)
+                    .unwrap_or_else(|| "standard".into()),
+                rail_section: child(c, "rail_section")
+                    .and_then(first_positional_string)
+                    .unwrap_or_default(),
                 section_lengths,
                 id: prop_string(c, "id").unwrap_or_else(|| "chassis".into()),
             });
@@ -417,24 +487,39 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
     let ids: Vec<&str> = instances.iter().map(|i| i.id.as_str()).collect();
     let chassis_prefix = chassis.as_ref().map(|c| c.id.clone());
     let known = |inst: &str| -> bool {
-        ids.contains(&inst) || chassis_prefix.as_ref().is_some_and(|p| inst == p || inst.starts_with(&format!("{p}.")))
+        ids.contains(&inst)
+            || chassis_prefix
+                .as_ref()
+                .is_some_and(|p| inst == p || inst.starts_with(&format!("{p}.")))
     };
     for m in &mates {
         for p in [&m.a, &m.b] {
             if !known(&p.instance) {
-                ctx.err(node, format!("mate `{}` refers to unknown instance `{}`", m.id, p.instance));
+                ctx.err(
+                    node,
+                    format!(
+                        "mate `{}` refers to unknown instance `{}`",
+                        m.id, p.instance
+                    ),
+                );
             }
         }
     }
     for e in &exports {
         if !known(&e.source.instance) {
-            ctx.err(node, format!("export `{}` refers to unknown instance `{}`", e.name, e.source.instance));
+            ctx.err(
+                node,
+                format!(
+                    "export `{}` refers to unknown instance `{}`",
+                    e.name, e.source.instance
+                ),
+            );
         }
     }
-    if let Some(r) = &root {
-        if !known(r) {
-            ctx.err(node, format!("root `{r}` is not an instance"));
-        }
+    if let Some(r) = &root
+        && !known(r)
+    {
+        ctx.err(node, format!("root `{r}` is not an instance"));
     }
     let mut seen = std::collections::HashSet::new();
     for i in &instances {
@@ -443,7 +528,20 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
         }
     }
 
-    finish(kind, id, version, description, params, instances, mates, root, exports, point_masses, vehicle, chassis)
+    finish(
+        kind,
+        id,
+        version,
+        description,
+        params,
+        instances,
+        mates,
+        root,
+        exports,
+        point_masses,
+        vehicle,
+        chassis,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -510,7 +608,9 @@ assembly "corner/front-left" version="0.1.0" {
 
     #[test]
     fn parses_assembly() {
-        let a = parse_assembly("x.asm.kdl", ASM).map_err(|e| format!("{e:?}")).unwrap();
+        let a = parse_assembly("x.asm.kdl", ASM)
+            .map_err(|e| format!("{e:?}"))
+            .unwrap();
         assert_eq!(a.kind, AssemblyKind::Assembly);
         assert_eq!(a.instances.len(), 2);
         assert_eq!(a.instances[0].variants["hand"], "left");
@@ -528,8 +628,12 @@ assembly "corner/front-left" version="0.1.0" {
     #[test]
     fn catches_dangling_references() {
         let bad = ASM.replace("b=\"upright.lca_socket\"", "b=\"nosuch.port\"");
-        let e = parse_assembly("x.asm.kdl", &bad).err().expect("should fail");
-        assert!(e.errors.iter().any(|x| x.msg.contains("nosuch")), "{:?}", e.errors);
+        let e = parse_assembly("x.asm.kdl", &bad).expect_err("should fail");
+        assert!(
+            e.errors.iter().any(|x| x.msg.contains("nosuch")),
+            "{:?}",
+            e.errors
+        );
     }
 
     #[test]
@@ -538,8 +642,12 @@ assembly "corner/front-left" version="0.1.0" {
             "instance \"upright\" primitive=\"suspension/uprights/upright-std\"",
             "instance \"upright\" primitive=\"suspension/uprights/upright-std\" { place at=\"(0 mm, 0 mm, 0 mm)\" }",
         );
-        let e = parse_assembly("x.asm.kdl", &bad).err().expect("should fail");
-        assert!(e.errors.iter().any(|x| x.msg.contains("because")), "{:?}", e.errors);
+        let e = parse_assembly("x.asm.kdl", &bad).expect_err("should fail");
+        assert!(
+            e.errors.iter().any(|x| x.msg.contains("because")),
+            "{:?}",
+            e.errors
+        );
     }
 
     const VEH: &str = r#"
@@ -566,7 +674,9 @@ vehicle "reference/city-ev" version="0.1.0" {
 
     #[test]
     fn parses_vehicle_with_chassis() {
-        let v = parse_assembly("x.veh.kdl", VEH).map_err(|e| format!("{e:?}")).unwrap();
+        let v = parse_assembly("x.veh.kdl", VEH)
+            .map_err(|e| format!("{e:?}"))
+            .unwrap();
         assert_eq!(v.kind, AssemblyKind::Vehicle);
         assert_eq!(v.vehicle.as_ref().unwrap().category, "MA");
         let c = v.chassis.as_ref().unwrap();

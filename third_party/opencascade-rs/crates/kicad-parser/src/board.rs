@@ -30,7 +30,7 @@ impl KicadBoard {
             "kicad_pcb" => {
                 let board_fields = &list[1..];
                 Ok(Self::handle_board_fields(board_fields)?)
-            },
+            }
             _ => Err(Error::NotKicadPcbFile),
         }
     }
@@ -70,32 +70,32 @@ impl KicadBoard {
             let rest = &list[1..];
 
             match head.as_str() {
-                "version" => {},
-                "generator" => {},
-                "general" => {},
-                "paper" => {},
-                "layers" => {},
+                "version" => {}
+                "generator" => {}
+                "general" => {}
+                "paper" => {}
+                "layers" => {}
                 "footprint" => {
                     let footprint = Footprint::from_list(rest)?;
                     board.footprints.push(footprint);
-                },
+                }
                 "gr_arc" => {
                     let arc = GraphicArc::from_list(rest)?;
                     board.graphic_arcs.push(arc);
-                },
+                }
                 "gr_line" => {
                     let line = GraphicLine::from_list(rest)?;
                     board.graphic_lines.push(line);
-                },
+                }
                 "gr_circle" => {
                     let line = GraphicCircle::from_list(rest)?;
                     board.graphic_circles.push(line);
-                },
+                }
                 "gr_rect" => {
                     let line = GraphicRect::from_list(rest)?;
                     board.graphic_rects.push(line);
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
@@ -132,7 +132,7 @@ impl Footprint {
                         let x = extract_number(x)?;
                         let y = extract_number(y)?;
                         footprint.location = (x, y);
-                    },
+                    }
                     [x, y, rotation_degrees] => {
                         let x = extract_number(x)?;
                         let y = extract_number(y)?;
@@ -140,18 +140,18 @@ impl Footprint {
 
                         footprint.location = (x, y);
                         footprint.rotation_degrees = rotation_degrees;
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 },
                 "fp_arc" => {
                     let arc = GraphicArc::from_list(rest)?;
                     footprint.graphic_arcs.push(arc);
-                },
+                }
                 "fp_line" => {
                     let line = GraphicLine::from_list(rest)?;
                     footprint.graphic_lines.push(line);
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 

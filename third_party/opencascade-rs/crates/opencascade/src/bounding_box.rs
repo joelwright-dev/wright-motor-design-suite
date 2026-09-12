@@ -13,7 +13,9 @@ pub struct BoundingBox {
 impl BoundingBox {
     /// Create a new void box. A void box in OCC is defined as a box that contains no points.
     pub fn void() -> BoundingBox {
-        Self { inner: ffi::bnd::Bnd_Box_new() }
+        Self {
+            inner: ffi::bnd::Bnd_Box_new(),
+        }
     }
 
     pub fn is_void(&self) -> bool {

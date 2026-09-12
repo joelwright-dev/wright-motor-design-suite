@@ -52,11 +52,15 @@ fn build_one<K: GeomKernel>(k: &K, inst: &PlacedInstance) -> Result<BuiltPart<K:
     let (level, solid) = built
         .best()
         .map(|(l, s)| (l.to_string(), s.clone()))
-        .ok_or_else(|| crate::GeomError::Feature(inst.id.clone(), "no geometry level built".into()))?;
+        .ok_or_else(|| {
+            crate::GeomError::Feature(inst.id.clone(), "no geometry level built".into())
+        })?;
     let placed = k.placed(&solid, &inst.placement)?;
     let declared = match &inst.primitive.massprops {
         wmds_model::ResolvedMassProps::Declared { mass, cg, .. } => {
-            let local = cg.map(|c| [c[0].value, c[1].value, c[2].value]).unwrap_or([0.0; 3]);
+            let local = cg
+                .map(|c| [c[0].value, c[1].value, c[2].value])
+                .unwrap_or([0.0; 3]);
             Some((mass.value, inst.placement.point(local)))
         }
         wmds_model::ResolvedMassProps::Computed => None,
@@ -72,7 +76,11 @@ fn build_one<K: GeomKernel>(k: &K, inst: &PlacedInstance) -> Result<BuiltPart<K:
 }
 
 /// Tessellate every part and merge into one mesh, for display.
-pub fn assembly_mesh<K: GeomKernel>(k: &K, built: &BuiltAssembly<K::Solid>, tolerance: f64) -> Mesh {
+pub fn assembly_mesh<K: GeomKernel>(
+    k: &K,
+    built: &BuiltAssembly<K::Solid>,
+    tolerance: f64,
+) -> Mesh {
     let mut out = Mesh::default();
     for p in &built.parts {
         if let Ok(m) = k.tessellate(&p.solid, tolerance) {
@@ -142,7 +150,11 @@ pub fn roll_up(masses: &[PartMass]) -> (f64, Vec3, usize) {
             None => unknown += 1,
         }
     }
-    let cg = if total > 0.0 { [moment[0] / total, moment[1] / total, moment[2] / total] } else { [0.0; 3] };
+    let cg = if total > 0.0 {
+        [moment[0] / total, moment[1] / total, moment[2] / total]
+    } else {
+        [0.0; 3]
+    };
     (total, cg, unknown)
 }
 
@@ -169,7 +181,10 @@ pub fn placeholder_density(material: &str) -> Option<f64> {
         ("foam", 100.0),
         ("wood", 700.0),
     ];
-    table.iter().find(|(k, _)| m.starts_with(k)).map(|(_, d)| *d)
+    table
+        .iter()
+        .find(|(k, _)| m.starts_with(k))
+        .map(|(_, d)| *d)
 }
 
 /// Mass properties of a merged mesh, for a quick whole-assembly figure.

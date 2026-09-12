@@ -1,0 +1,155 @@
+// Wright Motor Company internal design rules.
+//
+// These are our own targets and constraints, not anybody's regulation. Every rule cites the
+// document it comes from, and every limit that is still a guess says so. Unlike the regulatory
+// packs, these can be verified by reading our own specification, which is why they carry a
+// `verified` line and the regulatory template does not.
+//
+// A rule here failing does not mean the vehicle is illegal. It means it is not the vehicle we
+// said we were going to build.
+
+rulepack "wright-internal" version="0.1.0" {
+    description "Wright Motor Company design rules for MCDS vehicles"
+    source "docs/01-requirements.md and docs/04-mcds-v1-spec.md"
+    jurisdiction "internal"
+
+    // ------------------------------------------------------------------ the model is sound
+
+    rule "model.all-parts-placed" {
+        title "Every part has a known position"
+        source "docs/02-architecture.md section 3.2: placement is derived, never authored"
+        verified "J. Wright" date="2026-09-12"
+        evidence "calculation"
+        check "all(parts, p -> p.placed)"
+        on_fail "A part is not connected to the rest of the vehicle, so nothing downstream (mass, \
+                 packaging, assembly order) can be trusted. Mate it, or place it explicitly and say why."
+        severity "fail"
+    }
+
+    rule "model.all-mates-compatible" {
+        title "Every joint is between compatible ports"
+        source "docs/03-primitive-library.md section 4: port compatibility"
+        verified "J. Wright" date="2026-09-12"
+        evidence "calculation"
+        check "all(mates, m -> m.compatible)"
+        on_fail "Two parts are joined through ports that do not fit each other."
+        severity "fail"
+    }
+
+    // --------------------------------------------------------------------------- MCDS-02
+
+    rule "chassis.mass-fraction" {
+        title "Chassis mass as a share of kerb mass"
+        source "docs/01-requirements.md MCDS-02: mass budget should go to powertrain and body"
+        verified "J. Wright" date="2026-09-12"
+        applies_when "chassis.mass > 0 kg"
+        evidence "calculation"
+        // PROVISIONAL limit. 15 percent of kerb mass is a working target, not a derived figure.
+        check "chassis.mass <= 0.15 * vehicle.mass.kerb"
+        on_fail "The chassis is taking more of the mass budget than intended. Either the rails are \
+                 heavier than planned or the rest of the vehicle is lighter than the target assumed."
+        note "PROVISIONAL limit pending the structural work."
+        severity "warning"
+    }
+
+    rule "chassis.mass-absolute" {
+        title "Bare chassis mass against the platform target"
+        source "docs/04-mcds-v1-spec.md section 6"
+        verified "J. Wright" date="2026-09-12"
+        applies_when "chassis.mass > 0 kg"
+        evidence "calculation"
+        // 120 kg for a full-length standard-width chassis; the 2/3-length narrow target is 70 kg.
+        // Until the facts layer exposes the configuration, the looser of the two applies.
+        check "chassis.mass <= 120 kg"
+        on_fail "The chassis exceeds the platform mass target in doc 04 section 6."
+        note "PROVISIONAL. Does not yet include bonded inserts, joint fittings, brackets or the floor."
+        severity "warning"
+    }
+
+    // --------------------------------------------------------------------------- MCDS-06
+
+    rule "assembly.kit-stage-joining" {
+        title "Kit-stage joints use only methods an untrained assembler can make"
+        source "docs/01-requirements.md MCDS-06 and docs/03-primitive-library.md section 4.4"
+        verified "J. Wright" date="2026-09-12"
+        evidence "calculation"
+        check "all(filter(mates, m -> m.stage == \"kit\"), m -> m.fastener in [\"bolt\", \"screw\", \"nut\", \"rivnut\", \"clamp\", \"connector\", \"clip\"])"
+        on_fail "A joint the customer has to make needs bonding, welding or pressing. Those belong \
+                 to the factory stage. Anyone who can assemble flatpack furniture must be able to \
+                 assemble this vehicle."
+        severity "fail"
+    }
+
+    rule "assembly.kit-stage-torque" {
+        title "Every structural kit-stage joint has a torque figure"
+        source "docs/07-manufacturing-export.md section 5.2: fastener callouts"
+        verified "J. Wright" date="2026-09-12"
+        evidence "calculation"
+        check "all(filter(mates, m -> m.stage == \"kit\" and m.dof == \"fixed\"), m -> m.has_torque)"
+        on_fail "A structural joint has no torque specified, so the assembly instructions cannot \
+                 tell the customer how tight to do it up."
+        severity "fail"
+    }
+
+    // ------------------------------------------------------------------ mass and stability
+
+    rule "mass.lateral-balance" {
+        title "Centre of gravity is near the centreline"
+        source "Design practice: a laterally offset cg makes a car handle differently left and right"
+        verified "J. Wright" date="2026-09-12"
+        applies_when "vehicle.mass.kerb > 0 kg"
+        evidence "calculation"
+        check "abs(vehicle.cg.y) <= 30 mm"
+        on_fail "The centre of gravity is offset to one side. Check for parts placed on one side only."
+        severity "warning"
+    }
+
+    rule "mass.cg-height" {
+        title "Centre of gravity height"
+        source "docs/06-simulation.md section 2: static stability factor"
+        verified "J. Wright" date="2026-09-12"
+        applies_when "vehicle.mass.kerb > 0 kg"
+        evidence "calculation"
+        // PROVISIONAL. A passenger car is typically 500 to 600 mm; an SUV is higher. This limit
+        // is a flag to think about rollover, not a regulation.
+        check "vehicle.cg.z <= 700 mm"
+        on_fail "The centre of gravity is high enough to be worth checking against rollover stability."
+        note "PROVISIONAL. Replace with a static stability factor check once track width is modelled."
+        severity "advisory"
+    }
+
+    // ---------------------------------------------------------------------- data hygiene
+
+    rule "data.materials-known" {
+        title "Every part names a material"
+        source "docs/03-primitive-library.md section 5"
+        verified "J. Wright" date="2026-09-12"
+        evidence "calculation"
+        check "all(parts, p -> p.material != \"\")"
+        on_fail "A part has no material, so it has no mass, no cost and no manufacturing route."
+        severity "warning"
+    }
+
+    // ------------------------------------------------------ things software cannot decide
+
+    rule "structure.chassis-torsional-stiffness" {
+        title "Chassis torsional stiffness"
+        source "docs/04-mcds-v1-spec.md section 6: at least 12 kN·m/deg with the floor bonded"
+        verified "J. Wright" date="2026-09-12"
+        evidence "simulation" sim="structure.torsion"
+        check "result.torsional_stiffness >= 12 kNm/deg"
+        on_fail "The chassis is less stiff in torsion than the platform target."
+        note "Needs the Tier 2 implicit pipeline, which is Phase 5."
+        severity "warning"
+    }
+
+    rule "structure.crush-calibration" {
+        title "Composite crush behaviour is calibrated against physical tests"
+        source "docs/06-simulation.md section 4.4: uncalibrated composite results are not evidence"
+        verified "J. Wright" date="2026-09-12"
+        evidence "physical-test"
+        note "Coupon and crush-tube tests on the pultruded rail material. Until these exist, no \
+              crash simulation result on a CFRP part counts as evidence of anything."
+        severity "fail"
+    }
+}

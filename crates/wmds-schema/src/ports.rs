@@ -4,7 +4,10 @@ use indexmap::IndexMap;
 use kdl::{KdlDocument, KdlNode};
 use wmds_expr::Expr;
 
-use crate::{Ctx, SchemaError, SchemaErrors, child, first_positional_string, prop, prop_string, value_to_string};
+use crate::{
+    Ctx, SchemaError, SchemaErrors, child, first_positional_string, prop, prop_string,
+    value_to_string,
+};
 
 /// Declared type of a port parameter.
 #[derive(Debug, Clone, PartialEq)]
@@ -110,14 +113,20 @@ impl PortTypeDef {
 }
 
 /// Parse `ports.kdl`, returning the definitions in declaration order.
-pub fn parse_port_types(name: &str, src: &str) -> Result<IndexMap<String, PortTypeDef>, SchemaErrors> {
+pub fn parse_port_types(
+    name: &str,
+    src: &str,
+) -> Result<IndexMap<String, PortTypeDef>, SchemaErrors> {
     let doc: KdlDocument = match src.parse() {
         Ok(d) => d,
         Err(e) => {
             let errors = e
                 .diagnostics
                 .iter()
-                .map(|d| SchemaError { msg: d.to_string(), span: Some(d.span) })
+                .map(|d| SchemaError {
+                    msg: d.to_string(),
+                    span: Some(d.span),
+                })
                 .collect();
             return Err(SchemaErrors::new(name, src, errors));
         }
@@ -126,7 +135,13 @@ pub fn parse_port_types(name: &str, src: &str) -> Result<IndexMap<String, PortTy
     let mut out: IndexMap<String, PortTypeDef> = IndexMap::new();
     for node in doc.nodes() {
         if node.name().value() != "port_type" {
-            ctx.err(node, format!("unexpected node `{}`; expected `port_type`", node.name().value()));
+            ctx.err(
+                node,
+                format!(
+                    "unexpected node `{}`; expected `port_type`",
+                    node.name().value()
+                ),
+            );
             continue;
         }
         if let Some(def) = parse_one(&mut ctx, node) {
@@ -140,12 +155,11 @@ pub fn parse_port_types(name: &str, src: &str) -> Result<IndexMap<String, PortTy
     let known: Vec<String> = out.keys().cloned().collect();
     for node in doc.nodes() {
         for c in node.children().map(|c| c.nodes()).unwrap_or(&[]) {
-            if c.name().value() == "compatible_with" {
-                if let Some(other) = first_positional_string(c) {
-                    if !known.contains(&other) {
-                        ctx.err(c, format!("unknown port type `{other}`"));
-                    }
-                }
+            if c.name().value() == "compatible_with"
+                && let Some(other) = first_positional_string(c)
+                && !known.contains(&other)
+            {
+                ctx.err(c, format!("unknown port type `{other}`"));
             }
         }
     }
@@ -164,7 +178,9 @@ fn parse_one(ctx: &mut Ctx, node: &KdlNode) -> Option<PortTypeDef> {
             return None;
         }
     };
-    let doc = child(node, "doc").and_then(first_positional_string).unwrap_or_default();
+    let doc = child(node, "doc")
+        .and_then(first_positional_string)
+        .unwrap_or_default();
 
     let mut params = Vec::new();
     if let Some(p) = child(node, "params") {
@@ -188,7 +204,11 @@ fn parse_one(ctx: &mut Ctx, node: &KdlNode) -> Option<PortTypeDef> {
                     }
                 },
             };
-            params.push(PortParamDecl { name: key.value().to_string(), kind, optional });
+            params.push(PortParamDecl {
+                name: key.value().to_string(),
+                kind,
+                optional,
+            });
         }
     }
 
@@ -196,7 +216,10 @@ fn parse_one(ctx: &mut Ctx, node: &KdlNode) -> Option<PortTypeDef> {
         Some(s) => match Dof::parse(&s) {
             Some(d) => d,
             None => {
-                ctx.err(node, format!("unknown dof `{s}` (fixed, revolute, prismatic, spherical, planar)"));
+                ctx.err(
+                    node,
+                    format!("unknown dof `{s}` (fixed, revolute, prismatic, spherical, planar)"),
+                );
                 Dof::Fixed
             }
         },
@@ -208,7 +231,10 @@ fn parse_one(ctx: &mut Ctx, node: &KdlNode) -> Option<PortTypeDef> {
             "aligned" => true,
             "opposed" => false,
             other => {
-                ctx.err(node, format!("unknown mate_axis `{other}` (opposed or aligned)"));
+                ctx.err(
+                    node,
+                    format!("unknown mate_axis `{other}` (opposed or aligned)"),
+                );
                 false
             }
         },
@@ -227,7 +253,11 @@ fn parse_one(ctx: &mut Ctx, node: &KdlNode) -> Option<PortTypeDef> {
     };
 
     let grid = child(node, "grid")
-        .and_then(|g| prop(g, "value").and_then(|v| v.as_bool()).or_else(|| g.entries().first().and_then(|e| e.value().as_bool())))
+        .and_then(|g| {
+            prop(g, "value")
+                .and_then(|v| v.as_bool())
+                .or_else(|| g.entries().first().and_then(|e| e.value().as_bool()))
+        })
         .unwrap_or(false);
 
     let mut compatible = Vec::new();
@@ -252,7 +282,16 @@ fn parse_one(ctx: &mut Ctx, node: &KdlNode) -> Option<PortTypeDef> {
         compatible.push(CompatRule { other, when });
     }
 
-    Some(PortTypeDef { name, doc, params, dof, aligned, compatible, grid, stage })
+    Some(PortTypeDef {
+        name,
+        doc,
+        params,
+        dof,
+        aligned,
+        compatible,
+        grid,
+        stage,
+    })
 }
 
 #[cfg(test)]
@@ -279,7 +318,9 @@ port_type "bush.pivot" {
 
     #[test]
     fn parses_registry() {
-        let r = parse_port_types("ports.kdl", SRC).map_err(|e| format!("{e:?}")).unwrap();
+        let r = parse_port_types("ports.kdl", SRC)
+            .map_err(|e| format!("{e:?}"))
+            .unwrap();
         assert_eq!(r.len(), 2);
         let bp = &r["bolt.pattern"];
         assert_eq!(bp.dof, Dof::Fixed);
@@ -288,7 +329,10 @@ port_type "bush.pivot" {
         assert_eq!(bp.params.len(), 4);
         assert!(bp.param("centre_bore").unwrap().optional);
         assert_eq!(bp.param("count").unwrap().kind, ParamKind::Int);
-        assert_eq!(bp.param("pcd").unwrap().kind, ParamKind::Quantity("mm".into()));
+        assert_eq!(
+            bp.param("pcd").unwrap().kind,
+            ParamKind::Quantity("mm".into())
+        );
         let bu = &r["bush.pivot"];
         assert_eq!(bu.dof, Dof::Revolute);
         assert!(bu.aligned);
@@ -298,12 +342,19 @@ port_type "bush.pivot" {
 
     #[test]
     fn rejects_unknown_compatible_type_and_bad_unit() {
-        let bad = SRC.replace("compatible_with \"bolt.pattern\" when", "compatible_with \"nope.type\" when");
-        let e = parse_port_types("ports.kdl", &bad).err().expect("should fail");
-        assert!(e.errors.iter().any(|x| x.msg.contains("nope.type")), "{:?}", e.errors);
+        let bad = SRC.replace(
+            "compatible_with \"bolt.pattern\" when",
+            "compatible_with \"nope.type\" when",
+        );
+        let e = parse_port_types("ports.kdl", &bad).expect_err("should fail");
+        assert!(
+            e.errors.iter().any(|x| x.msg.contains("nope.type")),
+            "{:?}",
+            e.errors
+        );
 
         let bad = SRC.replace("pcd=\"mm\"", "pcd=\"cubits\"");
-        let e = parse_port_types("ports.kdl", &bad).err().expect("should fail");
+        let e = parse_port_types("ports.kdl", &bad).expect_err("should fail");
         assert!(e.errors.iter().any(|x| x.msg.contains("cubits")));
     }
 }

@@ -14,7 +14,9 @@ use eframe::egui;
 use glam::Vec3;
 use wmds_expr::Value;
 use wmds_geom::GeomKernel;
-use wmds_model::{Library, Overrides, PlacedBy, ResolvedAssembly, ResolvedPort, ResolvedPrimitive, resolve};
+use wmds_model::{
+    Library, Overrides, PlacedBy, ResolvedAssembly, ResolvedPort, ResolvedPrimitive, resolve,
+};
 use wmds_schema::PrimitiveDef;
 use wmds_units::Quantity;
 
@@ -164,10 +166,14 @@ struct App {
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>, file: Option<PathBuf>, project: PathBuf) -> Self {
-        let has_renderer = viewport::init(cc, eframe::egui_wgpu::depth_format_from_bits(DEPTH_BITS, 0));
+        let has_renderer =
+            viewport::init(cc, eframe::egui_wgpu::depth_format_from_bits(DEPTH_BITS, 0));
         let mut app = App {
             project,
-            path_text: file.as_ref().map(|p| p.display().to_string()).unwrap_or_default(),
+            path_text: file
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
             file,
             doc: Doc::None,
             lib: None,
@@ -209,7 +215,8 @@ impl App {
             Ok(l) => {
                 self.lib_note = format!("library: {}", l.summary());
                 if !l.failures.is_empty() {
-                    self.lib_note.push_str(&format!("  ({} file(s) failed)", l.failures.len()));
+                    self.lib_note
+                        .push_str(&format!("  ({} file(s) failed)", l.failures.len()));
                 }
                 self.lib = Some(l);
             }
@@ -221,11 +228,16 @@ impl App {
     }
 
     fn load(&mut self) {
-        let Some(path) = self.file.clone() else { return };
+        let Some(path) = self.file.clone() else {
+            return;
+        };
         self.load_error = None;
         self.params.clear();
         self.variants.clear();
-        let name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
         let src = match std::fs::read_to_string(&path) {
             Ok(s) => s,
             Err(e) => {
@@ -238,7 +250,11 @@ impl App {
             match wmds_schema::parse_primitive(&name, &src) {
                 Ok(def) => {
                     self.params = param_rows(&def);
-                    self.variants = def.variants.iter().map(|v| (v.name.clone(), v.options.clone(), 0)).collect();
+                    self.variants = def
+                        .variants
+                        .iter()
+                        .map(|v| (v.name.clone(), v.options.clone(), 0))
+                        .collect();
                     self.doc = Doc::Primitive(Box::new(def));
                 }
                 Err(e) => {
@@ -301,7 +317,11 @@ impl App {
                     for row in &mut self.params {
                         if row.derived {
                             if let Some(q) = r.params.get(&row.name).and_then(|v| v.as_quantity()) {
-                                row.value = if row.unit.is_empty() { q.value } else { q.to_unit(&row.unit).unwrap_or(q.value) };
+                                row.value = if row.unit.is_empty() {
+                                    q.value
+                                } else {
+                                    q.to_unit(&row.unit).unwrap_or(q.value)
+                                };
                             }
                         }
                     }
@@ -326,7 +346,11 @@ impl App {
                     }
                     match wmds_model::resolve_assembly(lib, def, &Overrides::default(), extra) {
                         Ok(a) => {
-                            self.load_error = if a.errors.is_empty() { None } else { Some(a.errors.join("\n")) };
+                            self.load_error = if a.errors.is_empty() {
+                                None
+                            } else {
+                                Some(a.errors.join("\n"))
+                            };
                             Some(Job::Assembly(Box::new(a)))
                         }
                         Err(e) => {
@@ -336,7 +360,9 @@ impl App {
                     }
                 }
                 _ => {
-                    self.load_error = Some("a vehicle needs a library; set --project to the repository root".into());
+                    self.load_error = Some(
+                        "a vehicle needs a library; set --project to the repository root".into(),
+                    );
                     None
                 }
             },
@@ -349,7 +375,10 @@ impl App {
         std::thread::spawn(move || {
             let t0 = Instant::now();
             let result = run_job(job, version);
-            let _ = tx.send(BuildResult { elapsed_ms: t0.elapsed().as_millis(), ..result });
+            let _ = tx.send(BuildResult {
+                elapsed_ms: t0.elapsed().as_millis(),
+                ..result
+            });
             ctx.request_repaint();
         });
     }
@@ -383,7 +412,11 @@ impl App {
     fn side_panel(&mut self, ui: &mut egui::Ui) {
         ui.heading("Open");
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.path_text).desired_width(250.0).hint_text("a .prim.kdl or .veh.kdl file"));
+            ui.add(
+                egui::TextEdit::singleline(&mut self.path_text)
+                    .desired_width(250.0)
+                    .hint_text("a .prim.kdl or .veh.kdl file"),
+            );
             if ui.button("Load").clicked() {
                 self.file = Some(PathBuf::from(self.path_text.trim()));
                 self.load();
@@ -411,7 +444,10 @@ impl App {
                     ui.label(format!("category {}", v.category));
                 }
                 if let Some(c) = &d.chassis {
-                    ui.label(format!("chassis {} {} {}", c.system, c.configuration, c.width));
+                    ui.label(format!(
+                        "chassis {} {} {}",
+                        c.system, c.configuration, c.width
+                    ));
                 }
             }
         }
@@ -438,21 +474,30 @@ impl App {
         }
         if !self.params.is_empty() {
             ui.heading("Parameters");
-            egui::Grid::new("params").num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {
-                for p in &mut self.params {
-                    ui.label(&p.name).on_hover_text(&p.doc);
-                    if p.derived {
-                        ui.label(format!("{:.3} {}", p.value, p.unit));
-                        ui.label(egui::RichText::new("derived").weak());
-                    } else {
-                        if ui.add(egui::Slider::new(&mut p.value, p.min..=p.max).suffix(format!(" {}", p.unit))).changed() {
-                            changed = true;
+            egui::Grid::new("params")
+                .num_columns(3)
+                .spacing([8.0, 4.0])
+                .show(ui, |ui| {
+                    for p in &mut self.params {
+                        ui.label(&p.name).on_hover_text(&p.doc);
+                        if p.derived {
+                            ui.label(format!("{:.3} {}", p.value, p.unit));
+                            ui.label(egui::RichText::new("derived").weak());
+                        } else {
+                            if ui
+                                .add(
+                                    egui::Slider::new(&mut p.value, p.min..=p.max)
+                                        .suffix(format!(" {}", p.unit)),
+                                )
+                                .changed()
+                            {
+                                changed = true;
+                            }
+                            ui.label("");
                         }
-                        ui.label("");
+                        ui.end_row();
                     }
-                    ui.end_row();
-                }
-            });
+                });
             ui.separator();
         }
         if changed {
@@ -482,7 +527,12 @@ impl App {
                 ui.label(format!("{:.1} kg declared point masses", self.point_mass));
                 ui.label(format!("{:.1} kg total", self.total_mass + self.point_mass));
             }
-            ui.label(format!("cg ({:.0}, {:.0}, {:.0}) mm", self.cg[0] * 1e3, self.cg[1] * 1e3, self.cg[2] * 1e3));
+            ui.label(format!(
+                "cg ({:.0}, {:.0}, {:.0}) mm",
+                self.cg[0] * 1e3,
+                self.cg[1] * 1e3,
+                self.cg[2] * 1e3
+            ));
             if let Some(v) = self.volume_m3 {
                 ui.label(format!("volume {:.1} cm3", v * 1e6));
             }
@@ -492,38 +542,63 @@ impl App {
         if !self.parts.is_empty() {
             ui.separator();
             ui.heading(format!("Parts ({})", self.parts.len()));
-            egui::Grid::new("parts").num_columns(3).spacing([8.0, 2.0]).striped(true).show(ui, |ui| {
-                for p in &self.parts {
-                    ui.label(&p.id).on_hover_text(format!("{}\n{}", p.source, p.how));
-                    ui.label(format!("{:.0}, {:.0}, {:.0}", p.position[0] * 1e3, p.position[1] * 1e3, p.position[2] * 1e3));
-                    match p.mass {
-                        Some(m) => {
-                            let t = format!("{m:.1} kg");
-                            ui.label(if p.declared { egui::RichText::new(t).strong() } else { egui::RichText::new(t) });
+            egui::Grid::new("parts")
+                .num_columns(3)
+                .spacing([8.0, 2.0])
+                .striped(true)
+                .show(ui, |ui| {
+                    for p in &self.parts {
+                        ui.label(&p.id)
+                            .on_hover_text(format!("{}\n{}", p.source, p.how));
+                        ui.label(format!(
+                            "{:.0}, {:.0}, {:.0}",
+                            p.position[0] * 1e3,
+                            p.position[1] * 1e3,
+                            p.position[2] * 1e3
+                        ));
+                        match p.mass {
+                            Some(m) => {
+                                let t = format!("{m:.1} kg");
+                                ui.label(if p.declared {
+                                    egui::RichText::new(t).strong()
+                                } else {
+                                    egui::RichText::new(t)
+                                });
+                            }
+                            None => {
+                                ui.label("-");
+                            }
                         }
-                        None => {
-                            ui.label("-");
-                        }
+                        ui.end_row();
                     }
-                    ui.end_row();
-                }
-            });
+                });
         }
 
         if !self.ports.is_empty() && self.parts.is_empty() {
             ui.separator();
             ui.heading("Ports");
             for (name, o, _) in &self.ports {
-                ui.label(format!("{name}  ({:.0}, {:.0}, {:.0}) mm", o[0] * 1e3, o[1] * 1e3, o[2] * 1e3));
+                ui.label(format!(
+                    "{name}  ({:.0}, {:.0}, {:.0}) mm",
+                    o[0] * 1e3,
+                    o[1] * 1e3,
+                    o[2] * 1e3
+                ));
             }
         }
 
         if !self.has_renderer {
             ui.separator();
-            ui.colored_label(egui::Color32::YELLOW, "no wgpu render state: the viewport is disabled");
+            ui.colored_label(
+                egui::Color32::YELLOW,
+                "no wgpu render state: the viewport is disabled",
+            );
         }
         ui.separator();
-        ui.label(egui::RichText::new("drag orbit   shift-drag or middle pan   wheel zoom   F frame").weak());
+        ui.label(
+            egui::RichText::new("drag orbit   shift-drag or middle pan   wheel zoom   F frame")
+                .weak(),
+        );
     }
 
     fn viewport(&mut self, ui: &mut egui::Ui) {
@@ -553,9 +628,18 @@ impl App {
             (Vec3::Y, egui::Color32::from_rgb(80, 200, 80), "y"),
             (Vec3::Z, egui::Color32::from_rgb(90, 140, 255), "z"),
         ] {
-            if let (Some(a), Some(b)) = (self.camera.project(rect, Vec3::ZERO), self.camera.project(rect, dir * axis_len)) {
+            if let (Some(a), Some(b)) = (
+                self.camera.project(rect, Vec3::ZERO),
+                self.camera.project(rect, dir * axis_len),
+            ) {
                 painter.line_segment([a, b], egui::Stroke::new(1.5, color));
-                painter.text(b, egui::Align2::LEFT_BOTTOM, label, egui::FontId::monospace(11.0), color);
+                painter.text(
+                    b,
+                    egui::Align2::LEFT_BOTTOM,
+                    label,
+                    egui::FontId::monospace(11.0),
+                    color,
+                );
             }
         }
         if self.show_ports {
@@ -566,11 +650,20 @@ impl App {
             for (name, o, a) in &self.ports {
                 let origin = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32);
                 let axis = Vec3::new(a[0] as f32, a[1] as f32, a[2] as f32);
-                if let (Some(s0), Some(s1)) = (self.camera.project(rect, origin), self.camera.project(rect, origin + axis * port_len)) {
+                if let (Some(s0), Some(s1)) = (
+                    self.camera.project(rect, origin),
+                    self.camera.project(rect, origin + axis * port_len),
+                ) {
                     painter.circle(s0, 3.0, col, egui::Stroke::new(1.0, egui::Color32::BLACK));
                     painter.line_segment([s0, s1], egui::Stroke::new(1.5, col));
                     if label_them {
-                        painter.text(s0 + egui::vec2(6.0, -6.0), egui::Align2::LEFT_BOTTOM, name, egui::FontId::proportional(12.0), col);
+                        painter.text(
+                            s0 + egui::vec2(6.0, -6.0),
+                            egui::Align2::LEFT_BOTTOM,
+                            name,
+                            egui::FontId::proportional(12.0),
+                            col,
+                        );
                     }
                 }
             }
@@ -581,14 +674,23 @@ impl App {
                 let col = egui::Color32::from_rgb(255, 120, 200);
                 painter.circle_filled(p, 5.0, col);
                 painter.circle_stroke(p, 9.0, egui::Stroke::new(1.5, col));
-                painter.text(p + egui::vec2(12.0, -4.0), egui::Align2::LEFT_CENTER, "cg", egui::FontId::proportional(12.0), col);
+                painter.text(
+                    p + egui::vec2(12.0, -4.0),
+                    egui::Align2::LEFT_CENTER,
+                    "cg",
+                    egui::FontId::proportional(12.0),
+                    col,
+                );
             }
         }
     }
 
     fn handle_screenshot(&mut self, ctx: &egui::Context) {
-        let Some(path) = self.screenshot.clone() else { return };
-        let settled = self.mesh.is_some() || self.build_error.is_some() || self.load_error.is_some();
+        let Some(path) = self.screenshot.clone() else {
+            return;
+        };
+        let settled =
+            self.mesh.is_some() || self.build_error.is_some() || self.load_error.is_some();
         if settled && !self.building {
             self.frames_since_build += 1;
         }
@@ -627,7 +729,9 @@ impl eframe::App for App {
             ui.set_min_width(380.0);
             egui::ScrollArea::vertical().show(ui, |ui| self.side_panel(ui));
         });
-        egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| self.viewport(ui));
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| self.viewport(ui));
     }
 }
 
@@ -644,17 +748,33 @@ fn run_job(job: Job, version: u64) -> BuildResult {
         Job::Primitive(r) => {
             let built = match wmds_geom::build_primitive(&k, &r) {
                 Ok(b) => b,
-                Err(e) => return BuildResult { error: Some(e.to_string()), ..BuildResult::empty(version) },
+                Err(e) => {
+                    return BuildResult {
+                        error: Some(e.to_string()),
+                        ..BuildResult::empty(version)
+                    };
+                }
             };
             let Some((_, solid)) = built.best() else {
-                return BuildResult { error: Some("no geometry level built".into()), ..BuildResult::empty(version) };
+                return BuildResult {
+                    error: Some("no geometry level built".into()),
+                    ..BuildResult::empty(version)
+                };
             };
             let mesh = match k.tessellate(solid, 2e-4) {
                 Ok(m) => m,
-                Err(e) => return BuildResult { error: Some(e.to_string()), ..BuildResult::empty(version) },
+                Err(e) => {
+                    return BuildResult {
+                        error: Some(e.to_string()),
+                        ..BuildResult::empty(version)
+                    };
+                }
             };
             let mp = mesh.mass_props();
-            let density = r.material.as_deref().and_then(wmds_geom::placeholder_density);
+            let density = r
+                .material
+                .as_deref()
+                .and_then(wmds_geom::placeholder_density);
             BuildResult {
                 mesh: Some(Arc::new(GpuMeshData::from_mesh(&mesh, version))),
                 bounds: bounds_of(&mesh),
@@ -695,15 +815,27 @@ fn run_job(job: Job, version: u64) -> BuildResult {
             let mut ports = Vec::new();
             for mate in asm.mates.iter().filter(|m| m.compatible.is_ok()) {
                 for (inst, port) in [(&mate.a, &mate.a_port), (&mate.b, &mate.b_port)] {
-                    if let Some(i) = asm.instances.iter().find(|i| &i.id == inst || i.id.ends_with(&format!(".{inst}"))) {
+                    if let Some(i) = asm
+                        .instances
+                        .iter()
+                        .find(|i| &i.id == inst || i.id.ends_with(&format!(".{inst}")))
+                    {
                         if let Some(f) = i.port_world(port) {
-                            ports.push((format!("{inst}.{port}"), f.translation, f.direction([0.0, 0.0, 1.0])));
+                            ports.push((
+                                format!("{inst}.{port}"),
+                                f.translation,
+                                f.direction([0.0, 0.0, 1.0]),
+                            ));
                         }
                     }
                 }
             }
 
-            let errors = if asm.errors.is_empty() { None } else { Some(asm.errors.join("\n")) };
+            let errors = if asm.errors.is_empty() {
+                None
+            } else {
+                Some(asm.errors.join("\n"))
+            };
             BuildResult {
                 mesh: Some(Arc::new(GpuMeshData::from_mesh(&mesh, version))),
                 bounds: bounds_of(&mesh),
@@ -759,8 +891,16 @@ fn param_rows(def: &PrimitiveDef) -> Vec<ParamRow> {
                 }
             };
             let value = lit(&p.default).unwrap_or(0.0);
-            let min = lit(&p.min).unwrap_or(if value > 0.0 { value * 0.25 } else { value - 1.0 });
-            let max = lit(&p.max).unwrap_or(if value > 0.0 { value * 2.0 } else { value + 1.0 });
+            let min = lit(&p.min).unwrap_or(if value > 0.0 {
+                value * 0.25
+            } else {
+                value - 1.0
+            });
+            let max = lit(&p.max).unwrap_or(if value > 0.0 {
+                value * 2.0
+            } else {
+                value + 1.0
+            });
             ParamRow {
                 name: p.name.clone(),
                 unit,

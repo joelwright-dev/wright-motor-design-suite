@@ -37,7 +37,8 @@ impl BooleanShape {
         &self,
         radius_values: impl IntoIterator<Item = (f64, f64)>,
     ) -> Shape {
-        self.shape.variable_fillet_edges(radius_values, &self.new_edges)
+        self.shape
+            .variable_fillet_edges(radius_values, &self.new_edges)
     }
 
     #[must_use]

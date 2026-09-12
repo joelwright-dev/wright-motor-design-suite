@@ -59,7 +59,9 @@ impl Wire {
         let mut make_wire = ffi::b_rep_builder_api::BRepBuilderAPI_MakeWire_new();
 
         if points.len() == 2 {
-            make_wire.pin_mut().add_edge(&Edge::segment(*first, *last).inner);
+            make_wire
+                .pin_mut()
+                .add_edge(&Edge::segment(*first, *last).inner);
         } else {
             for window in points.windows(2).chain(once([*last, *first].as_slice())) {
                 let edge = Edge::segment(window[0], window[1]);
@@ -240,7 +242,9 @@ impl Wire {
             ffi::gp::gp_Ax1_new(&make_point(DVec3::ZERO), &make_dir(rotation_axis));
         let translation_vec = make_vec(translation);
 
-        transform.pin_mut().SetRotation(&rotation_axis_vec, angle.radians());
+        transform
+            .pin_mut()
+            .SetRotation(&rotation_axis_vec, angle.radians());
         transform.pin_mut().set_translation_vec(&translation_vec);
         let location = ffi::top_loc::Location_from_transform(&transform);
 

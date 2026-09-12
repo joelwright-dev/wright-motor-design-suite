@@ -22,7 +22,9 @@ use wmds_units::Quantity;
 
 use crate::library::Library;
 use crate::transform::{Frame, MateAxis, Transform, solve_mate};
-use crate::{ModelError, Overrides, ResolvedPort, ResolvedPrimitive, as_length_vec3, resolve, resolve_params};
+use crate::{
+    ModelError, Overrides, ResolvedPort, ResolvedPrimitive, as_length_vec3, resolve, resolve_params,
+};
 
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum MateError {
@@ -31,9 +33,18 @@ pub enum MateError {
     #[error("port type `{0}` is not in the registry")]
     UnknownPortType(String),
     #[error("`{a}` ({a_type}) is not compatible with `{b}` ({b_type})")]
-    Incompatible { a: String, a_type: String, b: String, b_type: String },
+    Incompatible {
+        a: String,
+        a_type: String,
+        b: String,
+        b_type: String,
+    },
     #[error("`{a}` and `{b}` are compatible types but their parameters do not match: {reason}")]
-    ParamsDiffer { a: String, b: String, reason: String },
+    ParamsDiffer {
+        a: String,
+        b: String,
+        reason: String,
+    },
     #[error("missing required port parameter `{0}` on `{1}`")]
     MissingParam(String, String),
 }
@@ -185,7 +196,10 @@ pub fn resolve_assembly(
     // Assembly parameters give context to the instance parameter expressions.
     let no_variants = IndexMap::new();
     let params = resolve_params(&def.params, &no_variants, overrides)?;
-    let env = crate::ParamEnv { values: &params, variants: &no_variants };
+    let env = crate::ParamEnv {
+        values: &params,
+        variants: &no_variants,
+    };
 
     // Build the units.
     let mut units: Vec<Unit> = Vec::new();
@@ -205,7 +219,9 @@ pub fn resolve_assembly(
                         Ok(v) => {
                             o.params.insert(k.clone(), v);
                         }
-                        Err(err) => errors.push(format!("instance `{}`: parameter `{k}`: {err}", inst.id)),
+                        Err(err) => {
+                            errors.push(format!("instance `{}`: parameter `{k}`: {err}", inst.id))
+                        }
                     }
                 }
                 for (k, v) in &inst.variants {
@@ -264,7 +280,11 @@ pub fn resolve_assembly(
     }
 
     // Check every mate and record it.
-    let index: HashMap<String, usize> = units.iter().enumerate().map(|(i, u)| (u.id.clone(), i)).collect();
+    let index: HashMap<String, usize> = units
+        .iter()
+        .enumerate()
+        .map(|(i, u)| (u.id.clone(), i))
+        .collect();
     let mut mates: Vec<ResolvedMate> = Vec::new();
     for m in &def.mates {
         let (Some(&ia), Some(&ib)) = (index.get(&m.a.instance), index.get(&m.b.instance)) else {
@@ -290,12 +310,20 @@ pub fn resolve_assembly(
         // rotation about the mating axis. That is almost never what the designer meant, and it
         // is invisible in the numbers, so it is called out here.
         if dof == Dof::Fixed && compatible.is_ok() {
-            for (u, port, who) in [(ua, &m.a.port, &m.a.instance), (ub, &m.b.port, &m.b.instance)] {
+            for (u, port, who) in [
+                (ua, &m.a.port, &m.a.instance),
+                (ub, &m.b.port, &m.b.instance),
+            ] {
                 let unclocked = u
                     .ports
                     .get(port)
                     .map(|(i, _)| &u.parts[*i])
-                    .and_then(|p| p.primitive.ports.iter().find(|x| Some(&x.name) == u.ports.get(port).map(|(_, n)| n)))
+                    .and_then(|p| {
+                        p.primitive
+                            .ports
+                            .iter()
+                            .find(|x| Some(&x.name) == u.ports.get(port).map(|(_, n)| n))
+                    })
                     .map(|p| p.clock.is_none())
                     .unwrap_or(false);
                 if unclocked {
@@ -329,9 +357,17 @@ pub fn resolve_assembly(
         let (unit_xform, placed_by) = placements[i].clone();
         for part in &u.parts {
             let mut p = part.clone();
-            p.id = if u.parts.len() == 1 && p.id == u.id { u.id.clone() } else { format!("{}.{}", u.id, p.id) };
+            p.id = if u.parts.len() == 1 && p.id == u.id {
+                u.id.clone()
+            } else {
+                format!("{}.{}", u.id, p.id)
+            };
             p.placement = part.placement.then(&unit_xform);
-            p.placed_by = if u.parts.len() == 1 { placed_by.clone() } else { part.placed_by.clone() };
+            p.placed_by = if u.parts.len() == 1 {
+                placed_by.clone()
+            } else {
+                part.placed_by.clone()
+            };
             instances.push(p);
         }
     }
@@ -353,7 +389,12 @@ pub fn resolve_assembly(
                 continue;
             }
         };
-        point_masses.push(PointMass { id: pm.id.clone(), mass, at, state: pm.state.clone() });
+        point_masses.push(PointMass {
+            id: pm.id.clone(),
+            mass,
+            at,
+            state: pm.state.clone(),
+        });
     }
 
     // Exports, translated to the flattened instance ids.
@@ -362,10 +403,17 @@ pub fn resolve_assembly(
         if let Some(&i) = index.get(&e.source.instance) {
             let u = &units[i];
             if u.ports.contains_key(&e.source.port) {
-                let inst_id = if u.parts.len() == 1 { u.id.clone() } else { format!("{}.{}", u.id, u.parts[u.ports[&e.source.port].0].id) };
+                let inst_id = if u.parts.len() == 1 {
+                    u.id.clone()
+                } else {
+                    format!("{}.{}", u.id, u.parts[u.ports[&e.source.port].0].id)
+                };
                 exports.insert(e.name.clone(), (inst_id, u.ports[&e.source.port].1.clone()));
             } else {
-                errors.push(format!("export `{}`: `{}` has no port `{}`", e.name, e.source.instance, e.source.port));
+                errors.push(format!(
+                    "export `{}`: `{}` has no port `{}`",
+                    e.name, e.source.instance, e.source.port
+                ));
             }
         }
     }
@@ -391,14 +439,24 @@ pub fn resolve_assembly(
 
 fn unit_from_assembly(id: String, inner: ResolvedAssembly) -> Unit {
     let parts = inner.instances.clone();
-    let pos: HashMap<&str, usize> = parts.iter().enumerate().map(|(i, p)| (p.id.as_str(), i)).collect();
+    let pos: HashMap<&str, usize> = parts
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (p.id.as_str(), i))
+        .collect();
     let mut ports = IndexMap::new();
     for (name, (inst, port)) in &inner.exports {
         if let Some(&i) = pos.get(inst.as_str()) {
             ports.insert(name.clone(), (i, port.clone()));
         }
     }
-    Unit { id, source_id: inner.id.clone(), parts, ports, free: None }
+    Unit {
+        id,
+        source_id: inner.id.clone(),
+        parts,
+        ports,
+        free: None,
+    }
 }
 
 fn free_placement(
@@ -410,24 +468,33 @@ fn free_placement(
     let at = match eval(&pl.at, env).ok().as_ref().map(as_length_vec3) {
         Some(Ok(v)) => [v[0].value, v[1].value, v[2].value],
         _ => {
-            errors.push(format!("instance `{}`: place at= must be a 3-tuple of lengths", inst.id));
+            errors.push(format!(
+                "instance `{}`: place at= must be a 3-tuple of lengths",
+                inst.id
+            ));
             [0.0; 3]
         }
     };
     let mut t = Transform::IDENTITY;
-    if let Some(r) = &pl.rotate {
-        if let Some(Value::Tuple(items)) = eval(r, env).ok() {
-            let angles: Vec<f64> = items
-                .iter()
-                .filter_map(|v| v.as_quantity())
-                .map(|q| if q.dim == wmds_units::Dim::ANGLE { q.value } else { q.value.to_radians() })
-                .collect();
-            if angles.len() == 3 {
-                t = t
-                    .then(&Transform::rotation([1.0, 0.0, 0.0], angles[0]))
-                    .then(&Transform::rotation([0.0, 1.0, 0.0], angles[1]))
-                    .then(&Transform::rotation([0.0, 0.0, 1.0], angles[2]));
-            }
+    if let Some(r) = &pl.rotate
+        && let Ok(Value::Tuple(items)) = eval(r, env)
+    {
+        let angles: Vec<f64> = items
+            .iter()
+            .filter_map(|v| v.as_quantity())
+            .map(|q| {
+                if q.dim == wmds_units::Dim::ANGLE {
+                    q.value
+                } else {
+                    q.value.to_radians()
+                }
+            })
+            .collect();
+        if angles.len() == 3 {
+            t = t
+                .then(&Transform::rotation([1.0, 0.0, 0.0], angles[0]))
+                .then(&Transform::rotation([0.0, 1.0, 0.0], angles[1]))
+                .then(&Transform::rotation([0.0, 0.0, 1.0], angles[2]));
         }
     }
     if let Some(m) = &pl.mirror {
@@ -460,7 +527,11 @@ fn solve_placement(
     if n == 0 {
         return out;
     }
-    let index: HashMap<&str, usize> = units.iter().enumerate().map(|(i, u)| (u.id.as_str(), i)).collect();
+    let index: HashMap<&str, usize> = units
+        .iter()
+        .enumerate()
+        .map(|(i, u)| (u.id.as_str(), i))
+        .collect();
 
     let mut queue: VecDeque<usize> = VecDeque::new();
 
@@ -490,7 +561,9 @@ fn solve_placement(
         if m.compatible.is_err() {
             continue;
         }
-        let (Some(&a), Some(&b)) = (index.get(m.a.as_str()), index.get(m.b.as_str())) else { continue };
+        let (Some(&a), Some(&b)) = (index.get(m.a.as_str()), index.get(m.b.as_str())) else {
+            continue;
+        };
         adj[a].push(mi);
         adj[b].push(mi);
     }
@@ -500,11 +573,18 @@ fn solve_placement(
             let m = &mates[mi];
             let a = index[m.a.as_str()];
             let b = index[m.b.as_str()];
-            let (from, from_port, to, to_port) = if a == i { (a, &m.a_port, b, &m.b_port) } else { (b, &m.b_port, a, &m.a_port) };
+            let (from, from_port, to, to_port) = if a == i {
+                (a, &m.a_port, b, &m.b_port)
+            } else {
+                (b, &m.b_port, a, &m.a_port)
+            };
             if placed[to] {
                 continue;
             }
-            let (Some(fixed_local), Some(moving_local)) = (units[from].port_local(from_port), units[to].port_local(to_port)) else {
+            let (Some(fixed_local), Some(moving_local)) = (
+                units[from].port_local(from_port),
+                units[to].port_local(to_port),
+            ) else {
                 continue;
             };
             let fixed_world = fixed_local.then(&out[from].0);
@@ -513,7 +593,11 @@ fn solve_placement(
                 .and_then(|t| lib.port_types.get(t))
                 .map(|t| t.aligned)
                 .unwrap_or(false);
-            let axis = if aligned { MateAxis::Aligned } else { MateAxis::Opposed };
+            let axis = if aligned {
+                MateAxis::Aligned
+            } else {
+                MateAxis::Opposed
+            };
             let placement = solve_mate(&fixed_world, &moving_local, axis, None);
             out[to] = (placement, PlacedBy::Mate(m.id.clone()));
             placed[to] = true;
@@ -540,14 +624,23 @@ fn solve_placement(
     // hole that misses by 8 mm is a real modelling error and is worth naming precisely.
     const TOLERANCE_M: f64 = 1e-4;
     for m in mates.iter().filter(|m| m.compatible.is_ok()) {
-        let (Some(&a), Some(&b)) = (index.get(m.a.as_str()), index.get(m.b.as_str())) else { continue };
+        let (Some(&a), Some(&b)) = (index.get(m.a.as_str()), index.get(m.b.as_str())) else {
+            continue;
+        };
         if !placed[a] || !placed[b] {
             continue;
         }
-        if matches!(&out[b].1, PlacedBy::Mate(id) if *id == m.id) || matches!(&out[a].1, PlacedBy::Mate(id) if *id == m.id) {
+        if matches!(&out[b].1, PlacedBy::Mate(id) if *id == m.id)
+            || matches!(&out[a].1, PlacedBy::Mate(id) if *id == m.id)
+        {
             continue; // This mate defined one of the two placements, so it fits by construction.
         }
-        let (Some(la), Some(lb)) = (units[a].port_local(&m.a_port), units[b].port_local(&m.b_port)) else { continue };
+        let (Some(la), Some(lb)) = (
+            units[a].port_local(&m.a_port),
+            units[b].port_local(&m.b_port),
+        ) else {
+            continue;
+        };
         let wa = la.then(&out[a].0);
         let wb = lb.then(&out[b].0);
         let d = crate::transform::sub(wa.translation, wb.translation);
@@ -590,7 +683,9 @@ fn check_mate(lib: &Library, ua: &Unit, pa: &str, ub: &Unit, pb: &str) -> Result
             b_type: tb.to_string(),
         });
     };
-    let Some(when) = &rule.when else { return Ok(()) };
+    let Some(when) = &rule.when else {
+        return Ok(());
+    };
 
     let params_a = ua.port_params(pa).cloned().unwrap_or_default();
     let params_b = ub.port_params(pb).cloned().unwrap_or_default();
@@ -599,7 +694,10 @@ fn check_mate(lib: &Library, ua: &Unit, pa: &str, ub: &Unit, pb: &str) -> Result
         check_required(defb, &params_b, &format!("{}.{}", ub.id, pb))?;
     }
 
-    let env = PortPairEnv { a: record(&params_a), b: record(&params_b) };
+    let env = PortPairEnv {
+        a: record(&params_a),
+        b: record(&params_b),
+    };
     match eval(when, &env) {
         Ok(Value::Bool(true)) => Ok(()),
         Ok(Value::Bool(false)) => Err(MateError::ParamsDiffer {
@@ -610,7 +708,10 @@ fn check_mate(lib: &Library, ua: &Unit, pa: &str, ub: &Unit, pb: &str) -> Result
         Ok(v) => Err(MateError::ParamsDiffer {
             a: format!("{}.{}", ua.id, pa),
             b: format!("{}.{}", ub.id, pb),
-            reason: format!("compatibility rule returned {} instead of a yes or no", v.type_name()),
+            reason: format!(
+                "compatibility rule returned {} instead of a yes or no",
+                v.type_name()
+            ),
         }),
         Err(e) => Err(MateError::ParamsDiffer {
             a: format!("{}.{}", ua.id, pa),
@@ -620,7 +721,11 @@ fn check_mate(lib: &Library, ua: &Unit, pa: &str, ub: &Unit, pb: &str) -> Result
     }
 }
 
-fn check_required(def: &PortTypeDef, params: &IndexMap<String, Value>, who: &str) -> Result<(), MateError> {
+fn check_required(
+    def: &PortTypeDef,
+    params: &IndexMap<String, Value>,
+    who: &str,
+) -> Result<(), MateError> {
     for p in &def.params {
         if p.optional {
             continue;
@@ -655,7 +760,11 @@ fn record(params: &IndexMap<String, Value>) -> Value {
 }
 
 fn describe(params: &IndexMap<String, Value>) -> String {
-    params.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join(", ")
+    params
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Exposes `a` and `b` to a port compatibility expression.

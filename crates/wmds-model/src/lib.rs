@@ -9,7 +9,9 @@ pub mod chassis;
 pub mod library;
 pub mod transform;
 
-pub use assembly::{MateError, PlacedBy, PlacedInstance, ResolvedAssembly, ResolvedMate, resolve_assembly};
+pub use assembly::{
+    MateError, PlacedBy, PlacedInstance, ResolvedAssembly, ResolvedMate, resolve_assembly,
+};
 pub use chassis::{ChassisError, GeneratedChassis, generate as generate_chassis};
 pub use library::Library;
 pub use transform::{Frame, MateAxis, Transform, solve_mate};
@@ -161,13 +163,21 @@ pub fn resolve_params(
         let before = pending.len();
         let mut still = Vec::new();
         for p in pending {
-            let env = ParamEnv { values: &values, variants };
-            let source: Option<&Expr> = if p.expr.is_some() { p.expr.as_ref() } else { p.default.as_ref() };
-            let overridden = overrides
-                .params
-                .get(&p.name)
-                .cloned()
-                .or_else(|| overrides.variants.get(&p.name).map(|s| Value::Str(s.clone())));
+            let env = ParamEnv {
+                values: &values,
+                variants,
+            };
+            let source: Option<&Expr> = if p.expr.is_some() {
+                p.expr.as_ref()
+            } else {
+                p.default.as_ref()
+            };
+            let overridden = overrides.params.get(&p.name).cloned().or_else(|| {
+                overrides
+                    .variants
+                    .get(&p.name)
+                    .map(|s| Value::Str(s.clone()))
+            });
             if overridden.is_some() && p.expr.is_some() {
                 return Err(ModelError::Param(
                     p.name.clone(),
@@ -184,7 +194,14 @@ pub fn resolve_params(
             match raw {
                 Ok(v) => {
                     let v = coerce_unit(&p.name, v, p.unit.as_deref())?;
-                    check_range(&p.name, &v, p.min.as_ref(), p.max.as_ref(), p.unit.as_deref(), &env)?;
+                    check_range(
+                        &p.name,
+                        &v,
+                        p.min.as_ref(),
+                        p.max.as_ref(),
+                        p.unit.as_deref(),
+                        &env,
+                    )?;
                     values.insert(p.name.clone(), v);
                 }
                 Err(EvalError::Unknown(_)) => still.push(p),
@@ -196,7 +213,9 @@ pub fn resolve_params(
             break;
         }
         if pending.len() == before {
-            return Err(ModelError::Unresolved(pending.iter().map(|p| p.name.clone()).collect()));
+            return Err(ModelError::Unresolved(
+                pending.iter().map(|p| p.name.clone()).collect(),
+            ));
         }
     }
     Ok(values)

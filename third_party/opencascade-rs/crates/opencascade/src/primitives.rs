@@ -74,7 +74,7 @@ impl From<ffi::top_abs::TopAbs_ShapeEnum> for ShapeType {
             ffi::top_abs::TopAbs_ShapeEnum::TopAbs_COMPOUND => ShapeType::Compound,
             ffi::top_abs::TopAbs_ShapeEnum { repr } => {
                 panic!("Unexpected shape type: {repr}")
-            },
+            }
         }
     }
 }
@@ -144,7 +144,10 @@ impl EdgeIterator {
         self.filter(move |edge| {
             edge.edge_type() == EdgeType::Line
                 && 1.0
-                    - (edge.end_point() - edge.start_point()).normalize().dot(normalized_dir).abs()
+                    - (edge.end_point() - edge.start_point())
+                        .normalize()
+                        .dot(normalized_dir)
+                        .abs()
                     < 0.0001
         })
     }
@@ -253,7 +256,7 @@ impl From<ffi::geom_abs::GeomAbs_JoinType> for JoinType {
             ffi::geom_abs::GeomAbs_JoinType::GeomAbs_Intersection => Self::Intersection,
             ffi::geom_abs::GeomAbs_JoinType { repr } => {
                 panic!("Unexpected join type: {repr}")
-            },
+            }
         }
     }
 }

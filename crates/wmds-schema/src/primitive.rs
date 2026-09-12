@@ -119,10 +119,10 @@ pub(crate) fn parse_params_block(ctx: &mut Ctx, block: &KdlNode) -> Vec<ParamDef
     let mut params = Vec::new();
     for n in children(block) {
         let name = n.name().value().to_string();
-        if let Some(u) = prop_string(n, "unit") {
-            if let Err(e) = wmds_units::Quantity::dim_of_unit(&u) {
-                ctx.err(n, format!("param `{name}`: {e}"));
-            }
+        if let Some(u) = prop_string(n, "unit")
+            && let Err(e) = wmds_units::Quantity::dim_of_unit(&u)
+        {
+            ctx.err(n, format!("param `{name}`: {e}"));
         }
         let default = prop_expr(n, "default");
         let expr = prop_expr(n, "expr");
@@ -130,7 +130,10 @@ pub(crate) fn parse_params_block(ctx: &mut Ctx, block: &KdlNode) -> Vec<ParamDef
             ctx.err(n, format!("param `{name}` needs a default= or an expr="));
         }
         if let Some(Expr::Str(s)) = &expr {
-            ctx.err(n, format!("param `{name}`: expr `{s}` is not a valid expression"));
+            ctx.err(
+                n,
+                format!("param `{name}`: expr `{s}` is not a valid expression"),
+            );
         }
         params.push(ParamDef {
             name,

@@ -287,7 +287,8 @@ impl Shape {
 
     #[must_use]
     pub fn expect_wire(&self) -> Wire {
-        self.as_wire().unwrap_or_else(|| panic!("expected Wire, got {:?}", self.shape_type()))
+        self.as_wire()
+            .unwrap_or_else(|| panic!("expected Wire, got {:?}", self.shape_type()))
     }
 
     #[must_use]
@@ -302,7 +303,8 @@ impl Shape {
 
     #[must_use]
     pub fn expect_face(&self) -> Face {
-        self.as_face().unwrap_or_else(|| panic!("expected Face, got {:?}", self.shape_type()))
+        self.as_face()
+            .unwrap_or_else(|| panic!("expected Face, got {:?}", self.shape_type()))
     }
 
     #[must_use]
@@ -317,7 +319,8 @@ impl Shape {
 
     #[must_use]
     pub fn expect_solid(&self) -> Solid {
-        self.as_solid().unwrap_or_else(|| panic!("expected Solid, got {:?}", self.shape_type()))
+        self.as_solid()
+            .unwrap_or_else(|| panic!("expected Solid, got {:?}", self.shape_type()))
     }
 
     pub(crate) fn from_shape(shape: &ffi::topo_ds::TopoDS_Shape) -> Self {
@@ -418,7 +421,11 @@ impl Shape {
     }
 
     pub fn sphere(radius: f64) -> SphereBuilder {
-        SphereBuilder { center: DVec3::ZERO, radius, z_angle: std::f64::consts::TAU }
+        SphereBuilder {
+            center: DVec3::ZERO,
+            radius,
+            z_angle: std::f64::consts::TAU,
+        }
     }
 
     pub fn cone() -> ConeBuilder {
@@ -491,13 +498,17 @@ impl Shape {
         let mut array = ffi::t_col_gp::TColgp_Array1OfPnt2d_new(1, radius_values.len() as i32);
 
         for (index, (t, radius)) in radius_values.into_iter().enumerate() {
-            array.pin_mut().SetValue(index as i32 + 1, &make_point2d(dvec2(t, radius)));
+            array
+                .pin_mut()
+                .SetValue(index as i32 + 1, &make_point2d(dvec2(t, radius)));
         }
 
         let mut make_fillet = ffi::b_rep_fillet_api::BRepFilletAPI_MakeFillet_new(&self.inner);
 
         for edge in edges.into_iter() {
-            make_fillet.pin_mut().variable_add_edge(&array, &edge.as_ref().inner);
+            make_fillet
+                .pin_mut()
+                .variable_add_edge(&array, &edge.as_ref().inner);
         }
 
         Self::from_shape(make_fillet.pin_mut().Shape())
@@ -512,7 +523,9 @@ impl Shape {
         let mut make_chamfer = ffi::b_rep_fillet_api::BRepFilletAPI_MakeChamfer_new(&self.inner);
 
         for edge in edges.into_iter() {
-            make_chamfer.pin_mut().add_edge(distance, &edge.as_ref().inner);
+            make_chamfer
+                .pin_mut()
+                .add_edge(distance, &edge.as_ref().inner);
         }
 
         Self::from_shape(make_chamfer.pin_mut().Shape())
@@ -560,7 +573,9 @@ impl Shape {
             return Err(Error::StepReadFailed);
         }
 
-        reader.pin_mut().TransferRoots(&ffi::message::Message_ProgressRange_new());
+        reader
+            .pin_mut()
+            .TransferRoots(&ffi::message::Message_ProgressRange_new());
 
         let inner = ffi::step_control::one_shape_step(&reader);
 
@@ -612,7 +627,9 @@ impl Shape {
             path.as_ref().to_string_lossy().to_string(),
         );
 
-        reader.pin_mut().TransferRoots(&ffi::message::Message_ProgressRange_new());
+        reader
+            .pin_mut()
+            .TransferRoots(&ffi::message::Message_ProgressRange_new());
 
         if status != ffi::if_select::IFSelect_ReturnStatus::IFSelect_RetDone {
             return Err(Error::IgesReadFailed);
@@ -626,8 +643,9 @@ impl Shape {
     pub fn write_iges(&self, path: impl AsRef<Path>) -> Result<(), Error> {
         let mut writer = ffi::iges_control::IGESControl_Writer_new();
 
-        let success =
-            writer.pin_mut().AddShape(&self.inner, &ffi::message::Message_ProgressRange_new());
+        let success = writer
+            .pin_mut()
+            .AddShape(&self.inner, &ffi::message::Message_ProgressRange_new());
 
         if !success {
             return Err(Error::IgesWriteFailed);
@@ -764,7 +782,9 @@ impl Shape {
 
         let location = ffi::top_loc::Location_from_transform(&transform);
 
-        self.inner.pin_mut().set_global_translation(&location, false);
+        self.inner
+            .pin_mut()
+            .set_global_translation(&location, false);
     }
 
     pub fn mesh(&self) -> Result<Mesh, Error> {
@@ -949,7 +969,9 @@ impl ChamferMaker {
     pub fn new(shape: &Shape) -> Self {
         let make_chamfer = ffi::b_rep_fillet_api::BRepFilletAPI_MakeChamfer_new(&shape.inner);
 
-        Self { inner: make_chamfer }
+        Self {
+            inner: make_chamfer,
+        }
     }
 
     pub fn add_edge(&mut self, distance: f64, edge: &Edge) {
@@ -1061,7 +1083,9 @@ mod tests {
     #[test]
     fn test_write_all_step_multiple_shapes() {
         let s1 = Shape::box_centered(10.0, 10.0, 10.0);
-        let s2 = Shape::sphere(5.0).at(glam::DVec3::new(20.0, 0.0, 0.0)).build();
+        let s2 = Shape::sphere(5.0)
+            .at(glam::DVec3::new(20.0, 0.0, 0.0))
+            .build();
         let s3 = Shape::cylinder_radius_height(3.0, 15.0);
         let path = std::env::temp_dir().join("test_write_all_step_multi.step");
         let result = Shape::write_all_step([&s1, &s2, &s3], &path);
