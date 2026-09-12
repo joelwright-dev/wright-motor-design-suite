@@ -60,10 +60,34 @@ pub struct ResolvedPrimitive {
     /// Set when a variant selected the mirrored hand of this part. Holds the normal of the
     /// mirror plane. Ports are already mirrored; the geometry builder applies it to the solid.
     pub mirror: Option<[f64; 3]>,
+    /// The behaviour model this part declares, with every coefficient resolved. Read by the
+    /// simulators; a part with none simply has nothing to simulate.
+    pub behaviour: Option<ResolvedBehaviour>,
     /// What this part claims to be, for the compliance rules. Carried through resolution
     /// because a rule asking "does this vehicle have a dual circuit brake system" has to be
     /// answerable from the model rather than from a part name.
     pub compliance_tags: Vec<String>,
+}
+
+/// A behaviour model with its coefficients evaluated.
+#[derive(Debug, Clone)]
+pub struct ResolvedBehaviour {
+    pub kind: String,
+    pub props: IndexMap<String, Value>,
+}
+
+impl ResolvedBehaviour {
+    /// A coefficient as a plain number in SI units, when it is one.
+    pub fn num(&self, name: &str) -> Option<f64> {
+        self.props.get(name)?.as_quantity().map(|q| q.value)
+    }
+
+    pub fn text(&self, name: &str) -> Option<&str> {
+        match self.props.get(name)? {
+            Value::Str(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -442,6 +466,17 @@ pub fn resolve(def: &PrimitiveDef, overrides: &Overrides) -> Result<ResolvedPrim
         }
     }
 
+    // Evaluated before the struct is built, because it needs the parameter environment and that
+    // borrows the values the struct is about to take ownership of.
+    let behaviour = def.behaviour.as_ref().map(|b| ResolvedBehaviour {
+        kind: b.kind.clone(),
+        props: b
+            .props
+            .iter()
+            .filter_map(|(k, e)| Some((k.clone(), eval_lenient(e, &env).ok()?)))
+            .collect(),
+    });
+
     Ok(ResolvedPrimitive {
         id: def.id.clone(),
         version: def.version.clone(),
@@ -453,6 +488,7 @@ pub fn resolve(def: &PrimitiveDef, overrides: &Overrides) -> Result<ResolvedPrim
         ports,
         manufacturing,
         mirror,
+        behaviour,
         compliance_tags: def.compliance_tags.clone(),
     })
 }

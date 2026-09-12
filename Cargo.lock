@@ -3795,12 +3795,24 @@ dependencies = [
  "indexmap",
  "miette",
  "wmds-analytics",
+ "wmds-dynamics",
  "wmds-expr",
  "wmds-geom",
  "wmds-geom-occt",
  "wmds-mfg",
  "wmds-model",
  "wmds-rules",
+ "wmds-schema",
+ "wmds-units",
+]
+
+[[package]]
+name = "wmds-dynamics"
+version = "0.0.1"
+dependencies = [
+ "wmds-analytics",
+ "wmds-expr",
+ "wmds-model",
  "wmds-schema",
  "wmds-units",
 ]

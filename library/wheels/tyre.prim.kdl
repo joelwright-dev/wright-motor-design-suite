@@ -35,10 +35,42 @@ primitive "wheels/tyre" version="0.1.0" {
         }
     }
 
+    // The tyre model the dynamics simulator uses: a Magic Formula with load sensitive grip.
+    //
+    // Every coefficient below is PROVISIONAL. They are representative of a modern road tyre in
+    // this size on dry asphalt, taken from published ranges rather than measured on ours, and
+    // they are the single largest source of error in any handling result. Measuring a real one
+    // on a flat-track rig is what replaces them.
     behaviour "tyre" {
-        model "brush-placeholder"
+        model "magic-formula"
         unloaded_radius radius
         rolling_radius_factor 0.97
+
+        // Nominal vertical load the coefficients are quoted at.
+        nominal_load "3500 N"
+        // Peak friction at the nominal load, and how much of it is lost as load doubles.
+        peak_friction_y 1.05
+        peak_friction_x 1.15
+        load_sensitivity 0.10
+
+        // Cornering stiffness: c1 * Fz0 * sin(2 * atan(Fz / (c2 * Fz0))) newtons per radian.
+        cornering_c1 26.0
+        cornering_c2 2.2
+        // Longitudinal slip stiffness, as a multiple of the vertical load.
+        slip_stiffness 18.0
+
+        // Magic Formula shape and curvature. Together these decide where the curve peaks: a
+        // road tyre makes its most grip at about eight degrees of slip, and a curvature near
+        // one would push that out past forty, which no road tyre does.
+        shape_y 1.50
+        shape_x 1.65
+        curvature_y 0.0
+        curvature_x 0.0
+
+        // How far the tyre has to roll before it develops most of a new slip angle. This is what
+        // makes a step steer take time rather than happening instantly.
+        relaxation_length "0.45 m"
+        rolling_resistance 0.011
     }
 
     manufacturing {

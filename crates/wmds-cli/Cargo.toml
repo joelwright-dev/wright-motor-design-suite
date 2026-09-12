@@ -23,6 +23,7 @@ wmds-schema = { workspace = true }
 wmds-model = { workspace = true }
 wmds-geom = { workspace = true }
 wmds-mfg = { workspace = true }
+wmds-dynamics = { workspace = true }
 wmds-rules = { workspace = true }
 wmds-analytics = { workspace = true }
 indexmap = { workspace = true }

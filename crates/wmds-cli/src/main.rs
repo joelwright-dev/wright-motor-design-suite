@@ -52,6 +52,16 @@ enum Cmd {
         #[arg(long, value_name = "FILE")]
         markdown: Option<PathBuf>,
     },
+    /// Simulate how the vehicle drives: cornering, response, braking and acceleration
+    Drive {
+        file: PathBuf,
+        /// Skidpad radius in metres
+        #[arg(long, default_value_t = 30.0)]
+        radius: f64,
+        /// Entry speed for the double lane change, km/h
+        #[arg(long, default_value_t = 70.0)]
+        lane_change_speed: f64,
+    },
     /// Check a vehicle against its rule packs
     Check {
         file: PathBuf,
@@ -208,6 +218,11 @@ fn main() -> ExitCode {
             volume,
             markdown,
         } => report::build_pack(&project, &file, volume, markdown.as_deref()),
+        Cmd::Drive {
+            file,
+            radius,
+            lane_change_speed,
+        } => report::drive(&project, &file, radius, lane_change_speed),
         Cmd::Check { file, json, all } => {
             report::check_vehicle(&project, &file, json.as_deref(), all)
         }

@@ -61,10 +61,18 @@ primitive "drivetrain/motor/drive-unit" version="0.1.0" {
         }
     }
 
+    // PROVISIONAL throughout: representative of a permanent magnet unit of this power, not
+    // measured. The torque curve is what the acceleration simulation integrates.
     behaviour "e-motor" {
         torque_curve rpm="(0, 3000, 6000, 9000, 12000)" nm="(280, 280, 210, 145, 105)"
         efficiency_peak 0.94
         max_rpm 12000
+        // Single speed reduction between the motor and the driven wheels.
+        final_drive 9.1
+        // Which axle it drives: front, rear or all.
+        drives "rear"
+        // Regenerative braking limit at the wheels, as a share of the tyre capability.
+        regen_fraction 0.35
     }
 
     manufacturing {

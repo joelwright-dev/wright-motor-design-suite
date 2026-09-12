@@ -26,7 +26,7 @@ harder to fool yourself with.
 |---|--------|-------|---------|
 | 1 | Library of primitives for every vehicle | **Thin** | 17 primitives. No body, interior, seats, lights, glazing, springs, dampers, anti-roll bars, driveshafts, hubs as separate parts, fuel system, internal combustion powertrain, cooling, HVAC, wiring, or pedals. |
 | 2 | Regulatory compliance | **Half** | The engine is real and honest. The Australian Design Rules pack is a five-rule unverified template. Nobody has read the actual standards against it. |
-| 3 | Realistic driving dynamics simulator | **Not started** | Tier 0 closed-form numbers only: wheelbase, track, axle loads, static stability. No tyre model, no transient solver, no manoeuvres. |
+| 3 | Realistic driving dynamics simulator | **Started** | A transient four-wheel model with a Magic Formula tyre, load transfer split by roll stiffness, and a friction ellipse. Skidpad, step steer, braking, acceleration and a double lane change. No suspension kinematics and no springs, so roll stiffness is assumed and the report says so. |
 | 4 | Realistic crash simulator | **Not started** | Nothing at all. No solver, no deck export, no material cards for crash. |
 | 5 | Build primitives without programming | **Started** | The application edits a part: dimensions, shapes and mounting points, with the geometry rebuilding as you go, and writes the file. Chassis systems still have no editor. |
 | 6 | Build new MCDS chassis without programming | **Not started** | Chassis systems are data rather than code, which is the hard half, but there is no editor for them. |
@@ -57,14 +57,16 @@ stop having nothing behind them.
 2. ~~Joint editing and free placement~~ (pillar 8). Done.
 3. ~~Manufacturing and assembly output~~ (pillars 9, 10). Done as text and Markdown; drawings
    and pictures are what is missing.
-4. **Driving dynamics** (pillar 3). A real transient model: sprung and unsprung masses,
-   suspension rates from the geometry, a Pacejka tyre model, and standard manoeuvres.
-5. **Crash** (pillar 4). Explicit finite element is the only honest answer for a real crash
+4. ~~Driving dynamics~~ (pillar 3). Done, except that it has no springs or suspension
+   kinematics to read, which is what the next item unblocks.
+5. **Springs, dampers and anti-roll bars in the library**, so roll stiffness stops being an
+   assumption and becomes a result of the design.
+6. **Crash** (pillar 4). Explicit finite element is the only honest answer for a real crash
    result. The plan is a deck exporter for OpenRadioss plus a lumped-mass nonlinear-spring model
    for early-phase work, clearly labelled as the screening tool it is.
-6. **The rest of the library** (pillars 1, 11). Body, interior, springs and dampers,
+7. **The rest of the library** (pillars 1, 11). Body, interior, springs and dampers,
    driveshafts, lights, glazing, pedals, wiring.
-7. **The Australian Design Rules pack read against the actual standards** (pillar 2).
+8. **The Australian Design Rules pack read against the actual standards** (pillar 2).
 
 ## Rules for this document
 

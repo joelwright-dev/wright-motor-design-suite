@@ -100,8 +100,11 @@ pub struct PortDef {
 #[derive(Debug, Clone)]
 pub struct BehaviourDef {
     pub kind: String,
-    /// The behaviour block is kept verbatim for the behaviour-model crates to interpret.
+    /// The behaviour block is kept verbatim as well, for anything that wants the original text.
     pub raw: String,
+    /// Each line of the block as a name and a value, so a simulation can read coefficients
+    /// without reparsing KDL. A line with several values becomes a tuple.
+    pub props: IndexMap<String, Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -380,9 +383,37 @@ pub(crate) fn parse_primitive_node(ctx: &mut Ctx, node: &KdlNode) -> Option<Prim
         if kind == "none" {
             None
         } else {
+            let mut props = IndexMap::new();
+            for n in children(b) {
+                let name = n.name().value().to_string();
+                let mut vals: Vec<Expr> = Vec::new();
+                for e in n.entries() {
+                    match e.name() {
+                        // A named entry becomes its own key, so `torque_curve rpm=... nm=...`
+                        // arrives as `torque_curve_rpm` and `torque_curve_nm`.
+                        Some(k) => {
+                            props.insert(
+                                format!("{name}_{}", k.value()),
+                                value_to_expr(e.value()),
+                            );
+                        }
+                        None => vals.push(value_to_expr(e.value())),
+                    }
+                }
+                match vals.len() {
+                    0 => {}
+                    1 => {
+                        props.insert(name, vals.into_iter().next().unwrap());
+                    }
+                    _ => {
+                        props.insert(name, Expr::Tuple(vals));
+                    }
+                }
+            }
             Some(BehaviourDef {
                 kind,
                 raw: b.to_string(),
+                props,
             })
         }
     });

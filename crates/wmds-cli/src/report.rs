@@ -1120,3 +1120,86 @@ pub fn build_pack(
         ExitCode::FAILURE
     }
 }
+
+// ------------------------------------------------------------------------- driving dynamics
+
+/// Run the standard handling manoeuvres and report what they found.
+pub fn drive(project: &Path, file: &Path, radius: f64, lane_change_speed: f64) -> ExitCode {
+    let lib = match Library::load(project) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let def = match Library::load_assembly_file(file) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut extra = Vec::new();
+    if let Some(req) = &def.chassis {
+        match wmds_model::generate_chassis(&lib, req) {
+            Ok(g) => extra.push((req.id.clone(), g.assembly)),
+            Err(e) => {
+                eprintln!("error: chassis: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    let asm = match wmds_model::resolve_assembly(&lib, &def, &Overrides::default(), extra) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let k = kernel();
+    let built = wmds_geom::build_assembly(&k, &asm);
+    let density_of = |m: &str| lib.density(m);
+    let masses = wmds_geom::assembly_masses(&k, &built, &density_of);
+    let tier0 = tier0_of(&k, &asm, &built, &masses);
+
+    // The mass and centre of gravity used are the laden ones, because that is the state a
+    // vehicle has to behave in, not the empty one.
+    let point: f64 = asm.point_masses.iter().map(|p| p.mass.value).sum();
+    let (modelled, cg_modelled, _) = wmds_geom::roll_up(&masses);
+    let mut total = modelled;
+    let mut moment = [
+        cg_modelled[0] * modelled,
+        cg_modelled[1] * modelled,
+        cg_modelled[2] * modelled,
+    ];
+    for pm in &asm.point_masses {
+        total += pm.mass.value;
+        for i in 0..3 {
+            moment[i] += pm.mass.value * pm.at[i].value;
+        }
+    }
+    let cg = if total > 0.0 {
+        [moment[0] / total, moment[1] / total, moment[2] / total]
+    } else {
+        cg_modelled
+    };
+    let _ = point;
+
+    let veh = wmds_dynamics::SimVehicle::from_model(&asm, &tier0, total, cg);
+    let skidpad = wmds_dynamics::steady_state(&veh, radius);
+    let step = wmds_dynamics::step_steer(&veh, 80.0 / 3.6, 2.0);
+    let brake = wmds_dynamics::braking(&veh, 100.0);
+    let accel = wmds_dynamics::acceleration(&veh);
+    let lane = wmds_dynamics::lane_change(&veh, lane_change_speed);
+    let h = wmds_dynamics::Handling {
+        vehicle: veh,
+        skidpad,
+        step,
+        braking: brake,
+        acceleration: accel,
+        lane_change: lane,
+    };
+    print!("{}", wmds_dynamics::write_text(&h));
+    ExitCode::SUCCESS
+}
