@@ -18,7 +18,10 @@ corners, with a parts list, masses and the centre of gravity. Then:
 ```bash
 cargo run -- veh show vehicles/reference-city-ev/reference-city-ev.veh.kdl --build
 cargo run -- check vehicles/reference-city-ev/reference-city-ev.veh.kdl
+cargo run -- veh show vehicles/reference-city-ev/reference-city-ev.veh.kdl --build --step car.step
 ```
+
+The last of those fuses all 31 parts and writes a 2.6 MB STEP file that opens in NX or FreeCAD.
 
 To watch the modular chassis do the thing it exists to do, ask for a different one. Nothing in
 the library changes; only the numbers in the command:
@@ -120,14 +123,26 @@ Reference vehicle, from `wmds veh show --build`:
 | Front suspension, both corners | 44.8 kg | Brackets, arms, uprights, wheels and tyres |
 | Battery | 250 kg | Declared, from 40 kWh at a provisional 160 Wh/kg pack level |
 | Drive unit | 50 kg | Declared, from 110 kW at a provisional 2.2 kW/kg |
-| Modelled total | 404.7 kg | Every density from the material database |
+| Modelled total | 402.1 kg | Every density from the material database |
 | Declared point masses | 588 kg | Estimates for what is not yet modelled |
 | Kerb, roughly | 993 kg | |
-| Centre of gravity | 587, 0, 67 mm | Modelled parts; the compliance check folds in kerb point masses |
+| Centre of gravity | 596, -4, 61 mm | Modelled parts; the compliance check folds in kerb point masses |
 | Front track | 1260 mm | |
 
 Compliance: nine rules pass, one needs a simulation that Phase 5 will provide, one needs a
 physical test that no simulation can replace.
+
+The two geometry kernels disagree by about half a percent on mass, and the disagreement is the
+expected one. The mesh kernel fuses parts by concatenating triangles, so where two solids overlap
+(the arm tubes meeting at the ball joint boss, for instance) the shared volume is counted twice.
+OpenCASCADE does the boolean properly and removes it. The mesh kernel reads 404.7 kg against
+OpenCASCADE's 402.1 kg, which is the overlap. Trust the OpenCASCADE figure; the mesh kernel is
+for looking at things quickly.
+
+The lateral centre of gravity comes out 4 mm off centre on a vehicle that is geometrically
+symmetric. That is tessellation asymmetry between a shape and its mirror image rather than a real
+offset, and it is well inside the 30 mm the internal rule allows, but it is worth chasing when
+somebody next touches the mirroring code.
 
 Treat all of it as a scaffold that is the right shape rather than as a mass estimate.
 
