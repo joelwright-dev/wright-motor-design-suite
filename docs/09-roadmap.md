@@ -83,7 +83,10 @@ Goal: prove the riskiest dependency before building on it.
 
 ## Immediate next steps
 
-1. Put this documentation under version control (`git init` in this folder) and review it.
-2. Resolve the ASSUMPTION items in doc 04 that affect the software early: length vs width
-   configurations, grid pitch, joint style.
-3. Start Phase 0.
+1. ~~Put this documentation under version control.~~ Done: github.com/joelwright-dev/wright-motor-design-suite.
+2. ~~Confirm length vs width configurations and the definition-file format.~~ Done 2026-09-12:
+   lengths, KDL. Remaining ASSUMPTION items (grid pitch, joint style, insert thread) are
+   parameters in the chassis definition and can be changed without code changes.
+3. Install the toolchain: rustup (stable), Visual Studio Build Tools with the C++ workload on
+   Windows (needed for the MSVC target and for OCCT), CMake.
+4. Start Phase 0.

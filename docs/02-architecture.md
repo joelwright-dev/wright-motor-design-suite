@@ -201,10 +201,11 @@ sequence from the mate graph and renders instructions.
 
 ### 8.1 Definition files
 
-All definition files use one text format. **ASSUMPTION:** KDL (kdl-lang.org) - it is more readable
-than TOML for nested structures, has proper comments, and has a maintained Rust implementation.
-TOML is the fallback. Examples in doc 03 are written in KDL. The parser is isolated in
-`wmds-schema` so the choice can change before v1 without touching anything else.
+All definition files use one text format: KDL v2 (kdl-lang.org), confirmed 2026-09-12. It is
+more readable than TOML for nested structures, has proper comments, and has a maintained Rust
+implementation that preserves formatting on edit. Examples in doc 03 are written in KDL. The
+parser is isolated in `wmds-schema` so the choice could still change before v1 without touching
+anything else.
 
 | Extension | Content |
 |-----------|---------|

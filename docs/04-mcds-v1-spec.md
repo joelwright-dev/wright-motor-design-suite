@@ -33,11 +33,9 @@ Two length configurations:
 | **2/3-length** | front + central | city car, small hatch, roadster |
 | **Full-length** | front + central + rear | sedan, wagon, SUV, ute, light truck |
 
-**ASSUMPTION:** the brief describes these as "2/3 width" and "full width" in one place and as
-lengths in the next sentence. This spec treats the two standard configurations as **lengths**
-(section count) and treats **width** as a separate, independent option (section 3.3). If width
-configurations were intended instead, the port parameter `width_config` already covers it and
-only this paragraph changes.
+Naming: "2/3" means two of the three section kinds are fitted. The two standard configurations
+are therefore **lengths** (section count). **Width** is a separate, independent option chosen per
+vehicle (section 3.3), so a 2/3-length chassis can be built in any width. Confirmed 2026-09-12.
 
 Every section of a given type conforms to the same section-joint interface, so any front section
 mates to any central section, and any central to any rear (MCDS-07).
