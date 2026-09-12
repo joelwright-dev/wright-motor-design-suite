@@ -45,7 +45,7 @@ fn ring(centre: Vec3, n: Vec3, r: f64) -> Vec<Vec3> {
 
 /// Closed cylindrical wall between two rings with matching segment order. `outward` selects the
 /// winding so normals face away from the axis (true) or toward it (false, for inner walls).
-fn wall(mesh: &mut Mesh, ring_a: &[Vec3], ring_b: &[Vec3], outward: bool) {
+fn wall_between(mesh: &mut Mesh, ring_a: &[Vec3], ring_b: &[Vec3], outward: bool) {
     let base = mesh.positions.len() as u32;
     mesh.positions.extend_from_slice(ring_a);
     mesh.positions.extend_from_slice(ring_b);
@@ -127,7 +127,7 @@ impl GeomKernel for MeshKernel {
         let ra = ring(a, n, r);
         let rb = ring(b, n, r);
         let mut m = Mesh::default();
-        wall(&mut m, &ra, &rb, true);
+        wall_between(&mut m, &ra, &rb, true);
         cap(&mut m, &ra, None, a, true);
         cap(&mut m, &rb, None, b, false);
         Ok(finish(m))
@@ -141,10 +141,35 @@ impl GeomKernel for MeshKernel {
         let (ro, ri) = (od / 2.0, od / 2.0 - wall_t);
         let (oa, ob, ia, ib) = (ring(a, n, ro), ring(b, n, ro), ring(a, n, ri), ring(b, n, ri));
         let mut m = Mesh::default();
-        wall(&mut m, &oa, &ob, true);
-        wall(&mut m, &ia, &ib, false);
+        wall_between(&mut m, &oa, &ob, true);
+        wall_between(&mut m, &ia, &ib, false);
         cap(&mut m, &oa, Some(&ia), a, true);
         cap(&mut m, &ob, Some(&ib), b, false);
+        Ok(finish(m))
+    }
+
+    fn box_tube(&self, size: Vec3, wall: f64, centre: Vec3) -> Result<Mesh> {
+        if wall <= 0.0 || wall * 2.0 >= size[1].min(size[2]) {
+            return Err(GeomError::Kernel(format!(
+                "wall {wall} is not valid for a {} x {} section",
+                size[1], size[2]
+            )));
+        }
+        let (hl, hw, hh) = (size[0] / 2.0, size[1] / 2.0, size[2] / 2.0);
+        let (iw, ih) = (hw - wall, hh - wall);
+        let rect = |x: f64, w: f64, h: f64| -> Vec<Vec3> {
+            [[x, w, h], [x, -w, h], [x, -w, -h], [x, w, -h]]
+                .into_iter()
+                .map(|p| add(centre, p))
+                .collect()
+        };
+        let (oa, ob) = (rect(-hl, hw, hh), rect(hl, hw, hh));
+        let (ia, ib) = (rect(-hl, iw, ih), rect(hl, iw, ih));
+        let mut m = Mesh::default();
+        wall_between(&mut m, &oa, &ob, true);
+        wall_between(&mut m, &ia, &ib, false);
+        cap(&mut m, &oa, Some(&ia), add(centre, [-hl, 0.0, 0.0]), true);
+        cap(&mut m, &ob, Some(&ib), add(centre, [hl, 0.0, 0.0]), false);
         Ok(finish(m))
     }
 
@@ -180,6 +205,31 @@ impl GeomKernel for MeshKernel {
         }
         for t in &mut m.triangles {
             t.swap(1, 2);
+        }
+        m.normals.clear();
+        Ok(m)
+    }
+
+    fn rotated(&self, s: &Mesh, axis: Vec3, angle: f64) -> Result<Mesh> {
+        let r = wmds_model::Transform::rotation(axis, angle);
+        let mut m = s.clone();
+        for p in &mut m.positions {
+            *p = r.point(*p);
+        }
+        m.normals.clear();
+        Ok(m)
+    }
+
+    /// Exact, unlike the trait default, because a mesh can take any linear map directly.
+    fn placed(&self, s: &Mesh, t: &wmds_model::Transform) -> Result<Mesh> {
+        let mut m = s.clone();
+        for p in &mut m.positions {
+            *p = t.point(*p);
+        }
+        if t.is_mirrored() {
+            for tri in &mut m.triangles {
+                tri.swap(1, 2);
+            }
         }
         m.normals.clear();
         Ok(m)

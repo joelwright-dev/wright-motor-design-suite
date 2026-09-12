@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 wmds-geom = { workspace = true }
+wmds-model = { workspace = true }
 # Vendored copy of bschwind/opencascade-rs at the 0.3.0 commit with an MSVC compatibility patch.
 # See third_party/opencascade-rs/README.md for why and what was changed.
 opencascade = { path = "../../third_party/opencascade-rs/crates/opencascade" }

@@ -13,11 +13,17 @@
 //!   evaluation time (`bolt="M12"`).
 //! * Axes may be written as `"x"`, `"-y"`, `"z"` or as a 3-tuple expression.
 
+mod assembly;
+mod chassis;
+mod ports;
 mod primitive;
 
+pub use assembly::*;
+pub use chassis::*;
+pub use ports::*;
 pub use primitive::*;
 
-use kdl::{KdlDocument, KdlNode, KdlValue};
+use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 use wmds_expr::Expr;
@@ -43,7 +49,7 @@ pub struct SchemaErrors {
 }
 
 impl SchemaErrors {
-    fn new(name: &str, src: &str, errors: Vec<SchemaError>) -> Self {
+    pub(crate) fn new(name: &str, src: &str, errors: Vec<SchemaError>) -> Self {
         SchemaErrors {
             name: name.to_string(),
             src: NamedSource::new(name, src.to_string()),
@@ -62,6 +68,13 @@ impl Ctx {
         self.errors.push(SchemaError {
             msg: msg.into(),
             span: Some(node.span()),
+        });
+    }
+
+    fn err_entry(&mut self, entry: &KdlEntry, msg: impl Into<String>) {
+        self.errors.push(SchemaError {
+            msg: msg.into(),
+            span: Some(entry.span()),
         });
     }
 }

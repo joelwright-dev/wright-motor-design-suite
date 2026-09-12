@@ -4,6 +4,16 @@
 //! its parameters (with dependency ordering, unit coercion and range checks), geometry feature
 //! arguments, port frames and manufacturing cost expressions.
 
+pub mod assembly;
+pub mod chassis;
+pub mod library;
+pub mod transform;
+
+pub use assembly::{MateError, PlacedBy, PlacedInstance, ResolvedAssembly, ResolvedMate, resolve_assembly};
+pub use chassis::{ChassisError, GeneratedChassis, generate as generate_chassis};
+pub use library::Library;
+pub use transform::{Frame, MateAxis, Transform, solve_mate};
+
 use std::collections::HashMap;
 
 use indexmap::IndexMap;
@@ -132,9 +142,64 @@ impl Overrides {
     }
 }
 
-struct ParamEnv<'a> {
-    values: &'a IndexMap<String, Value>,
-    variants: &'a IndexMap<String, String>,
+pub(crate) struct ParamEnv<'a> {
+    pub values: &'a IndexMap<String, Value>,
+    pub variants: &'a IndexMap<String, String>,
+}
+
+/// Evaluate a parameter block: defaults, derived expressions, overrides, unit coercion and
+/// range checks. Parameters may be declared in any order; evaluation repeats until no further
+/// progress is possible, which resolves forward references and detects cycles.
+pub fn resolve_params(
+    params: &[wmds_schema::ParamDef],
+    variants: &IndexMap<String, String>,
+    overrides: &Overrides,
+) -> Result<IndexMap<String, Value>, ModelError> {
+    let mut values: IndexMap<String, Value> = IndexMap::new();
+    let mut pending: Vec<&wmds_schema::ParamDef> = params.iter().collect();
+    loop {
+        let before = pending.len();
+        let mut still = Vec::new();
+        for p in pending {
+            let env = ParamEnv { values: &values, variants };
+            let source: Option<&Expr> = if p.expr.is_some() { p.expr.as_ref() } else { p.default.as_ref() };
+            let overridden = overrides
+                .params
+                .get(&p.name)
+                .cloned()
+                .or_else(|| overrides.variants.get(&p.name).map(|s| Value::Str(s.clone())));
+            if overridden.is_some() && p.expr.is_some() {
+                return Err(ModelError::Param(
+                    p.name.clone(),
+                    "derived parameters (expr=) cannot be overridden".into(),
+                ));
+            }
+            let raw = match overridden {
+                Some(v) => Ok(v),
+                None => match source {
+                    Some(e) => eval(e, &env),
+                    None => Ok(Value::Str(String::new())),
+                },
+            };
+            match raw {
+                Ok(v) => {
+                    let v = coerce_unit(&p.name, v, p.unit.as_deref())?;
+                    check_range(&p.name, &v, p.min.as_ref(), p.max.as_ref(), p.unit.as_deref(), &env)?;
+                    values.insert(p.name.clone(), v);
+                }
+                Err(EvalError::Unknown(_)) => still.push(p),
+                Err(e) => return Err(ModelError::Param(p.name.clone(), e.to_string())),
+            }
+        }
+        pending = still;
+        if pending.is_empty() {
+            break;
+        }
+        if pending.len() == before {
+            return Err(ModelError::Unresolved(pending.iter().map(|p| p.name.clone()).collect()));
+        }
+    }
+    Ok(values)
 }
 
 impl Env for ParamEnv<'_> {
@@ -181,68 +246,7 @@ pub fn resolve(def: &PrimitiveDef, overrides: &Overrides) -> Result<ResolvedPrim
         }
     }
 
-    // Params: multi-pass evaluation until no progress (handles any declaration order).
-    let mut values: IndexMap<String, Value> = IndexMap::new();
-    let mut pending: Vec<&wmds_schema::ParamDef> = def.params.iter().collect();
-    loop {
-        let before = pending.len();
-        let mut still = Vec::new();
-        for p in pending {
-            let env = ParamEnv {
-                values: &values,
-                variants: &variants,
-            };
-            let source: Option<&Expr> = if p.expr.is_some() {
-                p.expr.as_ref()
-            } else {
-                p.default.as_ref()
-            };
-            let overridden = overrides.params.get(&p.name).cloned().or_else(|| {
-                overrides
-                    .variants
-                    .get(&p.name)
-                    .map(|s| Value::Str(s.clone()))
-            });
-            if overridden.is_some() && p.expr.is_some() {
-                return Err(ModelError::Param(
-                    p.name.clone(),
-                    "derived parameters (expr=) cannot be overridden".into(),
-                ));
-            }
-            let raw = match overridden {
-                Some(v) => Ok(v),
-                None => match source {
-                    Some(e) => eval(e, &env),
-                    None => Ok(Value::Str(String::new())),
-                },
-            };
-            match raw {
-                Ok(v) => {
-                    let v = coerce_unit(&p.name, v, p.unit.as_deref())?;
-                    check_range(
-                        &p.name,
-                        &v,
-                        p.min.as_ref(),
-                        p.max.as_ref(),
-                        p.unit.as_deref(),
-                        &env,
-                    )?;
-                    values.insert(p.name.clone(), v);
-                }
-                Err(EvalError::Unknown(_)) => still.push(p),
-                Err(e) => return Err(ModelError::Param(p.name.clone(), e.to_string())),
-            }
-        }
-        pending = still;
-        if pending.is_empty() {
-            break;
-        }
-        if pending.len() == before {
-            return Err(ModelError::Unresolved(
-                pending.iter().map(|p| p.name.clone()).collect(),
-            ));
-        }
-    }
+    let values = resolve_params(&def.params, &variants, overrides)?;
 
     let env = ParamEnv {
         values: &values,

@@ -70,6 +70,10 @@ impl GeomKernel for OcctKernel {
         Ok(OcctSolid(Arc::new(s.0.mirrored(mm(origin), dir(normal)))))
     }
 
+    fn rotated(&self, s: &OcctSolid, axis: Vec3, angle: f64) -> Result<OcctSolid> {
+        Ok(OcctSolid(Arc::new(s.0.rotated(dir(axis), angle))))
+    }
+
     fn tessellate(&self, s: &OcctSolid, tolerance: f64) -> Result<Mesh> {
         let m =
             s.0.mesh_with_tolerance(tolerance * M_TO_MM)

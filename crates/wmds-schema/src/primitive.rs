@@ -114,6 +114,37 @@ pub struct CostDef {
     pub per_unit: Option<Expr>,
 }
 
+/// Parse a `params { ... }` block. Shared by primitives, assemblies and chassis systems.
+pub(crate) fn parse_params_block(ctx: &mut Ctx, block: &KdlNode) -> Vec<ParamDef> {
+    let mut params = Vec::new();
+    for n in children(block) {
+        let name = n.name().value().to_string();
+        if let Some(u) = prop_string(n, "unit") {
+            if let Err(e) = wmds_units::Quantity::dim_of_unit(&u) {
+                ctx.err(n, format!("param `{name}`: {e}"));
+            }
+        }
+        let default = prop_expr(n, "default");
+        let expr = prop_expr(n, "expr");
+        if default.is_none() && expr.is_none() {
+            ctx.err(n, format!("param `{name}` needs a default= or an expr="));
+        }
+        if let Some(Expr::Str(s)) = &expr {
+            ctx.err(n, format!("param `{name}`: expr `{s}` is not a valid expression"));
+        }
+        params.push(ParamDef {
+            name,
+            unit: prop_string(n, "unit"),
+            default,
+            min: prop_expr(n, "min"),
+            max: prop_expr(n, "max"),
+            expr,
+            doc: prop_string(n, "doc"),
+        });
+    }
+    params
+}
+
 pub(crate) fn parse_primitive_node(ctx: &mut Ctx, node: &KdlNode) -> Option<PrimitiveDef> {
     let id = match first_positional_string(node) {
         Some(s) => s,
@@ -145,40 +176,13 @@ pub(crate) fn parse_primitive_node(ctx: &mut Ctx, node: &KdlNode) -> Option<Prim
     };
 
     // params
-    let mut params = Vec::new();
-    match child(node, "params") {
-        Some(p) => {
-            for n in children(p) {
-                let name = n.name().value().to_string();
-                if let Some(u) = prop_string(n, "unit")
-                    && let Err(e) = wmds_units::Quantity::dim_of_unit(&u)
-                {
-                    ctx.err(n, format!("param `{name}`: {e}"));
-                }
-                let default = prop_expr(n, "default");
-                let expr = prop_expr(n, "expr");
-                if default.is_none() && expr.is_none() {
-                    ctx.err(n, format!("param `{name}` needs a default= or an expr="));
-                }
-                if let Some(Expr::Str(s)) = &expr {
-                    ctx.err(
-                        n,
-                        format!("param `{name}`: expr `{s}` is not a valid expression"),
-                    );
-                }
-                params.push(ParamDef {
-                    name,
-                    unit: prop_string(n, "unit"),
-                    default,
-                    min: prop_expr(n, "min"),
-                    max: prop_expr(n, "max"),
-                    expr,
-                    doc: prop_string(n, "doc"),
-                });
-            }
+    let params = match child(node, "params") {
+        Some(p) => parse_params_block(ctx, p),
+        None => {
+            ctx.err(node, "missing `params` block (it may be empty)");
+            Vec::new()
         }
-        None => ctx.err(node, "missing `params` block (it may be empty)"),
-    }
+    };
 
     // variants
     let mut variants = Vec::new();

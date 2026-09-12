@@ -3816,6 +3816,7 @@ dependencies = [
  "glam",
  "opencascade",
  "wmds-geom",
+ "wmds-model",
 ]
 
 [[package]]

@@ -1,0 +1,207 @@
+// Port type registry.
+//
+// A port type declares what a mounting interface is: the parameters that describe it, how two
+// of them must match to be compatible, which degree of freedom the resulting mate has, and the
+// default fasteners. Adding a new joining standard means adding a port type here, not writing
+// Rust (WMDS-11).
+//
+// Compatibility expressions see two records, `a` and `b`, holding the two ports' parameters.
+//
+// `mate_axis` says how the two mating axes line up:
+//   opposed - the ports face each other (bolted faces, flanges). The default.
+//   aligned - the ports share a direction (coaxial pins, shafts, bushes on a common axis).
+//
+// `stage` is the earliest stage at which the joint may be made: `factory` joints are made in
+// production, `kit` joints by the person assembling the vehicle (MCDS-06).
+
+// ---------------------------------------------------------------- structural and mechanical
+
+port_type "bolt.pattern" {
+    doc "Circular bolt pattern, e.g. a wheel to a hub or a flange joint"
+    params count="int" pcd="mm" thread="string" centre_bore="mm?"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "bolt.pattern" \
+        when="a.count == b.count and abs(a.pcd - b.pcd) < 0.2 mm and a.thread == b.thread"
+    stage "kit"
+}
+
+port_type "bush.pivot" {
+    doc "Pin through a rubber or spherical bush: the male half, on a suspension link"
+    params bush_od="mm" bolt="string"
+    dof "revolute"
+    mate_axis "aligned"
+    compatible_with "bush.bracket" when="abs(a.bush_od - b.bush_od) < 0.2 mm and a.bolt == b.bolt"
+    stage "kit"
+}
+
+port_type "bush.bracket" {
+    doc "Bracket that receives a bush pivot"
+    params bush_od="mm" bolt="string"
+    dof "revolute"
+    mate_axis "aligned"
+    compatible_with "bush.pivot" when="abs(a.bush_od - b.bush_od) < 0.2 mm and a.bolt == b.bolt"
+    stage "kit"
+}
+
+port_type "balljoint.taper" {
+    doc "Tapered ball joint stud, e.g. lower arm to upright"
+    params taper="string" stud="string"
+    dof "spherical"
+    mate_axis "aligned"
+    compatible_with "balljoint.socket" when="a.taper == b.taper and a.stud == b.stud"
+    stage "kit"
+}
+
+port_type "balljoint.socket" {
+    doc "Tapered bore that receives a ball joint stud"
+    params taper="string" stud="string"
+    dof "spherical"
+    mate_axis "aligned"
+    compatible_with "balljoint.taper" when="a.taper == b.taper and a.stud == b.stud"
+    stage "kit"
+}
+
+port_type "spring.seat" {
+    doc "Spring or damper eye seat"
+    params id="mm" width="mm"
+    dof "revolute"
+    mate_axis "aligned"
+    compatible_with "spring.seat" when="abs(a.id - b.id) < 0.5 mm"
+    stage "kit"
+}
+
+port_type "hub.face" {
+    doc "Wheel mounting face on a hub"
+    params count="int" pcd="mm" thread="string" centre_bore="mm"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "wheel.mount" \
+        when="a.count == b.count and abs(a.pcd - b.pcd) < 0.2 mm and a.thread == b.thread and b.centre_bore >= a.centre_bore"
+    stage "kit"
+}
+
+port_type "wheel.mount" {
+    doc "Wheel centre bore and stud holes"
+    params count="int" pcd="mm" thread="string" centre_bore="mm"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "hub.face" \
+        when="a.count == b.count and abs(a.pcd - b.pcd) < 0.2 mm and a.thread == b.thread and a.centre_bore >= b.centre_bore"
+    stage "kit"
+}
+
+port_type "tyre.bead" {
+    doc "Tyre to rim interface"
+    params diameter="in" width="mm"
+    dof "fixed"
+    mate_axis "aligned"
+    compatible_with "rim.bead" when="abs(a.diameter - b.diameter) < 0.1 in"
+    stage "factory"
+}
+
+port_type "rim.bead" {
+    doc "Rim bead seat"
+    params diameter="in" width="mm"
+    dof "fixed"
+    mate_axis "aligned"
+    compatible_with "tyre.bead" when="abs(a.diameter - b.diameter) < 0.1 in"
+    stage "factory"
+}
+
+port_type "shaft.spline" {
+    doc "Splined shaft connection, e.g. driveshaft to hub"
+    params spline="string" diameter="mm"
+    dof "revolute"
+    mate_axis "aligned"
+    compatible_with "shaft.spline" when="a.spline == b.spline and abs(a.diameter - b.diameter) < 0.2 mm"
+    stage "kit"
+}
+
+port_type "mount.rubber" {
+    doc "Engine, motor or subframe rubber mount"
+    params bolt="string" rate="N/mm?"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "mount.rubber" when="a.bolt == b.bolt"
+    stage "kit"
+}
+
+// ---------------------------------------------------------------------------- MCDS chassis
+
+port_type "mcds.section-joint" {
+    doc "Joint between two MCDS chassis sections. The single most important interface in the \
+         platform: every section implements it, which is what makes sections interchangeable."
+    params width_config="string" rail_section="string" generation="int"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "mcds.section-joint" \
+        when="a.width_config == b.width_config and a.rail_section == b.rail_section and a.generation == b.generation"
+    stage "kit"
+}
+
+port_type "mcds.grid-station" {
+    doc "A mounting station on a chassis rail, at a multiple of the mount grid pitch"
+    params bolt="string" side="string"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "mcds.grid-mount" when="a.bolt == b.bolt"
+    grid #true
+    stage "kit"
+}
+
+port_type "mcds.grid-mount" {
+    doc "The mating half on a component that bolts to a chassis grid station"
+    params bolt="string"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "mcds.grid-station" when="a.bolt == b.bolt"
+    stage "kit"
+}
+
+port_type "mcds.crossmember" {
+    doc "Cross-member end to rail inner face"
+    params bolt="string" height="mm"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "mcds.crossmember" when="a.bolt == b.bolt and abs(a.height - b.height) < 0.5 mm"
+    stage "kit"
+}
+
+// ------------------------------------------------------------------- fluid and electrical
+
+port_type "hose.push-on" {
+    doc "Push-on hose fitting with a clamp"
+    params id="mm"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "hose.push-on" when="abs(a.id - b.id) < 0.5 mm"
+    stage "kit"
+}
+
+port_type "brake.line" {
+    doc "Flared brake line union"
+    params thread="string" flare="string"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "brake.line" when="a.thread == b.thread and a.flare == b.flare"
+    stage "kit"
+}
+
+port_type "elec.connector" {
+    doc "Keyed electrical connector"
+    params family="string" pins="int" gender="string"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "elec.connector" when="a.family == b.family and a.pins == b.pins and a.gender != b.gender"
+    stage "kit"
+}
+
+port_type "hv.connector" {
+    doc "High voltage connector with interlock"
+    params family="string" current="A" gender="string"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "hv.connector" when="a.family == b.family and a.gender != b.gender"
+    stage "kit"
+}

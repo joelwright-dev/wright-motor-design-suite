@@ -7,6 +7,7 @@
 //! | `box "name"` | `size=(w, d, h)` and optionally `at=(x, y, z)` (centre), or `from=` / `to=` corners |
 //! | `cylinder "name"` | `d=` or `r=`, `h=`, `at=` (centre), `axis=` (`"x"`, `"y"`, `"z"`, `"-x"` or a tuple); or `from=` / `to=` |
 //! | `tube "name"` | `od=`, `wall=`, `from=`, `to=` |
+//! | `box_tube "name"` | `size=(length, width, height)`, `wall=`, optional `at=` (centre). Hollow along x: the chassis rail shape. |
 //! | `union` | no arguments: fuse every body built so far into one; or `union "name" a=X b=Y` |
 //! | `subtract "name" a=X b=Y` | X minus Y |
 //! | `intersect "name" a=X b=Y` | |
@@ -167,6 +168,21 @@ pub fn build_level<K: GeomKernel>(
                     return Err(ferr("tube from= and to= coincide".into()));
                 }
                 let solid = k.tube_between(a, b, od, wall)?;
+                bodies.push((name_of(f), solid));
+            }
+            "box_tube" => {
+                let size = vec3_len(
+                    f.args
+                        .get("size")
+                        .ok_or_else(|| ferr("box_tube needs size=(length, width, height)".into()))?,
+                )
+                .map_err(ferr)?;
+                let wall = len(f.args.get("wall").ok_or_else(|| ferr("box_tube needs wall=".into()))?).map_err(ferr)?;
+                let centre = match f.args.get("at") {
+                    Some(v) => vec3_len(v).map_err(ferr)?,
+                    None => [0.0; 3],
+                };
+                let solid = k.box_tube(size, wall, centre)?;
                 bodies.push((name_of(f), solid));
             }
             "union" | "subtract" | "intersect" => {

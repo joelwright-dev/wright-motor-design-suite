@@ -7,10 +7,12 @@
 //!
 //! Units: metres everywhere in this crate. Adapters convert to whatever their kernel prefers.
 
+pub mod assembly_geom;
 pub mod features;
 pub mod mesh;
 pub mod mesh_kernel;
 
+pub use assembly_geom::{BuiltAssembly, BuiltPart, PartMass, assembly_masses, assembly_mesh, build_assembly, placeholder_density, roll_up};
 pub use features::{BuiltGeometry, build_level, build_primitive};
 pub use mesh::{MassProps, Mesh};
 pub use mesh_kernel::MeshKernel;
@@ -18,6 +20,7 @@ pub use mesh_kernel::MeshKernel;
 use std::path::Path;
 
 use thiserror::Error;
+use wmds_model::Transform;
 
 pub type Vec3 = [f64; 3];
 
@@ -66,6 +69,22 @@ pub trait GeomKernel {
         self.subtract(&outer, &inner)
     }
 
+    /// Rectangular hollow section, hollow along the local x axis, centred at `centre`.
+    /// `size` is (length, width, height); `wall` is the wall thickness on all four faces.
+    /// This is the chassis rail shape, so both kernels are expected to make it cheaply.
+    fn box_tube(&self, size: Vec3, wall: f64, centre: Vec3) -> Result<Self::Solid> {
+        if wall <= 0.0 || wall * 2.0 >= size[1].min(size[2]) {
+            return Err(GeomError::Kernel(format!(
+                "wall {wall} is not valid for a {} x {} section",
+                size[1], size[2]
+            )));
+        }
+        let outer = self.make_box(size, centre)?;
+        // Run the bore past both ends so the subtraction leaves no sliver.
+        let inner = self.make_box([size[0] + 1e-3, size[1] - 2.0 * wall, size[2] - 2.0 * wall], centre)?;
+        self.subtract(&outer, &inner)
+    }
+
     fn union(&self, a: &Self::Solid, b: &Self::Solid) -> Result<Self::Solid>;
     fn subtract(&self, a: &Self::Solid, b: &Self::Solid) -> Result<Self::Solid>;
     fn intersect(&self, a: &Self::Solid, b: &Self::Solid) -> Result<Self::Solid>;
@@ -78,6 +97,28 @@ pub trait GeomKernel {
     fn translated(&self, s: &Self::Solid, offset: Vec3) -> Result<Self::Solid>;
     /// Mirror about the plane through `origin` with normal `normal`.
     fn mirrored(&self, s: &Self::Solid, origin: Vec3, normal: Vec3) -> Result<Self::Solid>;
+    /// Rotate about an axis through the origin.
+    fn rotated(&self, s: &Self::Solid, axis: Vec3, angle: f64) -> Result<Self::Solid>;
+
+    /// Apply a general placement. The default decomposes it into a mirror (when the transform
+    /// flips handedness), a rotation and a translation, which is all any kernel needs to expose.
+    fn placed(&self, s: &Self::Solid, t: &Transform) -> Result<Self::Solid> {
+        let mut out = s.clone();
+        let mut linear = *t;
+        linear.translation = [0.0; 3];
+        if linear.is_mirrored() {
+            out = self.mirrored(&out, [0.0; 3], [1.0, 0.0, 0.0])?;
+            // Undo the mirror from the linear part so what remains is a pure rotation.
+            linear = Transform::mirror([1.0, 0.0, 0.0]).then(&linear);
+        }
+        if let Some((axis, angle)) = axis_angle(&linear) {
+            out = self.rotated(&out, axis, angle)?;
+        }
+        if t.translation != [0.0; 3] {
+            out = self.translated(&out, t.translation)?;
+        }
+        Ok(out)
+    }
 
     /// Triangulate with a chordal tolerance in metres.
     fn tessellate(&self, s: &Self::Solid, tolerance: f64) -> Result<Mesh>;
@@ -95,6 +136,39 @@ pub trait GeomKernel {
         let m = self.tessellate(s, 2e-4)?;
         Ok(m.mass_props())
     }
+}
+
+/// Extract an axis and angle from a rotation. Returns `None` for the identity.
+pub fn axis_angle(t: &Transform) -> Option<(Vec3, f64)> {
+    let m = t.cols;
+    // cols[i][j] is row j of column i, so the matrix element (row r, col c) is cols[c][r].
+    let trace = m[0][0] + m[1][1] + m[2][2];
+    let cos = ((trace - 1.0) / 2.0).clamp(-1.0, 1.0);
+    let angle = cos.acos();
+    if angle.abs() < 1e-9 {
+        return None;
+    }
+    if (angle - std::f64::consts::PI).abs() < 1e-6 {
+        // Near 180 degrees the skew part vanishes; take the axis from the largest diagonal.
+        let d = [m[0][0], m[1][1], m[2][2]];
+        let i = (0..3).max_by(|a, b| d[*a].total_cmp(&d[*b])).unwrap();
+        let mut axis = [0.0; 3];
+        axis[i] = ((d[i] + 1.0) / 2.0).max(0.0).sqrt();
+        let other = |j: usize| (m[i][j] + m[j][i]) / 2.0;
+        for j in 0..3 {
+            if j != i && axis[i] > 1e-12 {
+                axis[j] = other(j) / axis[i];
+            }
+        }
+        return normalize(axis).ok().map(|a| (a, angle));
+    }
+    let s = 2.0 * angle.sin();
+    let axis = [
+        (m[1][2] - m[2][1]) / s,
+        (m[2][0] - m[0][2]) / s,
+        (m[0][1] - m[1][0]) / s,
+    ];
+    normalize(axis).ok().map(|a| (a, angle))
 }
 
 pub fn add(a: Vec3, b: Vec3) -> Vec3 {
