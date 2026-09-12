@@ -697,6 +697,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wmds-geom"
+version = "0.0.1"
+dependencies = [
+ "thiserror",
+ "wmds-expr",
+ "wmds-model",
+ "wmds-units",
+]
+
+[[package]]
 name = "wmds-model"
 version = "0.0.1"
 dependencies = [

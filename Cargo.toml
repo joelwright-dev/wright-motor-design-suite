@@ -5,6 +5,7 @@ members = [
     "crates/wmds-expr",
     "crates/wmds-schema",
     "crates/wmds-model",
+    "crates/wmds-geom",
     "crates/wmds-cli",
 ]
 
@@ -20,6 +21,7 @@ wmds-units = { path = "crates/wmds-units" }
 wmds-expr = { path = "crates/wmds-expr" }
 wmds-schema = { path = "crates/wmds-schema" }
 wmds-model = { path = "crates/wmds-model" }
+wmds-geom = { path = "crates/wmds-geom" }
 
 kdl = "6"
 miette = { version = "7", features = ["fancy"] }

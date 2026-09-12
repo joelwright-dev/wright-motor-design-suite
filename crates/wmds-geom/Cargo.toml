@@ -1,0 +1,13 @@
+[package]
+name = "wmds-geom"
+description = "Geometry abstraction for WMDS: the GeomKernel trait, meshes, mass properties and the feature interpreter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wmds-units = { workspace = true }
+wmds-expr = { workspace = true }
+wmds-model = { workspace = true }
+thiserror = { workspace = true }
