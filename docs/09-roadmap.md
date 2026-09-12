@@ -3,6 +3,22 @@
 Phases are ordered so that each one produces something usable and retires the biggest remaining
 risk. Durations assume one to two full-time developers and are estimates.
 
+## Progress
+
+| Phase | State |
+|-------|-------|
+| 0 Kernel spike | **Complete.** Exit criterion met: the control-arm primitive loads from its file, renders, reports mass, and exports a STEP that opens in other CAD. |
+| 1 Model, library, MCDSv1 | **Largely complete.** Mates, placement solver, port registry, chassis generator, reference vehicle and viewer all work. Remaining: a full primitive library, project save/load, undo. |
+| 2 Compliance | **Engine complete, packs begun.** Rule evaluation, reporting and `wmds check` work. The internal pack is real; the ADR pack is a template that needs the standards read against it. |
+| 3 Tier 1 dynamics | Not started. |
+| 4 Manufacturing and assembly | Not started. |
+| 5 Tier 2 FE | Not started. |
+| 6 Prototype correlation | Not started. |
+
+The phases proved less sequential than this document assumed. Compliance was brought forward
+because it is self-contained and it disciplines the model: writing rules that ask questions of a
+vehicle is what exposes which facts the model cannot yet answer.
+
 ## Phase 0 - Kernel spike (4 to 6 weeks)
 
 Goal: prove the riskiest dependency before building on it.

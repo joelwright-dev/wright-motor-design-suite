@@ -10,34 +10,57 @@ Modular Chassis Design System (MCDS). It is the software half of a two-part syst
 
 ## Status
 
-Phase 0 (kernel spike) in progress. See [docs/09-roadmap.md](docs/09-roadmap.md).
+Phase 0 complete, Phase 1 and the compliance engine well under way. See
+[docs/09-roadmap.md](docs/09-roadmap.md).
 
-Working today:
+### What works today
 
-* `wmds-units`: quantities with runtime dimensional checking (`380 mm`, `20 kN`, `1550 kg/m^3`).
-* `wmds-expr`: the expression language used inside definition files.
-* `wmds-schema`: KDL parser and validator for `.prim.kdl` primitive definitions.
-* `wmds-model`: parameter resolution (dependency order, unit coercion, ranges, variants), port
-  frames, geometry feature arguments, cost expressions.
-* `wmds-geom`: the `GeomKernel` trait, meshes, mass properties, and the feature interpreter.
-* `wmds-geom-occt`: OpenCASCADE implementation of the kernel (boxes, cylinders, tubes,
-  booleans, tessellation, STEP and STL).
-* `wmds` CLI: `wmds lib validate <paths>` and `wmds lib show <file> --set name=value`, with
-  `--build` for mass properties and `--step out.step` / `--stl out.stl` for export.
-* `wmds-app`: desktop viewer. Loads a primitive, shows it in a 3D orbit viewport with port
-  markers, and rebuilds the geometry live as parameter sliders and variants change.
+**Design.** Primitives, assemblies and whole vehicles are defined in text files. Components
+connect only through typed ports, and where a part sits is solved from the mate graph rather
+than stored, so a change to the chassis moves everything mounted on it.
+
+**MCDSv1.** The chassis platform is a data file. A generator turns a configuration choice into
+rails, cross-members, section joints and a mount grid. There is no chassis-specific code.
+
+**Compliance.** Rule packs are data. `wmds check` reports what passes, what fails, what needs a
+simulation and what needs a physical test, and never reports a rule it could not evaluate as a
+pass.
+
+**Geometry.** Two kernels behind one trait: OpenCASCADE for real solids, STEP and STL, and a
+pure-Rust mesh kernel for fast previews with no C++ toolchain.
+
+### Try it
 
 ```bash
-cargo run -p wmds-app -- library/suspension/arms/lca-wishbone-a.prim.kdl
+cargo run -- lib validate
+cargo run -- chassis show mcds-v1 --config 2/3-length --width narrow --section front=1100mm --section central=1900mm --build
+cargo run -- veh show vehicles/reference-city-ev/reference-city-ev.veh.kdl --build
+cargo run -- check vehicles/reference-city-ev/reference-city-ev.veh.kdl
+cargo run -p wmds-app -- vehicles/reference-city-ev/reference-city-ev.veh.kdl
 ```
 
-Add `--no-default-features` to skip the OpenCASCADE build and use the built-in mesh kernel
-instead. That build is fast and needs no C++ toolchain, but it has no boolean operations, so
-overlapping bodies are drawn twice and volumes are overstated. The viewer says which kernel
-produced the numbers on screen.
+Add `--no-default-features` to any of those to skip the OpenCASCADE build and use the mesh
+kernel instead. That build is fast and needs no C++ toolchain, but it has no boolean operations,
+so overlapping bodies are counted twice. Every report says which kernel produced its numbers.
 
-Not yet: materials database (densities are placeholders), assemblies and mates, chassis
-generator.
+### Crates
+
+| Crate | What it does |
+|-------|--------------|
+| `wmds-units` | Quantities with runtime dimensional checking (`380 mm`, `20 kN`, `1550 kg/m^3`) |
+| `wmds-expr` | The expression language used inside definition files |
+| `wmds-schema` | KDL parsers for primitives, assemblies, vehicles, chassis systems, port types and rule packs |
+| `wmds-model` | Parameter resolution, transforms, port frames, the mate graph and placement solver, the chassis generator |
+| `wmds-geom` | The `GeomKernel` trait, meshes, mass properties, the feature interpreter, whole-assembly build |
+| `wmds-geom-occt` | OpenCASCADE implementation of the kernel |
+| `wmds-rules` | Compliance rule evaluation and reporting |
+| `wmds-cli` | The `wmds` command line |
+| `wmds-app` | Desktop viewer |
+
+### Not yet
+
+Suspension, steering, brakes, wheels, body and interior primitives. Materials database, so every
+density is a placeholder and says so. Simulation of any kind. Manufacturing and assembly export.
 
 ## Building
 
@@ -87,7 +110,8 @@ Read them in order; each one builds on the last.
 | 06 | [Simulation](docs/06-simulation.md) | Driving dynamics and crash analysis |
 | 07 | [Manufacturing and Assembly Export](docs/07-manufacturing-export.md) | BOMs, cut files, ply books, flatpack-style assembly instructions |
 | 08 | [Technology Research](docs/08-technology-research.md) | Language and tooling evaluation, with a recommendation |
-| 09 | [Roadmap](docs/09-roadmap.md) | Phased delivery plan |
+| 09 | [Roadmap](docs/09-roadmap.md) | Phased delivery plan and current progress |
+| 10 | [Progress notes](docs/10-overnight-progress.md) | What was built on 12 to 13 September, what it found, and what needs a decision |
 
 ## Conventions used in the documents
 
