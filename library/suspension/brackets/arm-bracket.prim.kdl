@@ -1,0 +1,61 @@
+// Suspension arm bracket: bolts to a chassis grid station and carries one suspension bush.
+//
+// This is how suspension attaches to an MCDS chassis. Rather than a welded-on pickup point, each
+// arm bush hangs from a bracket that bolts to a mount grid station. Moving a pickup point is
+// then a matter of bolting the bracket to a different station, which is the whole reason the
+// grid exists.
+//
+// Local frame: the origin is the grid station face on top, x rearward, y inboard positive, z up.
+// `drop` and `reach` place the bush relative to that.
+
+primitive "suspension/brackets/arm-bracket" version="0.1.0" {
+    description "Bracket from a chassis grid station to a suspension arm bush"
+    category "suspension" sub="bracket"
+
+    params {
+        drop    unit="mm" default=150 min=-400 max=400 doc="how far below the rail top the bush sits; negative puts it above, which is what an upper arm needs"
+        reach   unit="mm" default=230 min=0   max=500 doc="how far inboard of the station the bush sits"
+        bush_od unit="mm" default=45  min=30  max=70
+        plate   unit="mm" default=8   min=4   max=16  doc="plate thickness"
+        web     unit="mm" default=60  min=30  max=120 doc="bracket width along the vehicle"
+    }
+
+    variants {
+        // The side decides which way `reach` points, since inboard is +y on the left and -y on
+        // the right.
+        side "left" "right" mirror_when="right" mirror_plane="xz"
+    }
+
+    material "steel/s355-plate"
+
+    geometry level="manufacture" {
+        // A simple gusseted plate: down from the station, then inboard to the bush.
+        box "leg"  size="(web, plate, drop)" at="(0 mm, 0 mm, -drop/2)"
+        box "arm"  size="(web, reach, plate)" at="(0 mm, -reach/2, -drop)"
+        cylinder "boss" d="bush_od + 16 mm" h="web" at="(0 mm, -reach, -drop)" axis="x"
+        union
+    }
+
+    massprops computed=#true
+
+    ports {
+        port "station" type="mcds.grid-mount" at="(0 mm, 0 mm, 0 mm)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "bush" type="bush.bracket" at="(0 mm, -reach, -drop)" axis="x" clock="z" {
+            params bush_od=bush_od bolt="M12"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "flat-cut" scale="1..*" {
+            export "dxf"
+            export "bend-table"
+            cost fixed="0 AUD" per_unit="18 AUD + 0.004 AUD/mm^2 * (web * drop + web * reach)"
+        }
+    }
+
+    compliance "structural" "suspension.bracket"
+}

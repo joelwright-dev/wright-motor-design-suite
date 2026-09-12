@@ -215,3 +215,75 @@ vehicle "test/bad-mate" version="0.0.1" {
         "the assembly should not report itself as sound"
     );
 }
+
+#[test]
+fn the_front_corners_mirror_and_close() {
+    // The corner is the first assembly with a closed kinematic loop: the upright is reached
+    // through the lower arm and the upper arm then has to arrive at the same place. It is also
+    // the first use of variant mirroring, so the right corner is the left one reflected rather
+    // than a second file to keep in step.
+    let root = project_root();
+    let lib = Library::load(&root).expect("library should load");
+    let file = root
+        .join("vehicles")
+        .join("reference-city-ev")
+        .join("reference-city-ev.veh.kdl");
+    let def = Library::load_assembly_file(&file).expect("vehicle should parse");
+    let req = def.chassis.as_ref().unwrap();
+    let chassis = generate_chassis(&lib, req).unwrap();
+    let asm = resolve_assembly(
+        &lib,
+        &def,
+        &Overrides::default(),
+        vec![(req.id.clone(), chassis.assembly)],
+    )
+    .unwrap();
+
+    assert!(asm.errors.is_empty(), "{:#?}", asm.errors);
+    let closure: Vec<&String> = asm
+        .warnings
+        .iter()
+        .filter(|w| w.contains("does not close"))
+        .collect();
+    assert!(
+        closure.is_empty(),
+        "the suspension loop does not close: {closure:#?}"
+    );
+
+    // Every left part has a right twin at the mirrored lateral position.
+    for part in ["wheel", "tyre", "upright", "lower_arm", "upper_arm"] {
+        let l = asm
+            .instance(&format!("corner_fl.{part}"))
+            .unwrap_or_else(|| panic!("missing corner_fl.{part}"))
+            .placement
+            .translation;
+        let r = asm
+            .instance(&format!("corner_fr.{part}"))
+            .unwrap_or_else(|| panic!("missing corner_fr.{part}"))
+            .placement
+            .translation;
+        assert!((l[0] - r[0]).abs() < 1e-9, "{part}: x differs");
+        assert!(
+            (l[1] + r[1]).abs() < 1e-9,
+            "{part}: y should be mirrored, got {} and {}",
+            mm(l[1]),
+            mm(r[1])
+        );
+        assert!((l[2] - r[2]).abs() < 1e-9, "{part}: z differs");
+    }
+
+    // Front track, measured between the wheel mounting faces.
+    let l = asm
+        .instance("corner_fl.wheel")
+        .unwrap()
+        .placement
+        .translation;
+    let track = mm(l[1]) * 2.0;
+    assert!(
+        (track - 1260.0).abs() < 0.5,
+        "front track was {track} mm, expected 1260"
+    );
+
+    // The front wheels sit ahead of the chassis front joint plane, where a front axle belongs.
+    assert!(mm(l[0]) < -500.0, "front wheel centre at x = {}", mm(l[0]));
+}

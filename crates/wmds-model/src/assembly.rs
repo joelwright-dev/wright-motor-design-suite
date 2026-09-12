@@ -23,7 +23,8 @@ use wmds_units::Quantity;
 use crate::library::Library;
 use crate::transform::{Frame, MateAxis, Transform, solve_mate};
 use crate::{
-    ModelError, Overrides, ResolvedPort, ResolvedPrimitive, as_length_vec3, resolve, resolve_params,
+    ModelError, Overrides, ResolvedPort, ResolvedPrimitive, as_length_vec3, eval_lenient, resolve,
+    resolve_params,
 };
 
 #[derive(Error, Debug, Clone, PartialEq)]
@@ -224,8 +225,20 @@ pub fn resolve_assembly(
                         }
                     }
                 }
-                for (k, v) in &inst.variants {
-                    o.variants.insert(k.clone(), v.clone());
+                for (k, e) in &inst.variants {
+                    match eval_lenient(e, &env) {
+                        Ok(Value::Str(v)) => {
+                            o.variants.insert(k.clone(), v);
+                        }
+                        Ok(other) => errors.push(format!(
+                            "instance `{}`: variant `{k}` must be a name, found {}",
+                            inst.id,
+                            other.type_name()
+                        )),
+                        Err(err) => {
+                            errors.push(format!("instance `{}`: variant `{k}`: {err}", inst.id))
+                        }
+                    }
                 }
                 match resolve(pdef, &o) {
                     Ok(r) => {
@@ -262,6 +275,11 @@ pub fn resolve_assembly(
                 for (k, e) in &inst.params {
                     if let Ok(v) = eval(e, &env) {
                         o.params.insert(k.clone(), v);
+                    }
+                }
+                for (k, e) in &inst.variants {
+                    if let Ok(Value::Str(v)) = eval_lenient(e, &env) {
+                        o.params.insert(k.clone(), Value::Str(v));
                     }
                 }
                 match resolve_assembly(lib, adef, &o, Vec::new()) {

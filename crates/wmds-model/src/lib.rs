@@ -56,6 +56,9 @@ pub struct ResolvedPrimitive {
     pub massprops: ResolvedMassProps,
     pub ports: Vec<ResolvedPort>,
     pub manufacturing: Vec<ResolvedMfg>,
+    /// Set when a variant selected the mirrored hand of this part. Holds the normal of the
+    /// mirror plane. Ports are already mirrored; the geometry builder applies it to the solid.
+    pub mirror: Option<[f64; 3]>,
 }
 
 #[derive(Debug, Clone)]
@@ -265,6 +268,20 @@ pub fn resolve(def: &PrimitiveDef, overrides: &Overrides) -> Result<ResolvedPrim
         }
     }
 
+    // A variant may declare that one of its options is the mirrored hand of the part, which is
+    // what stops a library needing a separate left and right file for every asymmetric piece.
+    let mut mirror: Option<[f64; 3]> = None;
+    for v in &def.variants {
+        let Some(when) = &v.mirror_when else { continue };
+        if variants.get(&v.name) == Some(when) {
+            mirror = Some(match v.mirror_plane.as_str() {
+                "xy" => [0.0, 0.0, 1.0],
+                "yz" => [1.0, 0.0, 0.0],
+                _ => [0.0, 1.0, 0.0],
+            });
+        }
+    }
+
     let values = resolve_params(&def.params, &variants, overrides)?;
 
     let env = ParamEnv {
@@ -316,7 +333,7 @@ pub fn resolve(def: &PrimitiveDef, overrides: &Overrides) -> Result<ResolvedPrim
     };
 
     // Ports
-    let mut ports = Vec::new();
+    let mut ports: Vec<ResolvedPort> = Vec::new();
     for p in &def.ports {
         let perr = |m: String| ModelError::Port(p.name.clone(), m);
         let origin =
@@ -398,6 +415,28 @@ pub fn resolve(def: &PrimitiveDef, overrides: &Overrides) -> Result<ResolvedPrim
         });
     }
 
+    // Mirroring a part mirrors where its ports are and which way they face. Reflecting a frame
+    // also flips its handedness, so the clocking direction is reflected too and the frame stays
+    // consistent with the mirrored solid.
+    if let Some(n) = mirror {
+        let reflect = |v: [f64; 3]| -> [f64; 3] {
+            let d = v[0] * n[0] + v[1] * n[1] + v[2] * n[2];
+            [
+                v[0] - 2.0 * d * n[0],
+                v[1] - 2.0 * d * n[1],
+                v[2] - 2.0 * d * n[2],
+            ]
+        };
+        for p in &mut ports {
+            let o = reflect([p.origin[0].value, p.origin[1].value, p.origin[2].value]);
+            for i in 0..3 {
+                p.origin[i] = Quantity::new(o[i], Dim::LENGTH);
+            }
+            p.axis = reflect(p.axis);
+            p.clock = p.clock.map(reflect);
+        }
+    }
+
     Ok(ResolvedPrimitive {
         id: def.id.clone(),
         version: def.version.clone(),
@@ -408,11 +447,12 @@ pub fn resolve(def: &PrimitiveDef, overrides: &Overrides) -> Result<ResolvedPrim
         massprops,
         ports,
         manufacturing,
+        mirror,
     })
 }
 
 /// Evaluate, treating an unknown bare word as a literal string (`bolt="M12"`).
-fn eval_lenient(e: &Expr, env: &dyn Env) -> Result<Value, EvalError> {
+pub(crate) fn eval_lenient(e: &Expr, env: &dyn Env) -> Result<Value, EvalError> {
     match eval(e, env) {
         Err(EvalError::Unknown(_)) => match e {
             Expr::Path(p) if p.len() == 1 => Ok(Value::Str(p[0].clone())),

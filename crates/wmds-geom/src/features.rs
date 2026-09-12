@@ -60,7 +60,12 @@ pub fn build_primitive<K: GeomKernel>(
         _ => 2,
     });
     for lvl in levels {
-        let solid = build_level(k, lvl, &out)?;
+        let mut solid = build_level(k, lvl, &out)?;
+        // A mirrored variant reflects the solid as well as the ports, so that a right-hand part
+        // is genuinely the mirror image of the left rather than the same part relabelled.
+        if let Some(n) = p.mirror {
+            solid = k.mirrored(&solid, [0.0; 3], n)?;
+        }
         out.levels.insert(lvl.level.clone(), solid);
     }
     Ok(out)

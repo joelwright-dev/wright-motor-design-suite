@@ -71,7 +71,9 @@ pub struct InstanceDef {
     pub source: InstanceSource,
     pub version: Option<String>,
     pub params: IndexMap<String, Expr>,
-    pub variants: IndexMap<String, String>,
+    /// Variant choices. Expressions, so an assembly can pass its own parameter down to every
+    /// handed part rather than repeating `left` in a dozen places.
+    pub variants: IndexMap<String, Expr>,
     /// Free placement, used only when an instance cannot be reached through mates. Reported.
     pub placement: Option<Placement>,
 }
@@ -260,7 +262,7 @@ fn parse_root(ctx: &mut Ctx, node: &KdlNode) -> Option<AssemblyDef> {
             if let Some(v) = child(n, "variant") {
                 for e in v.entries() {
                     if let Some(k) = e.name() {
-                        variants.insert(k.value().to_string(), value_to_string(e.value()));
+                        variants.insert(k.value().to_string(), value_to_expr(e.value()));
                     }
                 }
             }
@@ -613,7 +615,7 @@ assembly "corner/front-left" version="0.1.0" {
             .unwrap();
         assert_eq!(a.kind, AssemblyKind::Assembly);
         assert_eq!(a.instances.len(), 2);
-        assert_eq!(a.instances[0].variants["hand"], "left");
+        assert!(matches!(&a.instances[0].variants["hand"], Expr::TextOr(t, _) if t == "left"));
         assert_eq!(a.mates.len(), 1);
         assert_eq!(a.mates[0].a.to_string(), "lca.balljoint");
         assert_eq!(a.mates[0].stage, Some(Stage::Kit));

@@ -1,0 +1,75 @@
+// Double wishbone upright with an integrated hub carrier.
+//
+// The hub bearing is modelled as part of the upright rather than as a separate assembly. That is
+// a simplification, and the place to undo it first when brake and bearing detail matters.
+//
+// Local frame: the origin is the lower ball joint centre, z up, y outboard. The upper ball joint
+// sits at (0, kingpin_offset, kingpin_height): a negative offset leans the top inboard, which is
+// what gives a normal kingpin inclination.
+
+primitive "suspension/uprights/upright-dw" version="0.1.0" {
+    description "Double wishbone upright with integrated hub carrier"
+    category "suspension" sub="upright"
+
+    params {
+        kingpin_height unit="mm" default=400 min=200 max=600 doc="vertical distance between ball joints"
+        kingpin_offset unit="mm" default=-30 min=-120 max=60 doc="lateral offset of the upper ball joint; negative leans the top inboard"
+        hub_height     unit="mm" default=150 min=0   max=500 doc="wheel centre height above the lower ball joint"
+        hub_offset     unit="mm" default=60  min=0   max=200 doc="wheel centre outboard of the ball joint line"
+        steer_arm      unit="mm" default=110 min=40  max=250 doc="steering arm length, rearward of the wheel centre"
+        body           unit="mm" default=70  min=40  max=140 doc="body width"
+
+        // The distance the ball joints actually sit apart. Reported so that a corner that does
+        // not close can be diagnosed from the numbers rather than from the picture.
+        kingpin_length unit="mm" expr="sqrt(kingpin_height^2 + kingpin_offset^2)" doc="derived"
+    }
+
+    variants {
+        side "left" "right" mirror_when="right" mirror_plane="xz"
+    }
+
+    material "alu/a356-cast"
+
+    geometry level="manufacture" {
+        cylinder "lower_boss" d="60 mm" h="50 mm" at="(0 mm, 0 mm, 0 mm)" axis="z"
+        cylinder "upper_boss" d="52 mm" h="44 mm" at="(0 mm, kingpin_offset, kingpin_height)" axis="z"
+        box      "spine" size="(body, 40 mm, kingpin_height)" at="(0 mm, kingpin_offset/2, kingpin_height/2)"
+        cylinder "hub_boss" d="90 mm" h="hub_offset + 40 mm" at="(0 mm, hub_offset/2, hub_height)" axis="y"
+        box      "steer_lug" size="(steer_arm, 30 mm, 16 mm)" at="(steer_arm/2, 20 mm, hub_height - 60 mm)"
+        union
+    }
+
+    massprops computed=#true
+
+    ports {
+        // Ball joint sockets. The mating axis is vertical, matching the studs in the arms.
+        port "lower_bj" type="balljoint.socket" at="(0 mm, 0 mm, 0 mm)" axis="z" clock="x" {
+            params taper="1:8" stud="M14"
+        }
+        port "upper_bj" type="balljoint.socket" at="(0 mm, kingpin_offset, kingpin_height)" axis="z" clock="x" {
+            params taper="1:8" stud="M12"
+        }
+        // The wheel mounting face. The axis points outboard.
+        port "hub" type="hub.face" at="(0 mm, hub_offset, hub_height)" axis="y" clock="z" {
+            params count=4 pcd="100 mm" thread="M12x1.5" centre_bore="57 mm"
+        }
+        port "steering" type="balljoint.socket" at="(steer_arm, 20 mm, hub_height - 60 mm)" axis="z" clock="x" {
+            params taper="1:8" stud="M12"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "cast-aluminium" scale="200..*" {
+            export "step"
+            cost fixed="24000 AUD" per_unit="42 AUD"
+        }
+        method "machined" scale="1..200" {
+            export "step"
+            cost fixed="0 AUD" per_unit="380 AUD"
+        }
+    }
+
+    compliance "structural" "suspension.upright"
+}

@@ -39,6 +39,15 @@ vehicle "reference/city-ev" version="0.1.0" {
         instance "drive" primitive="drivetrain/motor/drive-unit" {
             set peak_power="110 kW" mount_span_x="300 mm" mount_span_y="960 mm"
         }
+
+        // Front suspension. Each corner is a sub-assembly that bolts to four grid stations; the
+        // right corner is the same definition with every handed part mirrored.
+        instance "corner_fl" assembly="corners/front-dw" {
+            set side="left"
+        }
+        instance "corner_fr" assembly="corners/front-dw" {
+            set side="right"
+        }
     }
 
     mates {
@@ -77,16 +86,53 @@ vehicle "reference/city-ev" version="0.1.0" {
             fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
             stage "kit"
         }
+
+        // Front left corner. The first mate positions the corner; the other three check that its
+        // remaining brackets land on the stations they are supposed to.
+        mate "corner_fl_lf" a="chassis.station_left_-10" b="corner_fl.station_lower_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_fl_uf" a="chassis.station_left_-9" b="corner_fl.station_upper_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_fl_ur" a="chassis.station_left_-7" b="corner_fl.station_upper_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_fl_lr" a="chassis.station_left_-6" b="corner_fl.station_lower_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+
+        // Front right corner, on the mirrored stations.
+        mate "corner_fr_lf" a="chassis.station_right_-10" b="corner_fr.station_lower_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_fr_uf" a="chassis.station_right_-9" b="corner_fr.station_upper_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_fr_ur" a="chassis.station_right_-7" b="corner_fr.station_upper_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_fr_lr" a="chassis.station_right_-6" b="corner_fr.station_lower_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
     }
 
     // Everything not yet modelled, carried as point masses so the vehicle mass is not a
     // fiction. These are PROVISIONAL estimates for a car of this size and go away one by one as
-    // the real primitives arrive.
+    // the real primitives arrive. The front suspension and front wheels have already gone: they
+    // are modelled now, in the two corner sub-assemblies above.
     masses {
         mass "body_and_closures"  value="180 kg" at="(400 mm, 0 mm, 700 mm)"  state="kerb"
-        mass "suspension_front"   value="55 kg"  at="(-900 mm, 0 mm, 100 mm)" state="kerb"
         mass "suspension_rear"    value="50 kg"  at="(1800 mm, 0 mm, 100 mm)" state="kerb"
-        mass "wheels_and_tyres"   value="60 kg"  at="(450 mm, 0 mm, 300 mm)"  state="kerb"
+        mass "wheels_and_tyres_rear" value="30 kg" at="(1800 mm, 0 mm, 0 mm)"   state="kerb"
         mass "brakes_and_lines"   value="35 kg"  at="(450 mm, 0 mm, 200 mm)"  state="kerb"
         mass "steering"           value="18 kg"  at="(-700 mm, 0 mm, 400 mm)" state="kerb"
         mass "interior_and_seats" value="90 kg"  at="(700 mm, 0 mm, 600 mm)"  state="kerb"

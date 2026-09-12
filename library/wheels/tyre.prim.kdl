@@ -1,0 +1,52 @@
+// Road tyre, described the way tyres are actually specified: section width, aspect ratio and
+// rim diameter.
+//
+// The overall diameter, and therefore the rolling radius and the ride height of the whole
+// vehicle, falls out of those three numbers. Local frame: the origin is the bead seat centre,
+// y outboard.
+
+primitive "wheels/tyre" version="0.1.0" {
+    description "Road tyre"
+    category "wheels" sub="tyre"
+
+    params {
+        section  unit="mm" default=185 min=125 max=355 doc="section width"
+        aspect   default=60 min=25 max=85 doc="sidewall height as a percentage of section width"
+        rim      unit="inch" default=15 min=12 max=24
+        load_index default=84 doc="tyre load index"
+
+        sidewall unit="mm" expr="section * aspect / 100" doc="derived"
+        overall  unit="mm" expr="rim * 25.4 mm / 1 inch + 2 * sidewall" doc="derived: overall diameter"
+        radius   unit="mm" expr="overall / 2" doc="derived: unloaded radius"
+    }
+
+    material "rubber/tyre-compound"
+
+    geometry level="manufacture" {
+        cylinder "carcass" d=overall h=section at="(0 mm, 0 mm, 0 mm)" axis="y"
+    }
+
+    // A tyre is mostly air. Declared, because the envelope cylinder would say otherwise.
+    massprops declared mass="7.5 kg" cg="(0 mm, 0 mm, 0 mm)"
+
+    ports {
+        port "bead" type="tyre.bead" at="(0 mm, 0 mm, 0 mm)" axis="y" clock="z" {
+            params diameter=rim width=section
+        }
+    }
+
+    behaviour "tyre" {
+        model "brush-placeholder"
+        unloaded_radius radius
+        rolling_radius_factor 0.97
+    }
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            export "spec-sheet"
+            cost fixed="0 AUD" per_unit="120 AUD"
+        }
+    }
+
+    compliance "wheels.tyre"
+}

@@ -8,17 +8,18 @@ primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
     category "suspension" sub="control-arm"
 
     params {
-        span        unit="mm"  default=380 min=250 max=600 doc="inboard pivot spacing"
-        reach       unit="mm"  default=320 min=200 max=500 doc="pivot line to balljoint centre"
+        span        unit="mm"  default=380 min=150 max=600 doc="inboard pivot spacing"
+        reach       unit="mm"  default=320 min=150 max=500 doc="pivot line to balljoint centre"
         tube_od     unit="mm"  default=28  min=20  max=45  doc="leg tube outside diameter"
         tube_wall   unit="mm"  default=2.5 min=1.5 max=4   doc="leg tube wall thickness"
         sweep_angle unit="deg" default=12  min=0   max=30  doc="rearward sweep of the arm plane"
         bush_od     unit="mm"  default=45                  doc="inboard bush housing outside diameter"
+        bj_stud     default="M14"                           doc="ball joint stud thread; an upper arm normally uses a smaller joint than a lower"
         leg_length  unit="mm"  expr="sqrt((span/2)^2 + reach^2)" doc="derived: centre-line length of each leg"
     }
 
     variants {
-        hand "left" "right"          // right-hand parts are mirrored about the vehicle XZ plane
+        hand "left" "right" mirror_when="right" mirror_plane="xz"          // right-hand parts are mirrored about the vehicle XZ plane
     }
 
     material "steel/e355-tube"
@@ -38,14 +39,14 @@ primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
     massprops computed=#true
 
     ports {
-        port "bush_front" type="bush.pivot" at="(-span/2, 0, 0)" axis="x" load_rating="20 kN" {
+        port "bush_front" type="bush.pivot" at="(-span/2, 0, 0)" axis="x" clock="z" load_rating="20 kN" {
             params bush_od=bush_od bolt="M12"
         }
-        port "bush_rear" type="bush.pivot" at="(span/2, 0, 0)" axis="x" load_rating="20 kN" {
+        port "bush_rear" type="bush.pivot" at="(span/2, 0, 0)" axis="x" clock="z" load_rating="20 kN" {
             params bush_od=bush_od bolt="M12"
         }
-        port "balljoint" type="balljoint.taper" at="(0, reach, 0)" axis="z" load_rating="35 kN" {
-            params taper="1:8" stud="M14"
+        port "balljoint" type="balljoint.taper" at="(0, reach, 0)" axis="z" clock="x" load_rating="35 kN" {
+            params taper="1:8" stud=bj_stud
         }
     }
 

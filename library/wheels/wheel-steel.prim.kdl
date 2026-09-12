@@ -1,0 +1,53 @@
+// Steel road wheel.
+//
+// Local frame: the origin is the centre of the mounting face, y outboard, so the wheel bolts
+// straight onto a hub face. Offset moves the rim centreline relative to the mounting face, the
+// usual automotive sense: positive offset pushes the rim outboard.
+
+primitive "wheels/wheel-steel" version="0.1.0" {
+    description "Pressed steel road wheel"
+    category "wheels" sub="wheel"
+
+    params {
+        diameter unit="inch" default=15 min=12 max=22 doc="rim diameter"
+        rim_width unit="inch" default=6 min=4 max=12
+        offset   unit="mm" default=40 min=-30 max=70 doc="positive pushes the rim outboard of the mounting face"
+        studs    default=4 min=3 max=8
+        pcd      unit="mm" default=100 min=90 max=180
+        bore     unit="mm" default=57 min=50 max=80
+
+        rim_width_mm unit="mm" expr="rim_width * 25.4 mm / 1 inch" doc="derived"
+        diameter_mm  unit="mm" expr="diameter * 25.4 mm / 1 inch" doc="derived"
+    }
+
+    material "steel/dc04-sheet"
+
+    geometry level="manufacture" {
+        // Envelope: the rim barrel plus the disc face. Not the pressed form.
+        cylinder "barrel" d=diameter_mm h=rim_width_mm at="(0 mm, offset, 0 mm)" axis="y"
+        cylinder "disc"   d="diameter_mm - 60 mm" h="6 mm" at="(0 mm, 3 mm, 0 mm)" axis="y"
+        union
+    }
+
+    massprops declared mass="8.5 kg" cg="(0 mm, 20 mm, 0 mm)"
+
+    ports {
+        port "mount" type="wheel.mount" at="(0 mm, 0 mm, 0 mm)" axis="-y" clock="z" {
+            params count=studs pcd=pcd thread="M12x1.5" centre_bore=bore
+        }
+        port "bead" type="rim.bead" at="(0 mm, offset, 0 mm)" axis="y" clock="z" {
+            params diameter=diameter width=rim_width_mm
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            export "spec-sheet"
+            cost fixed="0 AUD" per_unit="85 AUD"
+        }
+    }
+
+    compliance "wheels.wheel" "structural"
+}

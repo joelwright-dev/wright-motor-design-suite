@@ -1,0 +1,134 @@
+// Front double wishbone corner.
+//
+// Four brackets bolt to chassis grid stations, two wishbones hang off them, and an upright,
+// wheel and tyre hang off the wishbones. This is the first assembly in the library with a closed
+// kinematic loop: the upright is reached through the lower arm, and the upper arm then has to
+// arrive at exactly the same place. If any of the geometry is inconsistent the closure check
+// reports it in millimetres rather than leaving a part visibly floating.
+//
+// The numbers below are chosen so the loop closes exactly:
+//
+//   lower bushes  y = -230 from the rail station, z = -150     span 400 (stations 4 apart)
+//   lower ball joint at reach 320 from the bush line           so y = +90, z = -150
+//   upper bushes  y = -180 from the rail station, z = +250     span 200 (stations 2 apart)
+//   upper ball joint at reach 240                              so y = +60, z = +250
+//   upright kingpin: offset -30, height 400                    (+90,-150) to (+60,+250)
+//
+// Change any one of those and the corner will still build, but the closure check will say by how
+// much the upper ball joint now misses. That is the point of it.
+//
+// Local frame: the origin is the lower front bracket's station face. The whole corner is placed
+// in a vehicle by mating that one port to a chassis grid station; the other three brackets are
+// then checked against their stations.
+
+assembly "corners/front-dw" version="0.1.0" {
+    description "Front double wishbone corner: brackets, arms, upright, wheel and tyre"
+
+    params {
+        side          default="left" doc="left or right; picks the mirrored hand of every handed part"
+        lower_span    unit="mm" default=400 min=200 max=600 doc="longitudinal spacing of the lower bushes"
+        lower_reach   unit="mm" default=320 min=200 max=500 doc="lower arm length"
+        lower_drop    unit="mm" default=150 doc="lower bush below the rail top"
+        lower_inboard unit="mm" default=230 doc="lower bush inboard of the rail"
+        upper_span    unit="mm" default=200 min=120 max=400
+        upper_reach   unit="mm" default=240 min=150 max=400
+        upper_rise    unit="mm" default=250 doc="upper bush above the rail top"
+        upper_inboard unit="mm" default=180
+
+        // Where the ball joints end up, measured from the lower front bracket station.
+        lower_bj_y unit="mm" expr="lower_reach - lower_inboard" doc="derived"
+        upper_bj_y unit="mm" expr="upper_reach - upper_inboard" doc="derived"
+        kingpin_offset unit="mm" expr="upper_bj_y - lower_bj_y" doc="derived: upright lean"
+        kingpin_height unit="mm" expr="upper_rise + lower_drop" doc="derived"
+    }
+
+    instances {
+        instance "bracket_lower_front" primitive="suspension/brackets/arm-bracket" {
+            set drop=lower_drop reach=lower_inboard
+            variant side=side
+        }
+        instance "bracket_lower_rear" primitive="suspension/brackets/arm-bracket" {
+            set drop=lower_drop reach=lower_inboard
+            variant side=side
+        }
+        // A negative drop puts the bush above the rail top, which is what an upper arm needs.
+        instance "bracket_upper_front" primitive="suspension/brackets/arm-bracket" {
+            set drop="0 mm - upper_rise" reach=upper_inboard
+            variant side=side
+        }
+        instance "bracket_upper_rear" primitive="suspension/brackets/arm-bracket" {
+            set drop="0 mm - upper_rise" reach=upper_inboard
+            variant side=side
+        }
+
+        instance "lower_arm" primitive="suspension/arms/lca-wishbone-a" {
+            set span=lower_span reach=lower_reach tube_od="28 mm"
+            variant hand=side
+        }
+        instance "upper_arm" primitive="suspension/arms/lca-wishbone-a" {
+            set span=upper_span reach=upper_reach tube_od="24 mm" bj_stud="M12"
+            variant hand=side
+        }
+
+        instance "upright" primitive="suspension/uprights/upright-dw" {
+            set kingpin_height=kingpin_height kingpin_offset=kingpin_offset hub_height="150 mm" hub_offset="60 mm"
+            variant side=side
+        }
+
+        instance "wheel" primitive="wheels/wheel-steel" {
+            set diameter="15 inch" rim_width="6 inch" offset="40 mm"
+        }
+        instance "tyre" primitive="wheels/tyre" {
+            set section="185 mm" aspect=60 rim="15 inch"
+        }
+    }
+
+    // The lower front bracket is held fixed; everything else follows from it.
+    root "bracket_lower_front"
+
+    mates {
+        mate "lower_arm_front" a="bracket_lower_front.bush" b="lower_arm.bush_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="85 Nm" nut="nyloc"
+            stage "kit"
+        }
+        mate "lower_arm_rear" a="bracket_lower_rear.bush" b="lower_arm.bush_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="85 Nm" nut="nyloc"
+            stage "kit"
+        }
+        mate "upper_arm_front" a="bracket_upper_front.bush" b="upper_arm.bush_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="85 Nm" nut="nyloc"
+            stage "kit"
+        }
+        mate "upper_arm_rear" a="bracket_upper_rear.bush" b="upper_arm.bush_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="85 Nm" nut="nyloc"
+            stage "kit"
+        }
+
+        // The loop: the upright is positioned by the lower ball joint, and the upper ball joint
+        // then has to land on it.
+        mate "lower_balljoint" a="lower_arm.balljoint" b="upright.lower_bj" {
+            fasteners kind="nut" size="M14" grade="10.9" qty="1" torque="110 Nm" nut="castellated"
+            stage "kit"
+        }
+        mate "upper_balljoint" a="upper_arm.balljoint" b="upright.upper_bj" {
+            fasteners kind="nut" size="M12" grade="10.9" qty="1" torque="80 Nm" nut="castellated"
+            stage "kit"
+        }
+
+        mate "wheel_on_hub" a="upright.hub" b="wheel.mount" {
+            fasteners kind="bolt" size="M12x1.5" grade="10.9" qty="4" torque="110 Nm"
+            stage "kit"
+        }
+        mate "tyre_on_rim" a="wheel.bead" b="tyre.bead" {
+            stage "factory"
+        }
+    }
+
+    // The four station faces the vehicle bolts this corner to.
+    ports {
+        export "bracket_lower_front.station" as="station_lower_front"
+        export "bracket_lower_rear.station"  as="station_lower_rear"
+        export "bracket_upper_front.station" as="station_upper_front"
+        export "bracket_upper_rear.station"  as="station_upper_rear"
+    }
+}

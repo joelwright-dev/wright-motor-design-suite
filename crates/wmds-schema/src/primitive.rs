@@ -44,6 +44,10 @@ pub struct ParamDef {
 pub struct VariantDef {
     pub name: String,
     pub options: Vec<String>,
+    /// The option that means "this is the mirrored hand of the part", if any.
+    pub mirror_when: Option<String>,
+    /// Plane to mirror about: `xz` (swap left and right) by default.
+    pub mirror_plane: String,
 }
 
 #[derive(Debug, Clone)]
@@ -195,9 +199,23 @@ pub(crate) fn parse_primitive_node(ctx: &mut Ctx, node: &KdlNode) -> Option<Prim
             if options.is_empty() {
                 ctx.err(n, "variant needs at least one option");
             }
+            let mirror_when = prop_string(n, "mirror_when");
+            if let Some(w) = &mirror_when {
+                if !options.contains(w) {
+                    ctx.err(
+                        n,
+                        format!(
+                            "variant `{}`: mirror_when=\"{w}\" is not one of its options",
+                            n.name().value()
+                        ),
+                    );
+                }
+            }
             variants.push(VariantDef {
                 name: n.name().value().to_string(),
                 options,
+                mirror_when,
+                mirror_plane: prop_string(n, "mirror_plane").unwrap_or_else(|| "xz".into()),
             });
         }
     }
