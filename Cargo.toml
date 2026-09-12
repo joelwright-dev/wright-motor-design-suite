@@ -6,6 +6,7 @@ members = [
     "crates/wmds-schema",
     "crates/wmds-model",
     "crates/wmds-geom",
+    "crates/wmds-mfg",
     "crates/wmds-rules",
     "crates/wmds-analytics",
     "crates/wmds-geom-occt",
@@ -28,6 +29,7 @@ wmds-expr = { path = "crates/wmds-expr" }
 wmds-schema = { path = "crates/wmds-schema" }
 wmds-model = { path = "crates/wmds-model" }
 wmds-geom = { path = "crates/wmds-geom" }
+wmds-mfg = { path = "crates/wmds-mfg" }
 wmds-rules = { path = "crates/wmds-rules" }
 wmds-analytics = { path = "crates/wmds-analytics" }
 wmds-geom-occt = { path = "crates/wmds-geom-occt" }

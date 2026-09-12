@@ -42,6 +42,16 @@ enum Cmd {
         #[command(subcommand)]
         cmd: VehCmd,
     },
+    /// Produce the build pack: what to make, what to buy, and how to assemble it
+    Build {
+        file: PathBuf,
+        /// How many vehicles the costs and manufacturing routes assume
+        #[arg(long, default_value_t = 1)]
+        volume: u32,
+        /// Write the pack as Markdown to this file as well as printing it
+        #[arg(long, value_name = "FILE")]
+        markdown: Option<PathBuf>,
+    },
     /// Check a vehicle against its rule packs
     Check {
         file: PathBuf,
@@ -193,6 +203,11 @@ fn main() -> ExitCode {
             stl.as_deref(),
             bounds,
         ),
+        Cmd::Build {
+            file,
+            volume,
+            markdown,
+        } => report::build_pack(&project, &file, volume, markdown.as_deref()),
         Cmd::Check { file, json, all } => {
             report::check_vehicle(&project, &file, json.as_deref(), all)
         }

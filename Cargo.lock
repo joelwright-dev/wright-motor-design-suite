@@ -3798,6 +3798,7 @@ dependencies = [
  "wmds-expr",
  "wmds-geom",
  "wmds-geom-occt",
+ "wmds-mfg",
  "wmds-model",
  "wmds-rules",
  "wmds-schema",
@@ -3831,6 +3832,18 @@ dependencies = [
  "opencascade",
  "wmds-geom",
  "wmds-model",
+]
+
+[[package]]
+name = "wmds-mfg"
+version = "0.0.1"
+dependencies = [
+ "indexmap",
+ "wmds-expr",
+ "wmds-geom",
+ "wmds-model",
+ "wmds-schema",
+ "wmds-units",
 ]
 
 [[package]]

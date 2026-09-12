@@ -1052,3 +1052,71 @@ fn mirror_name(id: &str) -> Option<String> {
     // A dotted sub-assembly id such as `corner_fl.lower_arm` is handled above by `_fl`.
     None
 }
+
+// ------------------------------------------------------------------------------ build pack
+
+/// Produce everything needed to make and assemble one vehicle.
+pub fn build_pack(
+    project: &Path,
+    file: &Path,
+    volume: u32,
+    markdown: Option<&Path>,
+) -> ExitCode {
+    let lib = match Library::load(project) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let def = match Library::load_assembly_file(file) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut extra = Vec::new();
+    if let Some(req) = &def.chassis {
+        match wmds_model::generate_chassis(&lib, req) {
+            Ok(g) => extra.push((req.id.clone(), g.assembly)),
+            Err(e) => {
+                eprintln!("error: chassis: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    let asm = match wmds_model::resolve_assembly(&lib, &def, &Overrides::default(), extra) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let k = kernel();
+    let built = wmds_geom::build_assembly(&k, &asm);
+    let density_of = |m: &str| lib.density(m);
+    let masses = wmds_geom::assembly_masses(&k, &built, &density_of);
+
+    let pack = wmds_mfg::BuildPack::build(&asm, &lib, &masses, volume);
+    print!("{}", wmds_mfg::write_text(&pack));
+
+    if let Some(path) = markdown {
+        let text = wmds_mfg::write_markdown(&pack);
+        match std::fs::write(path, text) {
+            Ok(()) => println!("\nwrote {}", path.display()),
+            Err(e) => {
+                eprintln!("error: cannot write {}: {e}", path.display());
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    // A pack for a vehicle that does not resolve is not something to act on.
+    if asm.is_ok() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}

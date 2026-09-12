@@ -28,12 +28,12 @@ harder to fool yourself with.
 | 2 | Regulatory compliance | **Half** | The engine is real and honest. The Australian Design Rules pack is a five-rule unverified template. Nobody has read the actual standards against it. |
 | 3 | Realistic driving dynamics simulator | **Not started** | Tier 0 closed-form numbers only: wheelbase, track, axle loads, static stability. No tyre model, no transient solver, no manoeuvres. |
 | 4 | Realistic crash simulator | **Not started** | Nothing at all. No solver, no deck export, no material cards for crash. |
-| 5 | Build primitives without programming | **Not started** | A new part means writing KDL by hand. This is a named requirement and it is entirely unmet in the application. |
+| 5 | Build primitives without programming | **Started** | The application edits a part: dimensions, shapes and mounting points, with the geometry rebuilding as you go, and writes the file. Chassis systems still have no editor. |
 | 6 | Build new MCDS chassis without programming | **Not started** | Chassis systems are data rather than code, which is the hard half, but there is no editor for them. |
 | 7 | Complex mounting and modularity | **Good** | Typed ports, expression compatibility rules, a placement solver over the mate graph, closure checking, variant mirroring, sub-assemblies. The strongest part of the suite. |
-| 8 | Design surface | **Started** | The editor builds vehicles: chassis, catalogue, joints by picking ports, save. No undo, no way to change an existing joint, no free placement, no primitive editing. |
-| 9 | Manufacturing export | **Started** | STEP of the whole vehicle or any part. No bill of materials, no cut list, no nesting, no per-part drawings, no cost roll-up in a usable form. |
-| 10 | Assembly instructions | **Not started** | The model holds every fastener, torque and assembly stage. None of it comes out as instructions. This is the flatpack promise and there is nothing behind it yet. |
+| 8 | Design surface | **Started** | Vehicles and parts are both edited in the application. A joint can be moved to any other port that fits, and a part can be placed explicitly. Still no undo. |
+| 9 | Manufacturing export | **Started** | STEP, plus a bill of materials, a cut list and a manufacturing route chosen for the build volume with costs rolled up. No nesting and no per-part drawings. |
+| 10 | Assembly instructions | **Started** | `wmds build` writes numbered steps in an order that is buildable by construction, sub-assemblies first, each with its fasteners and torque. No pictures yet, which a flatpack needs. |
 | 11 | All components incorporated | **No** | Chassis, suspension, steering, braking, battery and drive unit exist. Body, interior and everything a person touches do not. |
 
 ## MCDS itself
@@ -52,14 +52,11 @@ harder to fool yourself with.
 Chosen so each one unblocks the next, and so the parts of the brief with nothing behind them
 stop having nothing behind them.
 
-1. **Primitive and chassis authoring in the application** (pillars 5, 6). Until a part can be
-   made without writing a file, the library cannot grow except by me, and requirement 5 is
-   simply unmet. This also unblocks pillar 1.
-2. **Joint editing and free placement in the editor** (pillar 8). Changing where something bolts
-   is the most basic design act and it currently requires editing a file.
-3. **Manufacturing and assembly output** (pillars 9, 10). Every input already exists in the
-   model. Bill of materials, cut lists, fastener schedule, and step-by-step assembly
-   instructions ordered by the mate graph.
+1. ~~Primitive authoring in the application~~ (pillar 5). Done for parts; chassis systems are
+   still next.
+2. ~~Joint editing and free placement~~ (pillar 8). Done.
+3. ~~Manufacturing and assembly output~~ (pillars 9, 10). Done as text and Markdown; drawings
+   and pictures are what is missing.
 4. **Driving dynamics** (pillar 3). A real transient model: sprung and unsprung masses,
    suspension rates from the geometry, a Pacejka tyre model, and standard manoeuvres.
 5. **Crash** (pillar 4). Explicit finite element is the only honest answer for a real crash

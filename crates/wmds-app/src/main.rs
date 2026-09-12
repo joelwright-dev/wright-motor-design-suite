@@ -96,6 +96,13 @@ enum Doc {
     Assembly(Box<AssemblyDef>),
 }
 
+/// Which end of a joint is being changed.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum JointEnd {
+    A,
+    B,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
     Parts,
@@ -144,6 +151,9 @@ enum Action {
     AddJoint,
     ClearJoint,
     DeleteJoint(String),
+    EditJoint(Option<String>),
+    RetargetJoint(String, JointEnd, String, String),
+    SetPlacement(String, Option<String>),
     SetChassis,
     NewVehicle,
     NewPart,
@@ -243,6 +253,8 @@ struct App {
     joint_b: Option<(String, String)>,
     joint_candidates: Vec<(String, String, f64)>,
     joint_note: String,
+    /// The joint whose ends are open for changing, if any.
+    editing_joint: Option<String>,
 
     camera: Camera,
     mesh: Option<Arc<GpuMeshData>>,
@@ -311,6 +323,7 @@ impl App {
             joint_b: None,
             joint_candidates: Vec::new(),
             joint_note: String::new(),
+            editing_joint: None,
             camera: Camera::default(),
             mesh: None,
             ports: Vec::new(),
@@ -518,6 +531,56 @@ impl App {
         };
     }
 
+
+    /// Which ports could take the place of one end of an existing joint.
+    ///
+    /// Moving a part to a different mounting point is the most basic design act there is, and
+    /// doing it by hand means editing a station number in a file and hoping. This asks the mate
+    /// checker the same question the joint picker asks, holding the other end fixed.
+    fn retarget_options(&self, mate_id: &str, end: JointEnd) -> Vec<(String, String, f64)> {
+        let (Some(lib), Some(def)) = (self.lib.clone(), self.assembly()) else {
+            return Vec::new();
+        };
+        let Some(m) = def.mates.iter().find(|m| m.id == mate_id) else {
+            return Vec::new();
+        };
+        let (moving, fixed) = match end {
+            JointEnd::A => (&m.a, &m.b),
+            JointEnd::B => (&m.b, &m.a),
+        };
+        let Some(anchor) = find_port(&self.mateable, &fixed.instance, &fixed.port) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for u in self.mateable.iter() {
+            if u.unit == fixed.instance {
+                continue;
+            }
+            for p in &u.ports {
+                let key = (u.unit.clone(), p.name.clone());
+                let is_current = key.0 == moving.instance && key.1 == moving.port;
+                if !is_current && self.used_ports.contains(&key) {
+                    continue;
+                }
+                if ports_compatible(
+                    &lib,
+                    &anchor.port_type,
+                    &anchor.params,
+                    "a",
+                    &p.port_type,
+                    &p.params,
+                    "b",
+                )
+                .is_ok()
+                {
+                    out.push((u.unit.clone(), p.name.clone(), dist(anchor.world, p.world)));
+                }
+            }
+        }
+        out.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+        out
+    }
+
     /// Rebuild the editable settings for whichever instance is selected.
     fn sync_inst_params(&mut self) {
         self.inst_params.clear();
@@ -686,6 +749,43 @@ impl App {
                 self.tab = Tab::Joints;
             }
             Action::ClearJoint => self.clear_joint(),
+            Action::EditJoint(id) => self.editing_joint = id,
+            Action::RetargetJoint(id, end, unit, port) => {
+                if let Some(def) = self.assembly_mut()
+                    && let Some(m) = def.mates.iter_mut().find(|m| m.id == id)
+                {
+                    let r = PortRef { instance: unit.clone(), port: port.clone() };
+                    match end {
+                        JointEnd::A => m.a = r,
+                        JointEnd::B => m.b = r,
+                    }
+                }
+                self.status = format!("joint {id} now goes to {unit}.{port}");
+                self.unsaved = true;
+                self.dirty = true;
+            }
+            Action::SetPlacement(id, at) => {
+                if let Some(def) = self.assembly_mut()
+                    && let Some(i) = def.instances.iter_mut().find(|i| i.id == id)
+                {
+                    i.placement = at.as_ref().map(|text| wmds_schema::Placement {
+                        at: part::text_expr(text),
+                        rotate: i.placement.as_ref().and_then(|p| p.rotate.clone()),
+                        mirror: i.placement.as_ref().and_then(|p| p.mirror.clone()),
+                        justification: i
+                            .placement
+                            .as_ref()
+                            .map(|p| p.justification.clone())
+                            .unwrap_or_else(|| "placed by hand in the editor".into()),
+                    });
+                }
+                self.status = match at {
+                    Some(_) => format!("{id} is now placed explicitly"),
+                    None => format!("{id} is back to being placed by its joints"),
+                };
+                self.unsaved = true;
+                self.dirty = true;
+            }
             Action::AddJoint => {
                 let (Some(a), Some(b)) = (self.joint_a.clone(), self.joint_b.clone()) else {
                     return;
@@ -2164,6 +2264,53 @@ impl App {
                 self.clear_joint();
             }
         });
+        // Explicit placement, for the cases a joint cannot express: a part that hangs off
+        // nothing yet, or one deliberately positioned while its mounting is being worked out.
+        let placed_by_hand = self
+            .assembly()
+            .and_then(|d| d.instances.iter().find(|i| i.id == sel))
+            .and_then(|i| i.placement.as_ref())
+            .map(|p| wmds_schema::expr_text(&p.at));
+        ui.horizontal(|ui| {
+            ui.label("position");
+            match &placed_by_hand {
+                Some(at) => {
+                    if let Some(v) = edit_text(
+                        ui,
+                        &mut self.scratch,
+                        &format!("place:{sel}"),
+                        at,
+                        180.0,
+                        "(0 mm, 0 mm, 0 mm)",
+                    ) {
+                        actions.push(Action::SetPlacement(sel.clone(), Some(v)));
+                    }
+                    if ui
+                        .small_button("use joints")
+                        .on_hover_text("go back to being positioned by what it bolts to")
+                        .clicked()
+                    {
+                        actions.push(Action::SetPlacement(sel.clone(), None));
+                    }
+                }
+                None => {
+                    ui.label(egui::RichText::new("from its joints").weak());
+                    if ui
+                        .small_button("place by hand")
+                        .on_hover_text(
+                            "positions it at fixed coordinates instead; a joint is better                              wherever one exists, because it follows the chassis",
+                        )
+                        .clicked()
+                    {
+                        actions.push(Action::SetPlacement(
+                            sel.clone(),
+                            Some("(0 mm, 0 mm, 0 mm)".into()),
+                        ));
+                    }
+                }
+            }
+        });
+
         if self.inst_params.is_empty() {
             ui.label(egui::RichText::new("this part has nothing to adjust").weak());
             return;
@@ -2352,11 +2499,23 @@ impl App {
             .id_salt("mates")
             .show(ui, |ui| {
                 for (id, ai, ap, bi, bp, broken) in &mates {
+                    let open = self.editing_joint.as_deref() == Some(id.as_str());
                     ui.horizontal(|ui| {
                         if ui.small_button("x").on_hover_text("remove this joint").clicked() {
                             actions.push(Action::DeleteJoint(id.clone()));
                         }
-                        let t = format!("{ai}.{ap}  →  {bi}.{bp}");
+                        if ui
+                            .small_button(if open { "done" } else { "move" })
+                            .on_hover_text("change what this joint connects to")
+                            .clicked()
+                        {
+                            actions.push(Action::EditJoint(if open {
+                                None
+                            } else {
+                                Some(id.clone())
+                            }));
+                        }
+                        let t = format!("{ai}.{ap}  to  {bi}.{bp}");
                         let rt = if *broken {
                             egui::RichText::new(t).monospace().small().color(DANGER)
                         } else {
@@ -2368,6 +2527,45 @@ impl App {
                             id.as_str()
                         });
                     });
+                    if open {
+                        // Each end can be moved to any port the other end will still accept.
+                        for (end, unit, port) in
+                            [(JointEnd::A, ai, ap), (JointEnd::B, bi, bp)]
+                        {
+                            let options = self.retarget_options(id, end);
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new(match end {
+                                        JointEnd::A => "  from",
+                                        JointEnd::B => "  to  ",
+                                    })
+                                    .small(),
+                                );
+                                egui::ComboBox::from_id_salt(format!("rt:{id}:{end:?}"))
+                                    .width(260.0)
+                                    .selected_text(format!("{unit}.{port}"))
+                                    .show_ui(ui, |ui| {
+                                        for (u, p, d) in &options {
+                                            let label =
+                                                format!("{u}.{p}   {:.0} mm away", d * 1e3);
+                                            if ui.selectable_label(false, label).clicked() {
+                                                actions.push(Action::RetargetJoint(
+                                                    id.clone(),
+                                                    end,
+                                                    u.clone(),
+                                                    p.clone(),
+                                                ));
+                                            }
+                                        }
+                                    });
+                                ui.label(
+                                    egui::RichText::new(format!("{} fit", options.len()))
+                                        .weak()
+                                        .small(),
+                                );
+                            });
+                        }
+                    }
                 }
                 if mates.is_empty() {
                     ui.label(egui::RichText::new("nothing is bolted together yet").weak());

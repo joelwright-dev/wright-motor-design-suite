@@ -94,6 +94,12 @@ pub struct ResolvedMate {
     pub fasteners: Option<FastenerDef>,
     /// `Ok` when the two ports may legally be joined.
     pub compatible: Result<(), MateError>,
+    /// The sub-assembly this joint came from, when it is not one of this assembly's own.
+    ///
+    /// Inner joints used to be dropped once a sub-assembly was flattened, which meant the eight
+    /// bolts holding each suspension corner together were invisible to anything counting
+    /// fasteners or writing assembly instructions.
+    pub unit: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +131,12 @@ pub struct UnitPorts {
     pub unit: String,
     pub source_id: String,
     pub ports: Vec<PortSlot>,
+    /// What put this unit where it is.
+    ///
+    /// Kept per unit as well as per part, because a sub-assembly's parts record the joint
+    /// inside it that placed them, and the joint that placed the whole sub-assembly in the
+    /// vehicle is a different thing entirely. Assembly instructions need both.
+    pub placed_by: PlacedBy,
 }
 
 #[derive(Debug, Clone)]
@@ -227,9 +239,12 @@ pub fn resolve_assembly(
         variants: &no_variants,
     };
 
-    // Build the units.
+    // Build the units. Joints from inside a sub-assembly are collected as they are flattened,
+    // so the finished assembly still knows about every bolt in it.
     let mut units: Vec<Unit> = Vec::new();
+    let mut inner_mates: Vec<ResolvedMate> = Vec::new();
     for (id, inner) in extra_units {
+        inner_mates.extend(prefixed_mates(&id, &inner));
         units.push(unit_from_assembly(id, inner));
     }
     for inst in &def.instances {
@@ -311,6 +326,7 @@ pub fn resolve_assembly(
                     Ok(inner) => {
                         warnings.extend(inner.warnings.iter().map(|w| format!("{}: {w}", inst.id)));
                         errors.extend(inner.errors.iter().map(|e| format!("{}: {e}", inst.id)));
+                        inner_mates.extend(prefixed_mates(&inst.id, &inner));
                         let mut u = unit_from_assembly(inst.id.clone(), inner);
                         u.source_id = aid.clone();
                         u.free = free_placement(inst, &env, &mut errors);
@@ -388,11 +404,14 @@ pub fn resolve_assembly(
             stage,
             fasteners: m.fasteners.clone(),
             compatible,
+            unit: None,
         });
     }
 
-    // Solve placement.
+    // Solve placement from this assembly's own joints only. The inner ones have already done
+    // their work inside their sub-assembly, and re-running them here would be meaningless.
     let placements = solve_placement(def, &units, &mates, lib, &env, &mut warnings, &mut errors);
+    mates.extend(inner_mates);
 
     // The port index, for an editor. Built before flattening so a sub-assembly's exported
     // names survive; after flattening only the dotted part ids remain, and a mate cannot
@@ -418,6 +437,7 @@ pub fn resolve_assembly(
             unit: u.id.clone(),
             source_id: u.source_id.clone(),
             ports,
+            placed_by: placements[i].1.clone(),
         });
     }
 
@@ -436,7 +456,14 @@ pub fn resolve_assembly(
             p.placed_by = if u.parts.len() == 1 {
                 placed_by.clone()
             } else {
-                part.placed_by.clone()
+                // A part inside a sub-assembly was placed by one of that sub-assembly's own
+                // joints, and those joints are renamed when they are carried up here. The
+                // reference has to be renamed with them, or nothing downstream can match a
+                // part to the joint that positioned it.
+                match &part.placed_by {
+                    PlacedBy::Mate(m) => PlacedBy::Mate(format!("{}.{m}", u.id)),
+                    other => other.clone(),
+                }
             };
             instances.push(p);
         }
@@ -506,6 +533,24 @@ pub fn resolve_assembly(
         warnings,
         errors,
     })
+}
+
+/// A sub-assembly's own joints, renamed so they read correctly from outside it.
+fn prefixed_mates(unit: &str, inner: &ResolvedAssembly) -> Vec<ResolvedMate> {
+    inner
+        .mates
+        .iter()
+        .map(|m| ResolvedMate {
+            id: format!("{unit}.{}", m.id),
+            a: format!("{unit}.{}", m.a),
+            b: format!("{unit}.{}", m.b),
+            unit: Some(m.unit.clone().map_or_else(
+                || unit.to_string(),
+                |deeper| format!("{unit}.{deeper}"),
+            )),
+            ..m.clone()
+        })
+        .collect()
 }
 
 fn unit_from_assembly(id: String, inner: ResolvedAssembly) -> Unit {
