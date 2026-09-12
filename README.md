@@ -31,6 +31,11 @@ Working today:
 cargo run -p wmds-app -- library/suspension/arms/lca-wishbone-a.prim.kdl
 ```
 
+Add `--no-default-features` to skip the OpenCASCADE build and use the built-in mesh kernel
+instead. That build is fast and needs no C++ toolchain, but it has no boolean operations, so
+overlapping bodies are drawn twice and volumes are overstated. The viewer says which kernel
+produced the numbers on screen.
+
 Not yet: materials database (densities are placeholders), assemblies and mates, chassis
 generator.
 
@@ -40,16 +45,19 @@ Requires a stable Rust toolchain (rustup), CMake, and, on Windows, Visual Studio
 with the C++ workload. The first build compiles OpenCASCADE from source and takes 30 minutes or
 more; later builds are incremental.
 
-**Windows path length.** MSBuild cannot build OpenCASCADE when the build directory path is long
-(it fails with `FTK1011` file-tracker errors). If the repository lives in a deep folder such as
-a OneDrive tree, point cargo at a short build directory before building:
+**Build output location.** `.cargo/config.toml` sends build output to `C:/Users/joelw/wmds-build`
+rather than a `target/` folder in the project. Two reasons: MSBuild cannot build OpenCASCADE
+when the build directory path is long, which a deep OneDrive path is (it fails with `FTK1011`
+file-tracker errors), and it keeps OneDrive from syncing thousands of object files. On another
+machine, edit that path or override it with the `CARGO_TARGET_DIR` environment variable.
+
+**`cargo` not found after installing Rust.** The rustup installer adds `%USERPROFILE%\.cargo\bin`
+to the user PATH, but programs already running keep the environment they started with. Restart
+the terminal application (not just the tab), or for the current session:
 
 ```powershell
-$env:CARGO_TARGET_DIR = "C:\Users\<you>\wmds-build"
+$env:Path += ";$env:USERPROFILE\.cargo\bin"
 ```
-
-Set it permanently with `setx CARGO_TARGET_DIR C:\Users\<you>\wmds-build` (new terminals only).
-The source tree stays where it is; only build output moves.
 
 ```bash
 cargo test --workspace

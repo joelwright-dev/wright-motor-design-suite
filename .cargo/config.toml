@@ -1,5 +1,13 @@
 # Build settings for the WMDS workspace.
 
+[build]
+# Build output goes outside the project. The repository lives in a deep OneDrive path, and
+# MSBuild cannot build OpenCASCADE when the build directory path is long (it fails with FTK1011
+# file-tracker errors). Keeping build output here also stops OneDrive syncing thousands of
+# object files. Override with the CARGO_TARGET_DIR environment variable if this path does not
+# suit your machine.
+target-dir = "C:/Users/joelw/wmds-build"
+
 [env]
 # The OpenCASCADE sources vendored by opencascade-sys use a CMake minimum-version that CMake 4
 # refuses without this override. Harmless on older CMake.
