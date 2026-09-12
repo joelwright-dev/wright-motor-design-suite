@@ -10,8 +10,29 @@ Modular Chassis Design System (MCDS). It is the software half of a two-part syst
 
 ## Status
 
-Pre-implementation. This repository currently holds the design documentation and the
-technology research that precede the first line of code.
+Phase 0 (kernel spike) in progress. See [docs/09-roadmap.md](docs/09-roadmap.md).
+
+Working today:
+
+* `wmds-units`: quantities with runtime dimensional checking (`380 mm`, `20 kN`, `1550 kg/m^3`).
+* `wmds-expr`: the expression language used inside definition files.
+* `wmds-schema`: KDL parser and validator for `.prim.kdl` primitive definitions.
+* `wmds-model`: parameter resolution (dependency order, unit coercion, ranges, variants), port
+  frames, geometry feature arguments, cost expressions.
+* `wmds` CLI: `wmds lib validate <paths>` and `wmds lib show <file> --set name=value`.
+
+Not yet: geometry kernel, viewport, mass properties from geometry, STEP export.
+
+## Building
+
+Requires a stable Rust toolchain (rustup) and, on Windows, Visual Studio Build Tools with the
+C++ workload.
+
+```bash
+cargo test --workspace
+cargo run -- lib validate library
+cargo run -- lib show library/suspension/arms/lca-wishbone-a.prim.kdl --set span=420mm --set hand=right
+```
 
 ## Documents
 

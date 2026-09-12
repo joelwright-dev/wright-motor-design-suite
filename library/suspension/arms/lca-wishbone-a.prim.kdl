@@ -1,0 +1,67 @@
+// Lower control arm, A-arm type. The worked example from docs/03-primitive-library.md.
+//
+// Coordinate frame: origin at the midpoint between the inboard pivots, x along the pivot
+// axis (vehicle longitudinal), y outboard toward the balljoint, z up.
+
+primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
+    description "A-arm lower control arm, two inboard bushes, one outboard balljoint"
+    category "suspension" sub="control-arm"
+
+    params {
+        span        unit="mm"  default=380 min=250 max=600 doc="inboard pivot spacing"
+        reach       unit="mm"  default=320 min=200 max=500 doc="pivot line to balljoint centre"
+        tube_od     unit="mm"  default=28  min=20  max=45  doc="leg tube outside diameter"
+        tube_wall   unit="mm"  default=2.5 min=1.5 max=4   doc="leg tube wall thickness"
+        sweep_angle unit="deg" default=12  min=0   max=30  doc="rearward sweep of the arm plane"
+        bush_od     unit="mm"  default=45                  doc="inboard bush housing outside diameter"
+        leg_length  unit="mm"  expr="sqrt((span/2)^2 + reach^2)" doc="derived: centre-line length of each leg"
+    }
+
+    variants {
+        hand "left" "right"          // right-hand parts are mirrored about the vehicle XZ plane
+    }
+
+    material "steel/e355-tube"
+
+    geometry level="manufacture" {
+        tube     "front_leg" od=tube_od wall=tube_wall from="(-span/2, 0, 0)" to="(0, reach, 0)"
+        tube     "rear_leg"  od=tube_od wall=tube_wall from="(span/2, 0, 0)"  to="(0, reach, 0)"
+        cylinder "bj_boss"   d="45 mm"  h="40 mm" at="(0, reach, 0)"   axis="z"
+        cylinder "bush_f"    d=bush_od  h="50 mm" at="(-span/2, 0, 0)" axis="x"
+        cylinder "bush_r"    d=bush_od  h="50 mm" at="(span/2, 0, 0)"  axis="x"
+        union
+    }
+    geometry level="envelope" {
+        hull                          // convex hull of the manufacture level
+    }
+
+    massprops computed=#true
+
+    ports {
+        port "bush_front" type="bush.pivot" at="(-span/2, 0, 0)" axis="x" load_rating="20 kN" {
+            params bush_od=bush_od bolt="M12"
+        }
+        port "bush_rear" type="bush.pivot" at="(span/2, 0, 0)" axis="x" load_rating="20 kN" {
+            params bush_od=bush_od bolt="M12"
+        }
+        port "balljoint" type="balljoint.taper" at="(0, reach, 0)" axis="z" load_rating="35 kN" {
+            params taper="1:8" stud="M14"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "tube-cut-notch-weld" scale="1..1000" {
+            export "tube-list"
+            export "weld-fixture-drawing"
+            cost fixed="45 AUD" per_unit="0.9 AUD/mm * (span + 2 * leg_length)"
+        }
+        method "cast-aluminium" scale="500..*" {
+            export "step"
+            cost fixed="18000 AUD" per_unit="60 AUD"
+        }
+    }
+
+    compliance "suspension.arm" "structural"
+}

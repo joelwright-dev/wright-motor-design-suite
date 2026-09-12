@@ -1,0 +1,20 @@
+[package]
+name = "wmds-cli"
+description = "Command line front end for WMDS"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "wmds"
+path = "src/main.rs"
+
+[dependencies]
+wmds-units = { workspace = true }
+wmds-expr = { workspace = true }
+wmds-schema = { workspace = true }
+wmds-model = { workspace = true }
+clap = { workspace = true }
+miette = { workspace = true }
+anyhow = { workspace = true }

@@ -35,18 +35,22 @@ Categories are fixed by the schema; primitives within them are open-ended.
 
 Written in KDL (see doc 02 section 8). A worked example: a lower control arm.
 
+The file below is shipped as `library/suspension/arms/lca-wishbone-a.prim.kdl` and is the
+acceptance example for the parser.
+
 ```kdl
 primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
     description "A-arm lower control arm, two inboard bushes, one outboard balljoint"
-    category "suspension" sub "control-arm"
+    category "suspension" sub="control-arm"
 
     params {
-        span        unit="mm" default=380 min=250 max=600 doc="inboard pivot spacing"
-        reach       unit="mm" default=320 min=200 max=500 doc="pivot line to balljoint"
-        tube_od     unit="mm" default=28  min=20  max=45
-        tube_wall   unit="mm" default=2.5 min=1.5 max=4
-        sweep_angle unit="deg" default=12 min=0 max=30
-        bush_od     unit="mm" default=45
+        span        unit="mm"  default=380 min=250 max=600 doc="inboard pivot spacing"
+        reach       unit="mm"  default=320 min=200 max=500 doc="pivot line to balljoint centre"
+        tube_od     unit="mm"  default=28  min=20  max=45
+        tube_wall   unit="mm"  default=2.5 min=1.5 max=4
+        sweep_angle unit="deg" default=12  min=0   max=30
+        bush_od     unit="mm"  default=45
+        leg_length  unit="mm"  expr="sqrt((span/2)^2 + reach^2)"   // derived, not settable
     }
 
     variants {
@@ -56,35 +60,36 @@ primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
     material "steel/e355-tube"
 
     geometry level="manufacture" {
-        tube "front_leg" od=tube_od wall=tube_wall \
-            from=(-span/2, 0, 0) to=(0, reach, 0)
-        tube "rear_leg"  od=tube_od wall=tube_wall \
-            from=( span/2, 0, 0) to=(0, reach, 0)
-        cylinder "bj_boss" d=45 h=40 at=(0, reach, 0) axis="z"
-        cylinder "bush_f"  d=bush_od h=50 at=(-span/2, 0, 0) axis="x"
-        cylinder "bush_r"  d=bush_od h=50 at=( span/2, 0, 0) axis="x"
+        tube     "front_leg" od=tube_od wall=tube_wall from="(-span/2, 0, 0)" to="(0, reach, 0)"
+        tube     "rear_leg"  od=tube_od wall=tube_wall from="(span/2, 0, 0)"  to="(0, reach, 0)"
+        cylinder "bj_boss"   d="45 mm"  h="40 mm" at="(0, reach, 0)"   axis="z"
+        cylinder "bush_f"    d=bush_od  h="50 mm" at="(-span/2, 0, 0)" axis="x"
+        cylinder "bush_r"    d=bush_od  h="50 mm" at="(span/2, 0, 0)"  axis="x"
         union
     }
     geometry level="envelope" { hull }        // convex hull of manufacture level
 
-    massprops computed=true
+    massprops computed=#true
 
     ports {
-        port "bush_front"  type="bush.pivot"   at=(-span/2, 0, 0) axis="x" \
-            params { bush_od=bush_od bolt="M12" } load_rating="20 kN"
-        port "bush_rear"   type="bush.pivot"   at=( span/2, 0, 0) axis="x" \
-            params { bush_od=bush_od bolt="M12" } load_rating="20 kN"
-        port "balljoint"   type="balljoint.taper" at=(0, reach, 0) axis="z" \
-            params { taper="1:8" stud="M14" } load_rating="35 kN"
+        port "bush_front" type="bush.pivot" at="(-span/2, 0, 0)" axis="x" load_rating="20 kN" {
+            params bush_od=bush_od bolt="M12"
+        }
+        port "bush_rear" type="bush.pivot" at="(span/2, 0, 0)" axis="x" load_rating="20 kN" {
+            params bush_od=bush_od bolt="M12"
+        }
+        port "balljoint" type="balljoint.taper" at="(0, reach, 0)" axis="z" load_rating="35 kN" {
+            params taper="1:8" stud="M14"
+        }
     }
 
-    behaviour none
+    behaviour "none"
 
     manufacturing {
         method "tube-cut-notch-weld" scale="1..1000" {
             export "tube-list"
             export "weld-fixture-drawing"
-            cost fixed="45 AUD" per_unit="0.9 AUD/mm * (span + 2*reach)"
+            cost fixed="45 AUD" per_unit="0.9 AUD/mm * (span + 2 * leg_length)"
         }
         method "cast-aluminium" scale="500..*" {
             export "step"
@@ -92,9 +97,19 @@ primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
         }
     }
 
-    compliance tags="suspension.arm" "structural"
+    compliance "suspension.arm" "structural"
 }
 ```
+
+Value conventions, fixed by the parser:
+
+* A bare number is dimensionless, or, on a parameter with `unit=`, a value in that unit.
+* A quoted string is an expression: `"2 * span - 10 mm"`, `"(0, reach, 0)"`. Zero may be written
+  without a unit inside a tuple of lengths. A string that is not a valid expression (`"1:8"`,
+  `"1..1000"`) or a bare word that matches no name (`"M12"`) is a literal string.
+* Booleans are KDL v2 keywords: `#true`, `#false`.
+* Inside `{ }` only child nodes may appear, so a port's parameters are properties of a `params`
+  child node, not a braced block.
 
 ### 3.1 Required blocks
 

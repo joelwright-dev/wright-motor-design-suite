@@ -1,0 +1,15 @@
+[package]
+name = "wmds-schema"
+description = "Parsers and validators for WMDS definition files (KDL)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wmds-units = { workspace = true }
+wmds-expr = { workspace = true }
+kdl = { workspace = true }
+miette = { workspace = true }
+thiserror = { workspace = true }
+indexmap = { workspace = true }

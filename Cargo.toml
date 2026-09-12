@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/wmds-units",
+    "crates/wmds-expr",
+    "crates/wmds-schema",
+    "crates/wmds-model",
+    "crates/wmds-cli",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/joelwright-dev/wright-motor-design-suite"
+rust-version = "1.85"
+
+[workspace.dependencies]
+wmds-units = { path = "crates/wmds-units" }
+wmds-expr = { path = "crates/wmds-expr" }
+wmds-schema = { path = "crates/wmds-schema" }
+wmds-model = { path = "crates/wmds-model" }
+
+kdl = "6"
+miette = { version = "7", features = ["fancy"] }
+thiserror = "2"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+indexmap = "2"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

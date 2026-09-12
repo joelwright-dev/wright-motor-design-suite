@@ -1,0 +1,11 @@
+[package]
+name = "wmds-expr"
+description = "Expression language used inside WMDS definition files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wmds-units = { workspace = true }
+thiserror = { workspace = true }
