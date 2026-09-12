@@ -10,11 +10,19 @@ repository.workspace = true
 name = "wmds"
 path = "src/main.rs"
 
+[features]
+default = ["occt"]
+# OpenCASCADE geometry kernel. Building it compiles OCCT from source (30+ minutes the first
+# time); disable with `--no-default-features` for a fast build without geometry.
+occt = ["dep:wmds-geom-occt"]
+
 [dependencies]
 wmds-units = { workspace = true }
 wmds-expr = { workspace = true }
 wmds-schema = { workspace = true }
 wmds-model = { workspace = true }
+wmds-geom = { workspace = true }
+wmds-geom-occt = { workspace = true, optional = true }
 clap = { workspace = true }
 miette = { workspace = true }
 anyhow = { workspace = true }

@@ -37,7 +37,126 @@ enum LibCmd {
         /// Parameter or variant override, e.g. `--set span=400mm --set hand=right`
         #[arg(long = "set", value_name = "NAME=VALUE")]
         sets: Vec<String>,
+        /// Build the geometry with the kernel and report volume, mass and bounds
+        #[arg(long)]
+        build: bool,
+        /// Write the built geometry (best level) as a STEP file (implies --build)
+        #[arg(long, value_name = "FILE")]
+        step: Option<PathBuf>,
+        /// Write the built geometry as a binary STL file (implies --build)
+        #[arg(long, value_name = "FILE")]
+        stl: Option<PathBuf>,
     },
+}
+
+/// Placeholder densities until the material database exists (doc 03 section 5).
+#[cfg(feature = "occt")]
+fn placeholder_density(material: &str) -> Option<(f64, &'static str)> {
+    let m = material.to_ascii_lowercase();
+    if m.starts_with("steel") {
+        Some((7850.0, "steel"))
+    } else if m.starts_with("alu") {
+        Some((2700.0, "aluminium"))
+    } else if m.starts_with("cfrp") {
+        Some((1550.0, "CFRP"))
+    } else if m.starts_with("gfrp") {
+        Some((1900.0, "GFRP"))
+    } else if m.starts_with("polymer") || m.starts_with("plastic") {
+        Some((1200.0, "polymer"))
+    } else {
+        None
+    }
+}
+
+#[cfg(feature = "occt")]
+fn build_geometry(r: &wmds_model::ResolvedPrimitive, step: Option<&Path>, stl: Option<&Path>) -> ExitCode {
+    use wmds_geom::GeomKernel;
+    let k = wmds_geom_occt::OcctKernel;
+    let built = match wmds_geom::build_primitive(&k, r) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("geometry error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    for w in &built.warnings {
+        eprintln!("warning: {w}");
+    }
+    println!("\nbuilt geometry");
+    let density = r.material.as_deref().and_then(placeholder_density);
+    for (level, solid) in &built.levels {
+        let mp = match k.mass_props(solid) {
+            Ok(mp) => mp,
+            Err(e) => {
+                eprintln!("  level {level}: mass properties failed: {e}");
+                continue;
+            }
+        };
+        let bounds = k
+            .tessellate(solid, 1e-3)
+            .ok()
+            .and_then(|m| m.bounds())
+            .map(|(lo, hi)| {
+                format!(
+                    "{:.1} x {:.1} x {:.1} mm",
+                    (hi[0] - lo[0]) * 1e3,
+                    (hi[1] - lo[1]) * 1e3,
+                    (hi[2] - lo[2]) * 1e3
+                )
+            })
+            .unwrap_or_default();
+        println!(
+            "  level {:<12} volume {:.1} cm^3   centroid ({:.1}, {:.1}, {:.1}) mm   bounds {}",
+            level,
+            mp.volume * 1e6,
+            mp.centroid[0] * 1e3,
+            mp.centroid[1] * 1e3,
+            mp.centroid[2] * 1e3,
+            bounds
+        );
+        if let Some((rho, family)) = density {
+            let (mass, _, inertia) = mp.with_density(rho);
+            println!(
+                "  {:<18} mass {:.3} kg at {} kg/m^3 ({} placeholder density)   Ixx {:.4} Iyy {:.4} Izz {:.4} kg*m^2",
+                "",
+                mass,
+                rho,
+                family,
+                inertia[0][0],
+                inertia[1][1],
+                inertia[2][2]
+            );
+        }
+    }
+    let Some((best_level, best)) = built.best() else {
+        eprintln!("no geometry level was built");
+        return ExitCode::FAILURE;
+    };
+    if let Some(p) = step {
+        match k.write_step(best, p) {
+            Ok(()) => println!("  wrote STEP ({best_level} level) to {}", p.display()),
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    if let Some(p) = stl {
+        match k.write_stl(best, p) {
+            Ok(()) => println!("  wrote STL ({best_level} level) to {}", p.display()),
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+#[cfg(not(feature = "occt"))]
+fn build_geometry(_r: &wmds_model::ResolvedPrimitive, _step: Option<&Path>, _stl: Option<&Path>) -> ExitCode {
+    eprintln!("this build of wmds has no geometry kernel (built without the `occt` feature)");
+    ExitCode::FAILURE
 }
 
 fn main() -> ExitCode {
@@ -51,8 +170,15 @@ fn main() -> ExitCode {
             cmd: LibCmd::Validate { paths },
         } => validate(&paths),
         Cmd::Lib {
-            cmd: LibCmd::Show { file, sets },
-        } => show(&file, &sets),
+            cmd:
+                LibCmd::Show {
+                    file,
+                    sets,
+                    build,
+                    step,
+                    stl,
+                },
+        } => show(&file, &sets, build || step.is_some() || stl.is_some(), step.as_deref(), stl.as_deref()),
     }
 }
 
@@ -130,7 +256,7 @@ fn validate(paths: &[PathBuf]) -> ExitCode {
     }
 }
 
-fn show(file: &Path, sets: &[String]) -> ExitCode {
+fn show(file: &Path, sets: &[String], build: bool, step: Option<&Path>, stl: Option<&Path>) -> ExitCode {
     let def = match load(file) {
         Ok(d) => d,
         Err(e) => {
@@ -218,7 +344,7 @@ fn show(file: &Path, sets: &[String]) -> ExitCode {
     }
     match &r.massprops {
         ResolvedMassProps::Computed => {
-            println!("\nmassprops: computed from geometry (kernel not yet available in this build)")
+            println!("\nmassprops: computed from geometry (pass --build to compute)")
         }
         ResolvedMassProps::Declared { mass, cg, .. } => {
             println!(
@@ -245,6 +371,9 @@ fn show(file: &Path, sets: &[String]) -> ExitCode {
     }
     if !def.compliance_tags.is_empty() {
         println!("\ncompliance tags: {}", def.compliance_tags.join(", "));
+    }
+    if build {
+        return build_geometry(&r, step, stl);
     }
     ExitCode::SUCCESS
 }

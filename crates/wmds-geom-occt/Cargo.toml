@@ -1,0 +1,15 @@
+[package]
+name = "wmds-geom-occt"
+description = "OpenCASCADE adapter for the WMDS GeomKernel trait"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wmds-geom = { workspace = true }
+# Git rather than crates.io: the crates.io package's build script assumes the crate directory is
+# named `opencascade-sys` (true in a git checkout, false in the registry) and the fallback
+# needs symlink permission on Windows. Pinned to the commit of the 0.3.0 release.
+opencascade = { git = "https://github.com/bschwind/opencascade-rs", rev = "32758df23a137f4e7c786c618b0317fc3badb3b2" }
+glam = "0.24"

@@ -1,0 +1,6 @@
+# Build settings for the WMDS workspace.
+
+[env]
+# The OpenCASCADE sources vendored by opencascade-sys use a CMake minimum-version that CMake 4
+# refuses without this override. Harmless on older CMake.
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"
