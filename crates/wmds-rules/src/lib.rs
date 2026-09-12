@@ -13,7 +13,7 @@ use thiserror::Error;
 use wmds_expr::{Value, eval};
 use wmds_schema::{Evidence, RuleDef, RulePackDef, Severity};
 
-pub use facts::{ChassisFacts, FactEnv, Facts, MateFacts, PartFacts};
+pub use facts::{ChassisFacts, FactEnv, Facts, MateFacts, PartFacts, Tier0Facts};
 
 /// The statement that goes on every report. WMDS-35.
 pub const DISCLAIMER: &str = "This report is design evidence, not a certification. A vehicle is \

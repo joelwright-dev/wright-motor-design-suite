@@ -152,6 +152,27 @@ pub(crate) fn parse_params_block(ctx: &mut Ctx, block: &KdlNode) -> Vec<ParamDef
     params
 }
 
+/// The name of a geometry feature, from its first positional value.
+///
+/// A name like `hat_face` also parses as an expression, so it arrives wrapped in `Expr::TextOr`
+/// and has to be unwrapped here. It was not, for a while, and every feature in the library
+/// silently lost its name; nothing noticed until the first `subtract a= b=` could not find the
+/// body it was naming. A name is anything that looks like a single word, which is what rules out
+/// a positional that was meant as a value.
+fn feature_name(e: &Expr) -> Option<String> {
+    let text = match e {
+        Expr::Str(s) => s.clone(),
+        Expr::Path(p) if p.len() == 1 => p[0].clone(),
+        Expr::TextOr(t, _) => t.clone(),
+        _ => return None,
+    };
+    let word = !text.is_empty()
+        && text
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-');
+    if word { Some(text) } else { None }
+}
+
 pub(crate) fn parse_primitive_node(ctx: &mut Ctx, node: &KdlNode) -> Option<PrimitiveDef> {
     let id = match first_positional_string(node) {
         Some(s) => s,
@@ -242,11 +263,7 @@ pub(crate) fn parse_primitive_node(ctx: &mut Ctx, node: &KdlNode) -> Option<Prim
                 }
             }
             // First positional string is the feature name by convention.
-            let name = match pos.first() {
-                Some(Expr::Str(s)) => Some(s.clone()),
-                Some(Expr::Path(p)) if p.len() == 1 => Some(p[0].clone()),
-                _ => None,
-            };
+            let name = pos.first().and_then(feature_name);
             if name.is_some() {
                 pos.remove(0);
             }

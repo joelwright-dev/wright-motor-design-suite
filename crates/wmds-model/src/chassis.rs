@@ -308,6 +308,8 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
         mates: Vec::new(),
         point_masses: Vec::new(),
         exports,
+        // Filled in by the parent, which is where a chassis station becomes mateable.
+        mateable: Vec::new(),
         warnings,
         errors: Vec::new(),
     };

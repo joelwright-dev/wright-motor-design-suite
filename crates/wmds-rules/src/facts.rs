@@ -26,6 +26,8 @@ pub struct Facts {
     /// Bounding box of the built geometry, in metres.
     pub bounds: Option<([f64; 3], [f64; 3])>,
 
+    /// Tier 0 results, when they could be computed.
+    pub tier0: Option<Tier0Facts>,
     pub chassis: Option<ChassisFacts>,
     pub parts: Vec<PartFacts>,
     pub mates: Vec<MateFacts>,
@@ -33,6 +35,22 @@ pub struct Facts {
     pub simulations: IndexMap<String, IndexMap<String, Quantity>>,
     /// Declarations a person has attached, keyed by rule id.
     pub declarations: IndexMap<String, String>,
+}
+
+/// The Tier 0 figures a rule may ask about. All SI: metres and kilograms.
+#[derive(Debug, Clone, Default)]
+pub struct Tier0Facts {
+    pub wheelbase: Option<f64>,
+    pub front_track: Option<f64>,
+    pub rear_track: Option<f64>,
+    pub front_axle_load: Option<f64>,
+    pub rear_axle_load: Option<f64>,
+    pub front_fraction: Option<f64>,
+    pub cg_height: Option<f64>,
+    pub static_stability_factor: Option<f64>,
+    pub ground_clearance: Option<f64>,
+    pub front_overhang: Option<f64>,
+    pub rear_overhang: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -110,7 +128,7 @@ impl Facts {
                 material: i.primitive.material.clone().unwrap_or_default(),
                 mass: 0.0,
                 position: i.placement.translation,
-                tags: Vec::new(),
+                tags: i.primitive.compliance_tags.clone(),
                 placed: i.placed_by != wmds_model::PlacedBy::Unreached,
             });
         }
@@ -189,6 +207,9 @@ impl MateFacts {
 /// * `vehicle.mass.kerb`, `.laden`, `.gvm`, `vehicle.mass.modelled`
 /// * `vehicle.cg` and `vehicle.cg.x|y|z`
 /// * `vehicle.length`, `.width`, `.height` from the bounding box
+/// * `tier0.wheelbase`, `.front_track`, `.rear_track`, `.front_axle_load`, `.rear_axle_load`,
+///   `.front_fraction`, `.cg_height`, `.static_stability_factor`, `.ground_clearance`,
+///   `.front_overhang`, `.rear_overhang`. Absent when Tier 0 could not work them out.
 /// * `chassis.mass`, `.length`, `.width`, `.grid_pitch`, `.system`, `.configuration`,
 ///   `.width_config`, `.rail_section`, `.sections`
 /// * `parts` and `mates` as lists of records, for `count(filter(parts, p -> ...))`
@@ -229,6 +250,26 @@ impl Env for FactEnv<'_> {
                     "part_count" => Value::num(f.parts.len() as f64),
                     _ => return None,
                 }
+            }
+            "tier0" => {
+                let t = f.tier0.as_ref()?;
+                let field = rest.first()?.as_str();
+                // A figure Tier 0 could not compute is absent rather than zero, so a rule that
+                // needs it reports Undecided instead of quietly comparing against nothing.
+                return match field {
+                    "wheelbase" => t.wheelbase.map(len),
+                    "front_track" => t.front_track.map(len),
+                    "rear_track" => t.rear_track.map(len),
+                    "front_axle_load" => t.front_axle_load.map(mass),
+                    "rear_axle_load" => t.rear_axle_load.map(mass),
+                    "front_fraction" => t.front_fraction.map(Value::num),
+                    "cg_height" => t.cg_height.map(len),
+                    "static_stability_factor" => t.static_stability_factor.map(Value::num),
+                    "ground_clearance" => t.ground_clearance.map(len),
+                    "front_overhang" => t.front_overhang.map(len),
+                    "rear_overhang" => t.rear_overhang.map(len),
+                    _ => None,
+                };
             }
             "chassis" => {
                 let c = f.chassis.as_ref()?;

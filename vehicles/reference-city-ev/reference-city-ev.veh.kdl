@@ -15,6 +15,20 @@
 vehicle "reference/city-ev" version="0.1.0" {
     description "Reference small EV on a 2/3-length narrow MCDSv1 chassis"
 
+    params {
+        // The tie rod length is the toe setting, and it is the one number that has to agree
+        // with the rack position and the steering arm. Set here so both sides cannot drift
+        // apart, and so changing the rack station means changing one number.
+        // The tie rod geometry has to agree with where the rack is bolted and where the
+        // steering arm ends up. Both numbers live here so the two sides cannot drift apart and
+        // so moving the rack to another station means changing one line.
+        //
+        //   rack end       x = -500,  y = +-350,  z = -60
+        //   steering arm   x = -690,  y = +-590,  z = -60
+        tie_rod_span  unit="mm" default=240 min=100 max=600 doc="lateral span, rack end to steering arm"
+        tie_rod_sweep unit="mm" default=190 min=-400 max=400 doc="how far forward of the rack end the steering arm sits"
+    }
+
     // ADR category MA: a passenger car with up to nine seats.
     category "MA"
     markets "AU"
@@ -31,8 +45,8 @@ vehicle "reference/city-ev" version="0.1.0" {
     instances {
         // The pack spans most of the central section, under the floor between the rails.
         instance "battery" primitive="energy/battery/pack-modular" {
-            set energy="40 kWh" length="1400 mm" width="900 mm" height="150 mm" \
-                mount_span_x="1200 mm" mount_span_y="960 mm"
+            set energy="36 kWh" length="1200 mm" width="900 mm" height="150 mm" \
+                mount_span_x="1000 mm" mount_span_y="960 mm"
         }
 
         // Rear-mounted drive unit, ahead of the rear axle line.
@@ -48,41 +62,82 @@ vehicle "reference/city-ev" version="0.1.0" {
         instance "corner_fr" assembly="corners/front-dw" {
             set side="right"
         }
+
+        // Rear suspension. The same corner definition: a rear double wishbone differs from a
+        // front one mainly in having a toe link instead of a steering arm, and neither is
+        // modelled yet. Noted so it is not mistaken for a finished design.
+        instance "corner_rl" assembly="corners/front-dw" {
+            set side="left"
+        }
+        instance "corner_rr" assembly="corners/front-dw" {
+            set side="right"
+        }
+
+        // Steering. The rack bolts to the grid behind the front axle, which is the whole point
+        // of a mount grid: where the rack goes is a choice rather than a weld.
+        instance "rack" primitive="steering/rack" {
+            set rack_length="700 mm" mount_span_y="960 mm" pinion_offset="340 mm" mount_rise="60 mm"
+        }
+        instance "tie_rod_l" primitive="steering/tie-rod" {
+            set span=tie_rod_span sweep=tie_rod_sweep
+            variant side="left"
+        }
+        instance "tie_rod_r" primitive="steering/tie-rod" {
+            set span=tie_rod_span sweep=tie_rod_sweep
+            variant side="right"
+        }
+        // The rack is at the front axle and the driver is not, so the column reaches the
+        // cabin through a raked intermediate shaft. The rake is what puts the steering wheel
+        // where a driver can hold it.
+        instance "intermediate_shaft" primitive="steering/intermediate-shaft" {
+            set length="500 mm" rake="50 deg"
+        }
+        instance "column" primitive="steering/column" {
+            set length="680 mm"
+        }
+        instance "steering_wheel" primitive="steering/wheel" {
+            set diameter="370 mm"
+        }
+
+        // Braking, the part of it that is not on the corners.
+        instance "master_cylinder" primitive="braking/master-cylinder" {
+            set bore="22 mm"
+        }
     }
 
     mates {
         // The battery is bolted at four corners. The first mate positions it; the other three
         // are checked for closure, which is how a mislaid mounting foot gets caught.
-        mate "battery_fl" a="chassis.station_left_2"   b="battery.mount_fl" {
+        mate "battery_fl" a="chassis.station_left_1"   b="battery.mount_fl" {
             fasteners kind="bolt" size="M12" grade="8.8" qty="1" torque="90 Nm" washer="flat"
             stage "kit"
         }
-        mate "battery_fr" a="chassis.station_right_2"  b="battery.mount_fr" {
+        mate "battery_fr" a="chassis.station_right_1"  b="battery.mount_fr" {
             fasteners kind="bolt" size="M12" grade="8.8" qty="1" torque="90 Nm" washer="flat"
             stage "kit"
         }
-        mate "battery_rl" a="chassis.station_left_14"  b="battery.mount_rl" {
+        mate "battery_rl" a="chassis.station_left_11"  b="battery.mount_rl" {
             fasteners kind="bolt" size="M12" grade="8.8" qty="1" torque="90 Nm" washer="flat"
             stage "kit"
         }
-        mate "battery_rr" a="chassis.station_right_14" b="battery.mount_rr" {
+        mate "battery_rr" a="chassis.station_right_11" b="battery.mount_rr" {
             fasteners kind="bolt" size="M12" grade="8.8" qty="1" torque="90 Nm" washer="flat"
             stage "kit"
         }
 
-        mate "drive_fl" a="chassis.station_left_16"  b="drive.mount_fl" {
+        mate "drive_fl" a="chassis.station_left_13"  b="drive.mount_fl" {
             fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
             stage "kit"
         }
-        mate "drive_fr" a="chassis.station_right_16" b="drive.mount_fr" {
+        mate "drive_fr" a="chassis.station_right_13" b="drive.mount_fr" {
             fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
             stage "kit"
         }
-        mate "drive_rl" a="chassis.station_left_19"  b="drive.mount_rl" {
+        mate "drive_rl" a="chassis.station_left_16"  b="drive.mount_rl" {
             fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
             stage "kit"
         }
-        mate "drive_rr" a="chassis.station_right_19" b="drive.mount_rr" {
+        mate "drive_rr" a="chassis.station_right_16" b="drive.mount_rr" {
             fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
             stage "kit"
         }
@@ -123,18 +178,104 @@ vehicle "reference/city-ev" version="0.1.0" {
             fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
             stage "kit"
         }
+
+        // Rear left corner, on stations 14, 15, 17 and 18, which puts the rear wheel centre at
+        // x = 1600 mm and gives a 2400 mm wheelbase.
+        mate "corner_rl_lf" a="chassis.station_left_14" b="corner_rl.station_lower_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_rl_uf" a="chassis.station_left_15" b="corner_rl.station_upper_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_rl_ur" a="chassis.station_left_17" b="corner_rl.station_upper_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_rl_lr" a="chassis.station_left_18" b="corner_rl.station_lower_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+
+        // Rear right corner.
+        mate "corner_rr_lf" a="chassis.station_right_14" b="corner_rr.station_lower_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_rr_uf" a="chassis.station_right_15" b="corner_rr.station_upper_front" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_rr_ur" a="chassis.station_right_17" b="corner_rr.station_upper_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "corner_rr_lr" a="chassis.station_right_18" b="corner_rr.station_lower_rear" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+
+        // The rack, on station -5: x = -500 mm, which is 300 mm behind the front wheel centre.
+        mate "rack_l" a="chassis.station_left_-5" b="rack.mount_l" {
+            fasteners kind="bolt" size="M12" grade="8.8" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+        mate "rack_r" a="chassis.station_right_-5" b="rack.mount_r" {
+            fasteners kind="bolt" size="M12" grade="8.8" qty="2" torque="90 Nm"
+            stage "kit"
+        }
+
+        // Tie rods: rack end to steering arm. The second mate on each rod is what checks that
+        // the tie rod length, the rack position and the steering arm actually agree.
+        mate "tie_rod_l_inner" a="rack.end_l" b="tie_rod_l.inner" {
+            fasteners kind="nut" size="M14x1.5" grade="8.8" qty="1" torque="60 Nm" nut="lock"
+            stage "kit"
+        }
+        mate "tie_rod_l_outer" a="corner_fl.steering_arm" b="tie_rod_l.outer" {
+            fasteners kind="nut" size="M12" grade="10.9" qty="1" torque="45 Nm" nut="castellated"
+            stage "kit"
+        }
+        mate "tie_rod_r_inner" a="rack.end_r" b="tie_rod_r.inner" {
+            fasteners kind="nut" size="M14x1.5" grade="8.8" qty="1" torque="60 Nm" nut="lock"
+            stage "kit"
+        }
+        mate "tie_rod_r_outer" a="corner_fr.steering_arm" b="tie_rod_r.outer" {
+            fasteners kind="nut" size="M12" grade="10.9" qty="1" torque="45 Nm" nut="castellated"
+            stage "kit"
+        }
+
+        // Column and wheel. The column bracket is not mated to anything yet: there is no cabin
+        // structure in the model for it to bolt to.
+        mate "shaft_on_rack" a="rack.pinion" b="intermediate_shaft.lower" {
+            fasteners kind="bolt" size="M8" grade="8.8" qty="1" torque="25 Nm" nut="nyloc"
+            stage "kit"
+        }
+        mate "column_on_shaft" a="intermediate_shaft.upper" b="column.pinion" {
+            fasteners kind="bolt" size="M8" grade="8.8" qty="1" torque="25 Nm" nut="nyloc"
+            stage "kit"
+        }
+        mate "wheel_on_column" a="column.wheel" b="steering_wheel.boss" {
+            fasteners kind="nut" size="M16" grade="8.8" qty="1" torque="45 Nm"
+            stage "kit"
+        }
+
+        // The master cylinder, on the left rail ahead of the cabin.
+        mate "master_cylinder_mount" a="chassis.station_left_-8" b="master_cylinder.chassis_mount" {
+            fasteners kind="bolt" size="M12" grade="8.8" qty="2" torque="90 Nm"
+            stage "kit"
+        }
     }
 
     // Everything not yet modelled, carried as point masses so the vehicle mass is not a
     // fiction. These are PROVISIONAL estimates for a car of this size and go away one by one as
     // the real primitives arrive. The front suspension and front wheels have already gone: they
-    // are modelled now, in the two corner sub-assemblies above.
+    // are modelled now, in the four corner sub-assemblies above.
     masses {
         mass "body_and_closures"  value="180 kg" at="(400 mm, 0 mm, 700 mm)"  state="kerb"
-        mass "suspension_rear"    value="50 kg"  at="(1800 mm, 0 mm, 100 mm)" state="kerb"
-        mass "wheels_and_tyres_rear" value="30 kg" at="(1800 mm, 0 mm, 0 mm)"   state="kerb"
-        mass "brakes_and_lines"   value="35 kg"  at="(450 mm, 0 mm, 200 mm)"  state="kerb"
-        mass "steering"           value="18 kg"  at="(-700 mm, 0 mm, 400 mm)" state="kerb"
+        // Discs, calipers, the master cylinder, the rack, the column and the wheel are all
+        // modelled now, so what is left is lines, the pedal box and the handbrake.
+        mass "brake_lines_and_pedals" value="14 kg" at="(-400 mm, 0 mm, 300 mm)" state="kerb"
         mass "interior_and_seats" value="90 kg"  at="(700 mm, 0 mm, 600 mm)"  state="kerb"
         mass "electrical_lv"      value="25 kg"  at="(0 mm, 0 mm, 400 mm)"    state="kerb"
         mass "driver"             value="80 kg"  at="(600 mm, 350 mm, 750 mm)" state="laden"

@@ -11,3 +11,7 @@ wmds-units = { workspace = true }
 wmds-expr = { workspace = true }
 wmds-model = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+wmds-schema = { workspace = true }
+wmds-expr = { workspace = true }

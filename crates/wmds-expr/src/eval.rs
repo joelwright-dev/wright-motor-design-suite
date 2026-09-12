@@ -85,13 +85,35 @@ pub fn walk(v: &Value, rest: &[String]) -> Option<Value> {
     Some(cur)
 }
 
+/// Constants every definition file may use without declaring them.
+///
+/// A name in scope always wins, so a primitive that declares its own `pi` gets its own, wrong as
+/// that would be. Only added where a vehicle actually needs them: piston areas, swept volumes
+/// and wheel circumferences all want pi, and writing 3.14159 in a definition file is how a
+/// rounding error gets into a brake calculation.
+fn constant(path: &[String]) -> Option<Value> {
+    if path.len() != 1 {
+        return None;
+    }
+    let q = match path[0].as_str() {
+        "pi" => std::f64::consts::PI,
+        "tau" => std::f64::consts::TAU,
+        "e" => std::f64::consts::E,
+        _ => return None,
+    };
+    Some(Value::Num(wmds_units::Quantity::dimensionless(q)))
+}
+
 /// Evaluate `e` in `env`.
 pub fn eval(e: &Expr, env: &dyn Env) -> Result<Value, EvalError> {
     match e {
         Expr::Num(q) => Ok(Value::Num(*q)),
         Expr::Bool(b) => Ok(Value::Bool(*b)),
         Expr::Str(s) => Ok(Value::Str(s.clone())),
-        Expr::Path(p) => env.lookup(p).ok_or_else(|| EvalError::Unknown(p.join("."))),
+        Expr::Path(p) => env
+            .lookup(p)
+            .or_else(|| constant(p))
+            .ok_or_else(|| EvalError::Unknown(p.join("."))),
         Expr::Tuple(items) => Ok(Value::Tuple(
             items
                 .iter()

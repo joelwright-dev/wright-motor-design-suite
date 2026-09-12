@@ -1,0 +1,47 @@
+// Steering wheel.
+//
+// Diameter is a parameter because it sets the effort the driver feels, together with the rack
+// ratio. Those two numbers are the whole of the steering feel a designer can choose here.
+//
+// Local frame: the origin is the boss face, z along the column axis pointing at the driver.
+
+primitive "steering/wheel" version="0.1.0" {
+    description "Three spoke steering wheel"
+    category "steering" sub="wheel"
+
+    params {
+        diameter  unit="mm" default=370 min=280 max=450 doc="rim outside diameter"
+        rim_od    unit="mm" default=32  min=24  max=44  doc="rim section diameter"
+        dish      unit="mm" default=70  min=0   max=140 doc="how far the rim sits toward the driver from the boss"
+        spokes    default=3 min=2 max=4 doc="number of spokes"
+    }
+
+    material "polymer/abs"
+
+    geometry level="display" {
+        tube "rim" od="diameter" wall="rim_od" \
+             from="(0 mm, 0 mm, dish - rim_od/2)" to="(0 mm, 0 mm, dish + rim_od/2)"
+        cylinder "boss" d="90 mm" h="40 mm" at="(0 mm, 0 mm, 20 mm)" axis="z"
+        box "spoke_a" size="(diameter - 90 mm, 26 mm, 14 mm)" at="(0 mm, 0 mm, dish)"
+        box "spoke_b" size="(26 mm, diameter - 90 mm, 14 mm)" at="(0 mm, 0 mm, dish)"
+        union
+    }
+
+    massprops declared mass="2.1 kg" cg="(0 mm, 0 mm, 40 mm)"
+
+    ports {
+        port "boss" type="steer.wheel-boss" at="(0 mm, 0 mm, 0 mm)" axis="-z" clock="x" {
+            params spline="36x2" diameter="19 mm"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            cost fixed="0 AUD" per_unit="95 AUD"
+        }
+    }
+
+    compliance "steering" "steering.wheel"
+}

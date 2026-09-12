@@ -1,0 +1,76 @@
+// Rack and pinion steering gear.
+//
+// The rack bolts to the chassis grid like any other component, which is the point: steering
+// geometry on a modular platform is set by where the rack is mounted, and the grid makes that a
+// choice rather than a weld.
+//
+// Local frame: the origin is the centre of the rack, y along the rack axis (positive left,
+// matching the vehicle frame), x forward, z up.
+
+primitive "steering/rack" version="0.1.0" {
+    description "Rack and pinion steering gear with chassis grid mounts"
+    category "steering" sub="rack"
+
+    params {
+        rack_length   unit="mm" default=620 min=400 max=900 doc="housing length across the car"
+        travel        unit="mm" default=75  min=40  max=120 doc="rack travel each way from centre"
+        housing_od    unit="mm" default=52  min=35  max=80  doc="housing diameter"
+        ratio         unit="mm" default=44  min=30  max=70  doc="rack travel per turn of the pinion"
+        mount_span_y  unit="mm" default=960 min=200 max=1400 doc="distance between the mounting feet; on MCDS this is the rail spacing"
+        pinion_offset unit="mm" default=230 min=0   max=450 doc="pinion position left of centre"
+        pinion_angle  unit="deg" default=20 min=0   max=45  doc="pinion rake back from vertical"
+        mount_rise    unit="mm" default=60  min=0   max=200 doc="how far the mounting feet sit above the rack axis; this is what sets rack height"
+
+        // How far the tie rod ends move apart at full lock, which is what sets the steering
+        // angle once the arm length is known.
+        end_to_end unit="mm" expr="rack_length + 2 * travel" doc="derived: outer joint spacing at full travel"
+        turns expr="2 * travel / ratio" doc="derived: lock to lock turns of the wheel"
+    }
+
+    material "alu/housing-average"
+
+    geometry level="display" {
+        tube "housing" od="housing_od" wall="6 mm" \
+             from="(0 mm, -rack_length/2, 0 mm)" to="(0 mm, rack_length/2, 0 mm)"
+        cylinder "pinion_housing" d="58 mm" h="90 mm" \
+                 at="(0 mm, pinion_offset, 30 mm)" axis="z"
+        box "foot_l" size="(60 mm, 40 mm, mount_rise)" at="(0 mm, mount_span_y/2, mount_rise/2)"
+        box "foot_r" size="(60 mm, 40 mm, mount_rise)" at="(0 mm, -mount_span_y/2, mount_rise/2)"
+        union
+    }
+
+    massprops declared mass="6.8 kg" cg="(0 mm, 0 mm, 0 mm)"
+
+    ports {
+        // Bolts to the chassis grid, like everything else.
+        port "mount_l" type="mcds.grid-mount" at="(0 mm, mount_span_y/2, mount_rise)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_r" type="mcds.grid-mount" at="(0 mm, -mount_span_y/2, mount_rise)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        // The rack ends, at the centred position. A tie rod screws onto each.
+        port "end_l" type="steer.rack-end" at="(0 mm, rack_length/2, 0 mm)" axis="y" clock="z" {
+            params thread="M14x1.5"
+        }
+        port "end_r" type="steer.rack-end" at="(0 mm, -rack_length/2, 0 mm)" axis="-y" clock="z" {
+            params thread="M14x1.5"
+        }
+        // Where the column comes in.
+        port "pinion" type="steer.column" at="(0 mm, pinion_offset, 75 mm)" axis="z" clock="x" {
+            params spline="36x2" diameter="19 mm"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            cost fixed="0 AUD" per_unit="260 AUD"
+            note "PROVISIONAL: a manual rack from a light passenger car, re-housed for the \
+                  MCDS grid mounts. Designing a rack is not on the roadmap."
+        }
+    }
+
+    compliance "steering" "steering.rack"
+}

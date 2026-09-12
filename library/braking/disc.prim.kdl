@@ -1,0 +1,84 @@
+// Ventilated brake disc with an integral hat.
+//
+// The disc sits between the hub face and the wheel, which is why it carries both halves of the
+// wheel interface: a `wheel.mount` on the hub side and a `hub.face` on the wheel side, with the
+// same bolt pattern on each. That is not a trick to make the ports line up. It is what a hat
+// disc physically is, and it means a disc whose pattern does not match the hub it is bolted to
+// is caught by the checker rather than at the workshop.
+//
+// Local frame: the origin is the hub mating face and y is outboard, the same convention as the
+// upright and the wheel. The hat runs inboard from there and the friction ring sits at the
+// inboard end of it, which is why the caliper ends up behind the wheel rather than inside it.
+//
+// SIMPLIFICATION: the friction ring is drawn solid at its full thickness. A ventilated disc is
+// two thinner faces with vanes between them, so the mass here is roughly a third high. The vent
+// gap is where that goes when the disc is drawn properly.
+
+primitive "braking/disc" version="0.1.0" {
+    description "Ventilated brake disc with integral hat"
+    category "braking" sub="disc"
+
+    params {
+        diameter       unit="mm" default=280 min=200 max=400 doc="outside diameter of the friction ring"
+        thickness      unit="mm" default=24  min=10  max=40  doc="total disc thickness including the vent gap"
+        hat_depth      unit="mm" default=45  min=10  max=90  doc="how far inboard of the hub face the friction ring sits"
+        hat_diameter   unit="mm" default=150 min=100 max=260 doc="outside diameter of the hat"
+        hat_wall       unit="mm" default=9   min=5   max=20  doc="wall thickness of the hat skirt"
+        ring_depth     unit="mm" default=45  min=20  max=90  doc="radial depth of the friction ring"
+        face_thickness unit="mm" default=10  min=6   max=20  doc="thickness of the hat mounting face"
+        pcd            unit="mm" default=100 min=80  max=180 doc="stud circle diameter"
+        studs          default=4 min=3 max=8 doc="number of wheel studs"
+        centre_bore    unit="mm" default=57  min=40  max=100 doc="centre bore"
+
+        // Where the pads act. Reported because brake torque depends on it, and a number that
+        // matters should not have to be worked out from a drawing.
+        effective_radius unit="mm" expr="(diameter - ring_depth) / 2" doc="derived: mean pad radius"
+        // Where the caliper has to be, measured from the hub face.
+        ring_plane unit="mm" expr="0 mm - hat_depth - thickness/2" doc="derived: friction ring mid-plane"
+    }
+
+    material "iron/grey-cast-g3000"
+
+    // Everything is drawn with tubes rather than a cylinder with a hole cut out of it, so that
+    // the disc also builds in the preview kernel, which has no boolean operations.
+    geometry level="manufacture" {
+        // Friction ring, at the inboard end of the hat.
+        tube "ring" od="diameter" wall="ring_depth" \
+             from="(0 mm, 0 mm - hat_depth - thickness, 0 mm)" to="(0 mm, 0 mm - hat_depth, 0 mm)"
+        // Hat skirt: a thin wall from the ring out to the mounting face.
+        tube "hat_skirt" od="hat_diameter" wall="hat_wall" \
+             from="(0 mm, 0 mm - hat_depth, 0 mm)" to="(0 mm, 0 mm, 0 mm)"
+        // The mounting face: an annulus from the centre bore out to the skirt.
+        tube "hat_face" od="hat_diameter" wall="(hat_diameter - centre_bore) / 2" \
+             from="(0 mm, 0 mm, 0 mm)" to="(0 mm, face_thickness, 0 mm)"
+        union
+    }
+
+    massprops computed=#true
+
+    ports {
+        // The hub side. This half is what a hub face receives, so it is a wheel.mount.
+        port "hub" type="wheel.mount" at="(0 mm, 0 mm, 0 mm)" axis="-y" clock="z" {
+            params count=studs pcd=pcd thread="M12x1.5" centre_bore=centre_bore
+        }
+        // The wheel side. The disc now presents a hub face of its own, one face thickness out.
+        port "wheel" type="hub.face" at="(0 mm, face_thickness, 0 mm)" axis="y" clock="z" {
+            params count=studs pcd=pcd thread="M12x1.5" centre_bore=centre_bore
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "cast-iron" scale="500..*" {
+            export "step"
+            cost fixed="18000 AUD" per_unit="16 AUD"
+        }
+        method "machined" scale="1..500" {
+            export "step"
+            cost fixed="0 AUD" per_unit="95 AUD"
+        }
+    }
+
+    compliance "braking" "braking.disc"
+}

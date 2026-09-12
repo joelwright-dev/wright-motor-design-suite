@@ -1,0 +1,63 @@
+// Intermediate shaft: the link from the steering rack pinion up and back to the column.
+//
+// It exists because the rack is at the front axle and the driver is not. Without it the column
+// runs straight up out of the pinion and the steering wheel ends up over the front wheels, which
+// is what the model said before this part was added.
+//
+// The rake is the whole design decision here. It sets where the steering wheel finishes, and
+// the column carries on at the same angle, so the two lengths and this one angle place the
+// wheel in the cabin.
+//
+// Local frame: the origin is the lower universal joint at the pinion, z up. The shaft runs up
+// and rearward at `rake` from vertical.
+
+primitive "steering/intermediate-shaft" version="0.1.0" {
+    description "Universally jointed shaft from the rack pinion to the steering column"
+    category "steering" sub="shaft"
+
+    params {
+        length   unit="mm"  default=500 min=150 max=900 doc="joint centre to joint centre"
+        rake     unit="deg" default=50  min=0   max=75  doc="angle back from vertical"
+        shaft_od unit="mm"  default=22  min=14  max=34  doc="shaft diameter"
+        joint_od unit="mm"  default=46  min=30  max=70  doc="universal joint outside diameter"
+
+        // Where the upper joint finishes, which is where the column starts.
+        rise unit="mm" expr="length * cos(rake)" doc="derived: height gained"
+        reach unit="mm" expr="length * sin(rake)" doc="derived: distance rearward"
+    }
+
+    material "steel/e355-tube"
+
+    geometry level="display" {
+        cylinder "lower_joint" d="joint_od" h="60 mm" at="(0 mm, 0 mm, 0 mm)" axis="z"
+        tube "shaft" od="shaft_od" wall="2.5 mm" \
+             from="(0 mm, 0 mm, 0 mm)" to="(reach, 0 mm, rise)"
+        cylinder "upper_joint" d="joint_od" h="60 mm" at="(reach, 0 mm, rise)" axis="z"
+        union
+    }
+
+    massprops declared mass="2.4 kg" cg="(reach/2, 0 mm, rise/2)"
+
+    ports {
+        // Down into the rack pinion.
+        port "lower" type="steer.column" at="(0 mm, 0 mm, 0 mm)" axis="z" clock="x" {
+            params spline="36x2" diameter="19 mm"
+        }
+        // Up to the column, along the shaft, which is what rakes the column.
+        port "upper" type="steer.column" at="(reach, 0 mm, rise)" axis="(sin(rake), 0, cos(rake))" clock="x" {
+            params spline="36x2" diameter="19 mm"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            cost fixed="0 AUD" per_unit="85 AUD"
+            note "PROVISIONAL: universal joints are bought in; the tube between them is cut to \
+                  length for each vehicle's rack position."
+        }
+    }
+
+    compliance "steering" "steering.linkage"
+}

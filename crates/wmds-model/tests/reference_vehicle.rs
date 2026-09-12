@@ -97,11 +97,13 @@ fn reference_vehicle_resolves_and_places_everything() {
     );
 
     // The battery hangs from four grid stations; check it landed where the geometry says it must.
-    // Front feet at station 2 (x = 200 mm) with a 1200 mm foot spacing puts the centre at 800 mm,
-    // laterally centred, and sitting on top of the rails at z = +75 mm (half its height).
+    // Front feet at station 1 (x = 100 mm) with a 1000 mm foot spacing puts the centre at 600 mm,
+    // laterally centred, and sitting on top of the rails at z = +75 mm (half its height). The
+    // rear feet at station 11 (x = 1100 mm) give the same answer, which is what makes the other
+    // three mates a real check rather than a restatement.
     let battery = asm.instance("battery").expect("battery instance");
     let t = battery.placement.translation;
-    assert!((mm(t[0]) - 800.0).abs() < 0.5, "battery x was {}", mm(t[0]));
+    assert!((mm(t[0]) - 600.0).abs() < 0.5, "battery x was {}", mm(t[0]));
     assert!(
         mm(t[1]).abs() < 0.5,
         "battery should be laterally centred, was {}",
@@ -273,6 +275,10 @@ fn the_front_corners_mirror_and_close() {
     }
 
     // Front track, measured between the wheel mounting faces.
+    //
+    // 1280 mm, not 1260: the brake disc sits between the hub face and the wheel, so its 10 mm
+    // mounting face pushes each wheel that far further out. That is what a hat disc does to a
+    // real car too, and it is the kind of change that is easy to make and easy to forget.
     let l = asm
         .instance("corner_fl.wheel")
         .unwrap()
@@ -280,8 +286,17 @@ fn the_front_corners_mirror_and_close() {
         .translation;
     let track = mm(l[1]) * 2.0;
     assert!(
-        (track - 1260.0).abs() < 0.5,
-        "front track was {track} mm, expected 1260"
+        (track - 1280.0).abs() < 0.5,
+        "front track was {track} mm, expected 1280"
+    );
+
+    // And the disc really is between them.
+    let disc = asm.instance("corner_fl.disc").unwrap().placement.translation;
+    assert!(
+        mm(disc[1]) < mm(l[1]),
+        "the disc should sit inboard of the wheel face: disc at {}, wheel at {}",
+        mm(disc[1]),
+        mm(l[1])
     );
 
     // The front wheels sit ahead of the chassis front joint plane, where a front axle belongs.

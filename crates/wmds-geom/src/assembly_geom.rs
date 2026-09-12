@@ -230,3 +230,283 @@ pub fn placeholder_density(material: &str) -> Option<f64> {
 pub fn mesh_mass_props(mesh: &Mesh) -> MassProps {
     mesh.mass_props()
 }
+
+// --------------------------------------------------------------------------- the mesh cache
+
+/// One primitive tessellated in its own coordinates, with the mass properties of that mesh.
+#[derive(Debug, Clone)]
+pub struct CachedPart {
+    pub mesh: Mesh,
+    pub props: MassProps,
+}
+
+/// Tessellated primitives, keyed by everything the primitive resolved to.
+///
+/// This exists because of the editor. Building a vehicle means changing one thing at a time, and
+/// re-tessellating the other forty-eight parts through a solid modelling kernel after every
+/// nudge of a slider makes the application unusable. Placement is a rigid transform of the mesh,
+/// which costs nothing, so only a part whose own resolved definition changed is rebuilt.
+///
+/// The key is the debug form of the resolved primitive. That is deliberately total: it covers
+/// every parameter, variant, material and geometry feature, so two parts share an entry only if
+/// they are genuinely the same part.
+#[derive(Default)]
+pub struct MeshCache {
+    entries: std::collections::HashMap<String, std::sync::Arc<CachedPart>>,
+    pub hits: usize,
+    pub misses: usize,
+}
+
+impl MeshCache {
+    pub fn new() -> MeshCache {
+        MeshCache::default()
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Forget everything. Only needed when the geometry kernel itself changes.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.hits = 0;
+        self.misses = 0;
+    }
+
+    pub fn get_or_build<K: GeomKernel>(
+        &mut self,
+        k: &K,
+        prim: &wmds_model::ResolvedPrimitive,
+        tolerance: f64,
+    ) -> Result<std::sync::Arc<CachedPart>> {
+        let key = format!("{prim:?}");
+        if let Some(hit) = self.entries.get(&key) {
+            self.hits += 1;
+            return Ok(hit.clone());
+        }
+        self.misses += 1;
+        let built = build_primitive(k, prim)?;
+        let (_, solid) = built.best().ok_or_else(|| {
+            crate::GeomError::Feature(prim.id.clone(), "no geometry level built".into())
+        })?;
+        let mesh = k.tessellate(solid, tolerance)?;
+        let props = mesh.mass_props();
+        let entry = std::sync::Arc::new(CachedPart { mesh, props });
+        self.entries.insert(key, entry.clone());
+        Ok(entry)
+    }
+}
+
+/// A whole assembly, tessellated and placed.
+#[derive(Default)]
+pub struct MeshedAssembly {
+    /// Every part merged into one mesh, for display.
+    pub mesh: Mesh,
+    /// Bounds per instance id, and per sub-assembly unit, in assembly coordinates.
+    pub bounds: std::collections::HashMap<String, (Vec3, Vec3)>,
+    pub masses: Vec<PartMass>,
+    pub failures: Vec<(String, String)>,
+}
+
+/// Build every instance through the cache and place it.
+///
+/// Equivalent to `build_assembly` followed by `assembly_mesh` and `assembly_masses`, but the
+/// geometry kernel only sees parts it has not already been asked about. Mass properties come
+/// from the tessellated mesh rather than from the solid, which at this tolerance agrees to far
+/// better than the accuracy of the densities involved.
+pub fn build_assembly_cached<K: GeomKernel>(
+    k: &K,
+    asm: &ResolvedAssembly,
+    cache: &mut MeshCache,
+    tolerance: f64,
+    density_of: &dyn Fn(&str) -> Option<f64>,
+) -> MeshedAssembly {
+    let mut out = MeshedAssembly::default();
+    for inst in &asm.instances {
+        let part = match cache.get_or_build(k, &inst.primitive, tolerance) {
+            Ok(p) => p,
+            Err(e) => {
+                out.failures.push((inst.id.clone(), e.to_string()));
+                continue;
+            }
+        };
+        let placed = transformed(&part.mesh, &inst.placement);
+        if let Some((lo, hi)) = placed.bounds() {
+            // A sub-assembly's parts carry a dotted id. Record the unit as well, because that
+            // is the name the parts list shows and the name a person selects.
+            let unit = inst.id.split('.').next().unwrap_or(&inst.id).to_string();
+            out.bounds
+                .entry(unit)
+                .and_modify(|b: &mut (Vec3, Vec3)| {
+                    for i in 0..3 {
+                        b.0[i] = b.0[i].min(lo[i]);
+                        b.1[i] = b.1[i].max(hi[i]);
+                    }
+                })
+                .or_insert((lo, hi));
+            out.bounds.insert(inst.id.clone(), (lo, hi));
+        }
+        out.mesh.extend(&placed);
+
+        // Mass. Declared wins; see `assembly_masses` for why.
+        let material = inst.primitive.material.as_deref().unwrap_or("");
+        let (density, source) = match density_of(material) {
+            Some(d) => (Some(d), DensitySource::Database),
+            None => match placeholder_density(material) {
+                Some(d) => (Some(d), DensitySource::Placeholder),
+                None => (None, DensitySource::None),
+            },
+        };
+        let declared = match &inst.primitive.massprops {
+            wmds_model::ResolvedMassProps::Declared { mass, cg, .. } => {
+                let local = cg
+                    .map(|c| [c[0].value, c[1].value, c[2].value])
+                    .unwrap_or([0.0; 3]);
+                Some((mass.value, inst.placement.point(local)))
+            }
+            wmds_model::ResolvedMassProps::Computed => None,
+        };
+        // Volume is unchanged by a rigid move, and a mirrored part has the same volume as the
+        // one it mirrors, so the sign is dropped rather than propagated.
+        let volume = part.props.volume.abs();
+        let (mass, centroid, from_declaration, source) = match declared {
+            Some((m, cg)) => (Some(m), cg, true, DensitySource::NotNeeded),
+            None => (
+                density.map(|d| volume * d),
+                inst.placement.point(part.props.centroid),
+                false,
+                source,
+            ),
+        };
+        out.masses.push(PartMass {
+            id: inst.id.clone(),
+            material: inst.primitive.material.clone(),
+            density,
+            volume,
+            mass,
+            centroid,
+            from_declaration,
+            density_source: source,
+        });
+    }
+    out
+}
+
+/// Move a mesh into assembly coordinates.
+fn transformed(mesh: &Mesh, t: &wmds_model::Transform) -> Mesh {
+    let flip = t.determinant() < 0.0;
+    let positions: Vec<Vec3> = mesh.positions.iter().map(|p| t.point(*p)).collect();
+    let normals: Vec<Vec3> = mesh
+        .normals
+        .iter()
+        .map(|n| {
+            let d = t.direction(*n);
+            let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+            let d = if len > 0.0 {
+                [d[0] / len, d[1] / len, d[2] / len]
+            } else {
+                d
+            };
+            // A mirror turns the surface inside out, so the outward normal turns with it.
+            if flip { [-d[0], -d[1], -d[2]] } else { d }
+        })
+        .collect();
+    let triangles = if flip {
+        // Winding has to reverse as well, or every mirrored part renders inside out.
+        mesh.triangles.iter().map(|x| [x[0], x[2], x[1]]).collect()
+    } else {
+        mesh.triangles.clone()
+    };
+    Mesh {
+        positions,
+        normals,
+        triangles,
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+    use crate::MeshKernel;
+
+    fn prim(span_mm: f64) -> wmds_model::ResolvedPrimitive {
+        let src = format!(
+            r#"primitive "test/bar" version="0.1.0" {{
+                description "a bar"
+                category "test"
+                params {{
+                    span unit="mm" default={span_mm}
+                }}
+                material "steel/e355-tube"
+                geometry level="manufacture" {{
+                    box "b" size="(span, 40 mm, 40 mm)" at="(0 mm, 0 mm, 0 mm)"
+                }}
+                massprops computed=#true
+                ports {{
+                }}
+                manufacturing {{
+                    method "machined" scale="1..*" {{
+                        export "step"
+                    }}
+                }}
+            }}"#
+        );
+        let def = wmds_schema::parse_primitive("t.prim.kdl", &src).expect("parses");
+        wmds_model::resolve(&def, &wmds_model::Overrides::default()).expect("resolves")
+    }
+
+    #[test]
+    fn the_same_part_is_only_built_once() {
+        let k = MeshKernel::default();
+        let mut cache = MeshCache::new();
+        let p = prim(400.0);
+        let a = cache.get_or_build(&k, &p, 2e-4).unwrap();
+        let b = cache.get_or_build(&k, &p, 2e-4).unwrap();
+        assert_eq!(cache.misses, 1, "the second ask must not reach the kernel");
+        assert_eq!(cache.hits, 1);
+        assert!(std::sync::Arc::ptr_eq(&a, &b));
+    }
+
+    #[test]
+    fn changing_a_parameter_builds_a_new_part() {
+        // The cache must not be so eager that an edit appears to do nothing.
+        let k = MeshKernel::default();
+        let mut cache = MeshCache::new();
+        cache.get_or_build(&k, &prim(400.0), 2e-4).unwrap();
+        cache.get_or_build(&k, &prim(420.0), 2e-4).unwrap();
+        assert_eq!(cache.misses, 2);
+        assert_eq!(cache.len(), 2);
+    }
+
+    #[test]
+    fn a_mirrored_part_keeps_its_volume() {
+        let k = MeshKernel::default();
+        let mut cache = MeshCache::new();
+        let part = cache.get_or_build(&k, &prim(400.0), 2e-4).unwrap();
+        let before = part.props.volume;
+        let m = wmds_model::Transform::mirror([0.0, 1.0, 0.0]);
+        let moved = transformed(&part.mesh, &m);
+        let after = moved.mass_props().volume;
+        assert!(
+            (after - before).abs() < 1e-9,
+            "mirroring changed the volume from {before} to {after}; the winding did not flip"
+        );
+    }
+
+    #[test]
+    fn moving_a_part_moves_its_centre_and_not_its_size() {
+        let k = MeshKernel::default();
+        let mut cache = MeshCache::new();
+        let part = cache.get_or_build(&k, &prim(400.0), 2e-4).unwrap();
+        let t = wmds_model::Transform::translation([1.5, 0.0, 0.25]);
+        let moved = transformed(&part.mesh, &t);
+        let mp = moved.mass_props();
+        assert!((mp.volume - part.props.volume).abs() < 1e-12);
+        assert!((mp.centroid[0] - (part.props.centroid[0] + 1.5)).abs() < 1e-9);
+        assert!((mp.centroid[2] - (part.props.centroid[2] + 0.25)).abs() < 1e-9);
+    }
+}

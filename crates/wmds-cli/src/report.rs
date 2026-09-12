@@ -634,6 +634,8 @@ fn build_and_report(
         println!("  plus {point_total:.1} kg of declared point masses");
     }
 
+    print_tier0(&tier0_of(&k, asm, &built, &masses));
+
     // Export the whole assembly as one solid.
     if step.is_some() || stl.is_some() {
         let mut fused: Option<<Kernel as GeomKernel>::Solid> = None;
@@ -670,6 +672,106 @@ fn build_and_report(
         }
     }
     ExitCode::SUCCESS
+}
+
+// ------------------------------------------------------------------------------- analytics
+
+/// Everything Tier 0 needs, gathered from a built assembly.
+fn tier0_of<K: GeomKernel>(
+    k: &K,
+    asm: &ResolvedAssembly,
+    built: &wmds_geom::BuiltAssembly<K::Solid>,
+    masses: &[wmds_geom::PartMass],
+) -> wmds_analytics::Tier0 {
+    let mut points: Vec<wmds_analytics::MassPoint> = masses
+        .iter()
+        .filter_map(|m| {
+            m.mass.map(|kg| wmds_analytics::MassPoint {
+                mass: kg,
+                at: m.centroid,
+            })
+        })
+        .collect();
+    // Kerb point masses belong in the axle loads; the laden ones are a separate load case and
+    // are left out so "kerb" means kerb.
+    for p in asm.point_masses.iter().filter(|p| p.state == "kerb") {
+        points.push(wmds_analytics::MassPoint {
+            mass: p.mass.value,
+            at: [p.at[0].value, p.at[1].value, p.at[2].value],
+        });
+    }
+
+    let rolling = wmds_analytics::rolling_stock(asm);
+    let whole = wmds_geom::assembly_mesh(k, built, 2e-3);
+    let bounds = whole.bounds();
+
+    // Ground clearance means the lowest thing that is not a wheel, so the tyres are excluded.
+    let mut structure_low: Option<f64> = None;
+    for p in &built.parts {
+        if p.source_id.starts_with("wheels/") {
+            continue;
+        }
+        if let Ok(m) = k.tessellate(&p.solid, 2e-3) {
+            if let Some((lo, _)) = m.bounds() {
+                structure_low = Some(structure_low.map_or(lo[2], |z: f64| z.min(lo[2])));
+            }
+        }
+    }
+    wmds_analytics::compute(&points, &rolling, bounds, structure_low)
+}
+
+fn print_tier0(t: &wmds_analytics::Tier0) {
+    println!(
+        "
+Tier 0 (closed form, from mass and geometry)"
+    );
+    if let Some(o) = t.overall() {
+        println!(
+            "  overall            {:.0} x {:.0} x {:.0} mm",
+            o[0] * 1e3,
+            o[1] * 1e3,
+            o[2] * 1e3
+        );
+    }
+    if let Some(wb) = t.wheelbase {
+        println!("  wheelbase          {:.0} mm", wb * 1e3);
+    }
+    for (i, a) in t.axles.iter().enumerate() {
+        let name = match (i, t.axles.len()) {
+            (0, 2) => "front".to_string(),
+            (1, 2) => "rear".to_string(),
+            (n, _) => format!("axle {}", n + 1),
+        };
+        println!(
+            "  {name:<18} x {:>7.0} mm   track {:>6.0} mm   {} wheels   {:>7.1} kg  ({:.0}%)",
+            a.x * 1e3,
+            a.track * 1e3,
+            a.wheel_count,
+            a.load,
+            a.load_fraction * 100.0
+        );
+    }
+    if let (Some(f), Some(r)) = (t.front_overhang, t.rear_overhang) {
+        println!(
+            "  overhangs          front {:.0} mm, rear {:.0} mm",
+            f * 1e3,
+            r * 1e3
+        );
+    }
+    if let Some(h) = t.cg_height {
+        println!("  cg height          {:.0} mm above the ground", h * 1e3);
+    }
+    if let Some(c) = t.ground_clearance {
+        println!("  ground clearance   {:.0} mm", c * 1e3);
+    }
+    if let Some(s) = t.static_stability_factor {
+        println!(
+            "  static stability   {s:.2}   (half track over cg height; higher resists rollover)"
+        );
+    }
+    for n in &t.notes {
+        println!("  note: {n}");
+    }
 }
 
 // -------------------------------------------------------------------------------- compliance
@@ -752,6 +854,21 @@ pub fn check_vehicle(project: &Path, file: &Path, json: Option<&Path>, show_all:
         facts.cg = [moment[0] / total, moment[1] / total, moment[2] / total];
     }
     facts.bounds = wmds_geom::assembly_mesh(&k, &built, 1e-3).bounds();
+
+    let t = tier0_of(&k, &asm, &built, &masses);
+    facts.tier0 = Some(wmds_rules::Tier0Facts {
+        wheelbase: t.wheelbase,
+        front_track: t.front_axle().map(|a| a.track),
+        rear_track: t.rear_axle().map(|a| a.track),
+        front_axle_load: t.front_axle().map(|a| a.load),
+        rear_axle_load: t.rear_axle().map(|a| a.load),
+        front_fraction: t.front_axle().map(|a| a.load_fraction),
+        cg_height: t.cg_height,
+        static_stability_factor: t.static_stability_factor,
+        ground_clearance: t.ground_clearance,
+        front_overhang: t.front_overhang,
+        rear_overhang: t.rear_overhang,
+    });
 
     if let (Some(g), Some(req)) = (&generated, &def.chassis) {
         let prefix = format!("{}.", req.id);

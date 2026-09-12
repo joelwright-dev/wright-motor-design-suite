@@ -1,0 +1,11 @@
+[package]
+name = "wmds-analytics"
+description = "Tier 0 vehicle calculations: mass, axle loads, stability, dimensions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wmds-units = { workspace = true }
+wmds-model = { workspace = true }

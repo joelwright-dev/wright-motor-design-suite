@@ -1,0 +1,71 @@
+// Tie rod: the adjustable link from the steering rack to the upright's steering arm.
+//
+// Local frame: the origin is the inner joint centre, at the rack. y runs outboard to the outer
+// joint, x runs rearward. Both the lateral span and the longitudinal sweep are parameters,
+// because a tie rod is not perpendicular to the car: the rack sits behind or ahead of the
+// steering arm, and how far is a packaging decision made per vehicle.
+//
+// The two lengths together are the toe adjustment and the only thing that makes the joint at
+// each end land where it has to. Getting them wrong is reported in millimetres by the closure
+// check on the second mate rather than left as a part floating in the picture.
+
+primitive "steering/tie-rod" version="0.1.0" {
+    description "Adjustable tie rod with an inner socket and an outer tapered ball joint"
+    category "steering" sub="linkage"
+
+    params {
+        span       unit="mm" default=280 min=100 max=600 doc="lateral distance from the rack end to the steering arm"
+        sweep      unit="mm" default=190 min=-400 max=400 doc="how far forward of the rack end the steering arm sits"
+        rod_od     unit="mm" default=16  min=10  max=26  doc="rod diameter"
+        adjustment unit="mm" default=30  min=10  max=60  doc="threaded adjustment available each way"
+        joint_od   unit="mm" default=34  min=22  max=48  doc="ball joint housing diameter"
+
+        // What the rod actually measures between joint centres, which is the number on a
+        // workshop drawing and the one a wheel alignment is set to.
+        length unit="mm" expr="sqrt(span^2 + sweep^2)" doc="derived: joint centre to joint centre"
+    }
+
+    variants {
+        side "left" "right" mirror_when="right" mirror_plane="xz"
+    }
+
+    material "steel/4140-bar"
+
+    geometry level="manufacture" {
+        cylinder "inner_joint" d="joint_od" h="30 mm" at="(0 mm, 0 mm, 0 mm)" axis="y"
+        // Drawn as a thick walled tube because the only feature that runs between two
+        // arbitrary points is `tube`, and a wall of exactly half the diameter is not a
+        // valid tube. The small bore left in the middle is worth about 4% of the mass.
+        tube "rod" od="rod_od" wall="rod_od * 0.45" \
+             from="(0 mm, 0 mm, 0 mm)" to="(0 mm - sweep, span, 0 mm)"
+        cylinder "outer_joint" d="joint_od" h="30 mm" at="(0 mm - sweep, span, 0 mm)" axis="y"
+        cylinder "stud" d="14 mm" h="40 mm" at="(0 mm - sweep, span, -20 mm)" axis="z"
+        union
+    }
+
+    massprops computed=#true
+
+    ports {
+        // Screws onto the rack end. The thread is the interface.
+        port "inner" type="steer.tie-rod-inner" at="(0 mm, 0 mm, 0 mm)" axis="-y" clock="z" {
+            params thread="M14x1.5"
+        }
+        // Drops into the steering arm on the upright. The same taper as the suspension joints,
+        // deliberately: one taper reamer, one separator tool, one spare part.
+        port "outer" type="balljoint.taper" at="(0 mm - sweep, span, 0 mm)" axis="z" clock="x" {
+            params taper="1:8" stud="M12"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            cost fixed="0 AUD" per_unit="48 AUD"
+            note "PROVISIONAL: ball joint ends are bought in; the rod between them is cut to \
+                  length, which is what makes one part serve every configuration."
+        }
+    }
+
+    compliance "steering" "steering.linkage"
+}

@@ -18,6 +18,10 @@ primitive "suspension/uprights/upright-dw" version="0.1.0" {
         hub_offset     unit="mm" default=60  min=0   max=200 doc="wheel centre outboard of the ball joint line"
         steer_arm      unit="mm" default=110 min=40  max=250 doc="steering arm length, rearward of the wheel centre"
         body           unit="mm" default=70  min=40  max=140 doc="body width"
+        disc_diameter  unit="mm" default=280 min=200 max=400 doc="the brake disc this upright is drilled for"
+        caliper_bolts  unit="mm" default=90  min=60  max=140 doc="caliper bolt spacing"
+        disc_plane     unit="mm" default=0   min=-80 max=80  doc="the brake disc mid-plane, outboard of the upright centreline"
+        caliper_radius unit="mm" default=112 min=70  max=190 doc="radius at which the caliper mounting face sits"
 
         // The distance the ball joints actually sit apart. Reported so that a corner that does
         // not close can be diagnosed from the numbers rather than from the picture.
@@ -36,6 +40,10 @@ primitive "suspension/uprights/upright-dw" version="0.1.0" {
         box      "spine" size="(body, 40 mm, kingpin_height)" at="(0 mm, kingpin_offset/2, kingpin_height/2)"
         cylinder "hub_boss" d="90 mm" h="hub_offset + 40 mm" at="(0 mm, hub_offset/2, hub_height)" axis="y"
         box      "steer_lug" size="(steer_arm, 30 mm, 16 mm)" at="(steer_arm/2, 20 mm, hub_height - 60 mm)"
+        // Caliper mounting lugs, in the disc plane at the caliper radius. They are drawn at
+        // top dead centre because the clock position of the caliper is not modelled.
+        box      "caliper_lug_a" size="(30 mm, 26 mm, 40 mm)"                  at="(caliper_bolts/2, disc_plane, hub_height + caliper_radius - 20 mm)"
+        box      "caliper_lug_b" size="(30 mm, 26 mm, 40 mm)"                  at="(0 mm - caliper_bolts/2, disc_plane, hub_height + caliper_radius - 20 mm)"
         union
     }
 
@@ -55,6 +63,12 @@ primitive "suspension/uprights/upright-dw" version="0.1.0" {
         }
         port "steering" type="balljoint.socket" at="(steer_arm, 20 mm, hub_height - 60 mm)" axis="z" clock="x" {
             params taper="1:8" stud="M12"
+        }
+        // The caliper mount. The disc diameter is part of the interface, so an upright drilled
+        // for a 280 mm disc will not accept a caliper positioned for a 300 mm one. The face
+        // looks radially outward, which is the way the caliper drops on.
+        port "caliper" type="brake.caliper-mount"              at="(0 mm, disc_plane, hub_height + caliper_radius)" axis="z" clock="x" {
+            params bolt="M12" spacing=caliper_bolts disc_diameter=disc_diameter
         }
     }
 

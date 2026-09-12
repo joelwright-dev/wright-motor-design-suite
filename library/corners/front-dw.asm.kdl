@@ -35,11 +35,18 @@ assembly "corners/front-dw" version="0.1.0" {
         upper_rise    unit="mm" default=250 doc="upper bush above the rail top"
         upper_inboard unit="mm" default=180
 
+        disc_diameter unit="mm" default=280 min=200 max=400 doc="brake disc diameter"
+        disc_thickness unit="mm" default=24 min=10 max=40 doc="brake disc thickness"
+        hat_depth     unit="mm" default=45  min=10 max=90 doc="how far inboard of the hub face the friction ring sits"
+
         // Where the ball joints end up, measured from the lower front bracket station.
         lower_bj_y unit="mm" expr="lower_reach - lower_inboard" doc="derived"
         upper_bj_y unit="mm" expr="upper_reach - upper_inboard" doc="derived"
         kingpin_offset unit="mm" expr="upper_bj_y - lower_bj_y" doc="derived: upright lean"
         kingpin_height unit="mm" expr="upper_rise + lower_drop" doc="derived"
+        // The friction ring sits inboard of the hub face by the hat depth plus half the disc.
+        // The upright has to put its caliper lugs in exactly that plane.
+        disc_plane unit="mm" expr="60 mm - hat_depth - disc_thickness/2" doc="derived: disc mid-plane, outboard of the upright centreline"
     }
 
     instances {
@@ -71,7 +78,15 @@ assembly "corners/front-dw" version="0.1.0" {
         }
 
         instance "upright" primitive="suspension/uprights/upright-dw" {
-            set kingpin_height=kingpin_height kingpin_offset=kingpin_offset hub_height="150 mm" hub_offset="60 mm"
+            set kingpin_height=kingpin_height kingpin_offset=kingpin_offset hub_height="150 mm" hub_offset="60 mm"                 disc_diameter=disc_diameter disc_plane=disc_plane caliper_radius="disc_diameter/2 - 28 mm"
+            variant side=side
+        }
+
+        instance "disc" primitive="braking/disc" {
+            set diameter=disc_diameter thickness=disc_thickness hat_depth=hat_depth
+        }
+        instance "caliper" primitive="braking/caliper" {
+            set disc_diameter=disc_diameter disc_thickness=disc_thickness
             variant side=side
         }
 
@@ -115,8 +130,17 @@ assembly "corners/front-dw" version="0.1.0" {
             stage "kit"
         }
 
-        mate "wheel_on_hub" a="upright.hub" b="wheel.mount" {
+        // The disc goes on first and the wheel goes on over it, which is the order it is
+        // assembled in and the order the ports describe.
+        mate "disc_on_hub" a="upright.hub" b="disc.hub" {
+            stage "kit"
+        }
+        mate "wheel_on_disc" a="disc.wheel" b="wheel.mount" {
             fasteners kind="bolt" size="M12x1.5" grade="10.9" qty="4" torque="110 Nm"
+            stage "kit"
+        }
+        mate "caliper_on_upright" a="upright.caliper" b="caliper.mount" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="2" torque="90 Nm" thread_locker="medium"
             stage "kit"
         }
         mate "tyre_on_rim" a="wheel.bead" b="tyre.bead" {
@@ -130,5 +154,10 @@ assembly "corners/front-dw" version="0.1.0" {
         export "bracket_lower_rear.station"  as="station_lower_rear"
         export "bracket_upper_front.station" as="station_upper_front"
         export "bracket_upper_rear.station"  as="station_upper_rear"
+        // The brake line has to leave the corner and reach the master cylinder.
+        export "caliper.line" as="brake_line"
+        // The steering arm, so a tie rod in the vehicle can reach it. A rear corner simply
+        // leaves it unconnected, which is the honest way to say a rear wheel does not steer.
+        export "upright.steering" as="steering_arm"
     }
 }

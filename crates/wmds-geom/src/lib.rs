@@ -13,8 +13,9 @@ pub mod mesh;
 pub mod mesh_kernel;
 
 pub use assembly_geom::{
-    BuiltAssembly, BuiltPart, DensitySource, PartMass, assembly_masses, assembly_mesh,
-    build_assembly, placeholder_density, roll_up,
+    BuiltAssembly, BuiltPart, CachedPart, DensitySource, MeshCache, MeshedAssembly, PartMass,
+    assembly_masses, assembly_mesh, build_assembly, build_assembly_cached, placeholder_density,
+    roll_up,
 };
 pub use features::{BuiltGeometry, build_level, build_primitive};
 pub use mesh::{MassProps, Mesh};

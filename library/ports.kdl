@@ -168,6 +168,64 @@ port_type "mcds.crossmember" {
     stage "kit"
 }
 
+// ---------------------------------------------------------------------------- braking
+
+port_type "brake.caliper-mount" {
+    doc "The two lugs on an upright that a caliper bolts to. The disc diameter is part of the          interface because a caliper is only in the right place for one disc size."
+    params bolt="string" spacing="mm" disc_diameter="mm"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "brake.caliper"         when="a.bolt == b.bolt and abs(a.spacing - b.spacing) < 0.5 mm and abs(a.disc_diameter - b.disc_diameter) < 1 mm"
+    stage "kit"
+}
+
+port_type "brake.caliper" {
+    doc "The mounting ears on a caliper"
+    params bolt="string" spacing="mm" disc_diameter="mm"
+    dof "fixed"
+    mate_axis "opposed"
+    compatible_with "brake.caliper-mount"         when="a.bolt == b.bolt and abs(a.spacing - b.spacing) < 0.5 mm and abs(a.disc_diameter - b.disc_diameter) < 1 mm"
+    stage "kit"
+}
+
+// ---------------------------------------------------------------------------- steering
+
+port_type "steer.rack-end" {
+    doc "The threaded end of a steering rack, where an inner tie rod joint screws on"
+    params thread="string"
+    dof "fixed"
+    mate_axis "aligned"
+    compatible_with "steer.tie-rod-inner" when="a.thread == b.thread"
+    stage "factory"
+}
+
+port_type "steer.tie-rod-inner" {
+    doc "The inner end of a tie rod assembly"
+    params thread="string"
+    dof "spherical"
+    mate_axis "aligned"
+    compatible_with "steer.rack-end" when="a.thread == b.thread"
+    stage "factory"
+}
+
+port_type "steer.column" {
+    doc "Steering column shaft coupling, splined with a pinch bolt"
+    params spline="string" diameter="mm"
+    dof "revolute"
+    mate_axis "aligned"
+    compatible_with "steer.column" when="a.spline == b.spline and abs(a.diameter - b.diameter) < 0.2 mm"
+    stage "kit"
+}
+
+port_type "steer.wheel-boss" {
+    doc "Steering wheel to column boss"
+    params spline="string" diameter="mm"
+    dof "fixed"
+    mate_axis "aligned"
+    compatible_with "steer.wheel-boss" when="a.spline == b.spline and abs(a.diameter - b.diameter) < 0.2 mm"
+    stage "kit"
+}
+
 // ------------------------------------------------------------------- fluid and electrical
 
 port_type "hose.push-on" {

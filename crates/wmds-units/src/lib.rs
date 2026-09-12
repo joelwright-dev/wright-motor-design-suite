@@ -175,6 +175,10 @@ fn unit_table(symbol: &str) -> Option<UnitDef> {
         // language, and `x in [a, b]` reads better in a compliance rule than inches do in the
         // handful of places the imperial unit is needed (wheel diameters, mostly).
         "inch" => d(0.0254, m),
+        // volume. Written out because a fuel tank, a brake reservoir and a boot are all sized
+        // in litres and nobody quotes them in cubic metres.
+        "L" => d(1e-3, Dim { m: 3, ..Dim::NONE }),
+        "mL" => d(1e-6, Dim { m: 3, ..Dim::NONE }),
         // mass
         "kg" => d(1.0, kg),
         "g" => d(1e-3, kg),

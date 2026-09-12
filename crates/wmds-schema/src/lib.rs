@@ -19,6 +19,7 @@ mod material;
 mod ports;
 mod primitive;
 mod rules;
+mod write;
 
 pub use assembly::*;
 pub use chassis::*;
@@ -26,6 +27,7 @@ pub use material::*;
 pub use ports::*;
 pub use primitive::*;
 pub use rules::*;
+pub use write::*;
 
 use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use miette::{Diagnostic, NamedSource, SourceSpan};

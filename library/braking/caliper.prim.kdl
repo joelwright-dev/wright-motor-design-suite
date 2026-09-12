@@ -1,0 +1,82 @@
+// Sliding brake caliper.
+//
+// A floating single-piston caliper, which is what a cheap vehicle that has to be serviceable
+// anywhere should use. The piston bore and the pad area are parameters because brake torque and
+// pedal effort both come from them, and both are checked by the braking rules.
+//
+// Local frame: the origin is the centre of the mounting face, between the two bolts. z points
+// radially outward from the wheel centre, y is the disc axis pointing outboard, x is tangential.
+//
+// SIMPLIFICATION: the caliper is drawn at top dead centre on its upright and its clock position
+// around the disc is not modelled. Where a caliper sits around the disc matters for packaging
+// against the wheel and for bleeding, and neither is modelled yet.
+
+primitive "braking/caliper" version="0.1.0" {
+    description "Floating single-piston sliding brake caliper"
+    category "braking" sub="caliper"
+
+    params {
+        piston_bore    unit="mm" default=54  min=30  max=80  doc="piston diameter"
+        pad_length     unit="mm" default=100 min=60  max=160 doc="pad length along the disc"
+        pad_height     unit="mm" default=45  min=25  max=70  doc="pad radial height"
+        disc_diameter  unit="mm" default=280 min=200 max=400 doc="the disc this caliper is positioned for"
+        disc_thickness unit="mm" default=24  min=10  max=40  doc="disc thickness, which sets the jaw gap"
+        bolt_spacing   unit="mm" default=90  min=60  max=140 doc="distance between the mounting bolts"
+        mount_inset    unit="mm" default=28  min=10  max=60  doc="mounting face below the inner edge of the pads"
+
+        // Clamp force per unit of line pressure. Reported because pedal effort follows from it.
+        piston_area unit="mm^2" expr="pi * (piston_bore/2)^2" doc="derived: piston area"
+    }
+
+    variants {
+        side "left" "right" mirror_when="right" mirror_plane="xz"
+    }
+
+    material "alu/a356-cast"
+
+    geometry level="display" {
+        // The two jaws, one each side of the disc, and the bridge over the top of it.
+        box "inner_jaw" size="(pad_length, 26 mm, pad_height)" \
+            at="(0 mm, 0 mm - disc_thickness/2 - 13 mm, mount_inset + pad_height/2)"
+        box "outer_jaw" size="(pad_length, 26 mm, pad_height)" \
+            at="(0 mm, disc_thickness/2 + 13 mm, mount_inset + pad_height/2)"
+        box "bridge" size="(pad_length, disc_thickness + 52 mm, 26 mm)" \
+            at="(0 mm, 0 mm, mount_inset + pad_height + 13 mm)"
+        cylinder "piston_housing" d="piston_bore + 22 mm" h="40 mm" \
+                 at="(0 mm, 0 mm - disc_thickness/2 - 40 mm, mount_inset + pad_height/2)" axis="y"
+        box "mount_ear_a" size="(30 mm, 26 mm, mount_inset)" \
+            at="(bolt_spacing/2, 0 mm - disc_thickness/2 - 13 mm, mount_inset/2)"
+        box "mount_ear_b" size="(30 mm, 26 mm, mount_inset)" \
+            at="(0 mm - bolt_spacing/2, 0 mm - disc_thickness/2 - 13 mm, mount_inset/2)"
+        union
+    }
+
+    // An envelope model, so the volume of the boxes it is drawn as is not the part. The mass is
+    // declared instead. PROVISIONAL: typical single-piston floating caliper for a light car.
+    massprops declared mass="3.4 kg" cg="(0 mm, 0 mm, 40 mm)"
+
+    ports {
+        // The mounting face looks radially inward, at the lugs on the upright.
+        port "mount" type="brake.caliper" at="(0 mm, 0 mm, 0 mm)" axis="-z" clock="x" {
+            params bolt="M12" spacing=bolt_spacing disc_diameter=disc_diameter
+        }
+        port "line" type="brake.line" \
+             at="(0 mm, 0 mm - disc_thickness/2 - 62 mm, mount_inset + pad_height/2)" axis="-y" clock="z" {
+            params thread="M10x1.0" flare="bubble"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "cast-aluminium" scale="500..*" {
+            export "step"
+            cost fixed="42000 AUD" per_unit="38 AUD"
+        }
+        method "purchased" scale="1..500" {
+            cost fixed="0 AUD" per_unit="120 AUD"
+        }
+    }
+
+    compliance "braking" "braking.caliper"
+}

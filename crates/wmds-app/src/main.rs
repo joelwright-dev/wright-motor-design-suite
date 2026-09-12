@@ -1,10 +1,16 @@
 //! WMDS desktop application.
 //!
-//! Open a primitive to edit its parameters and watch the geometry rebuild, or open a vehicle or
-//! assembly to see the whole thing placed by its mate graph.
+//! This is where vehicles are designed. Parts come from the library, joints are made by choosing
+//! two ports that fit, and the model rebuilds after every change, so the picture on screen is
+//! always what the file says.
+//!
+//! Text files remain the storage format, because they diff, review and version properly. Nobody
+//! has to type one.
 
+mod edit;
 mod viewport;
 
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, channel};
@@ -12,14 +18,17 @@ use std::time::Instant;
 
 use eframe::egui;
 use glam::Vec3;
+use indexmap::IndexMap;
 use wmds_expr::Value;
 use wmds_geom::GeomKernel;
 use wmds_model::{
-    Library, Overrides, PlacedBy, ResolvedAssembly, ResolvedPort, ResolvedPrimitive, resolve,
+    Library, Overrides, PlacedBy, ResolvedAssembly, ResolvedPort, ResolvedPrimitive, UnitPorts,
+    ports_compatible, resolve,
 };
-use wmds_schema::PrimitiveDef;
+use wmds_schema::{AssemblyDef, PortRef, PrimitiveDef};
 use wmds_units::Quantity;
 
+use edit::{CatalogueEntry, EntryKind};
 use viewport::{Camera, GpuMeshData, ViewportCallback};
 
 const DEPTH_BITS: u8 = 24;
@@ -33,6 +42,10 @@ type Kernel = wmds_geom::MeshKernel;
 const KERNEL_NAME: &str = "OpenCASCADE";
 #[cfg(not(feature = "occt"))]
 const KERNEL_NAME: &str = "mesh kernel (preview)";
+
+const ACCENT: egui::Color32 = egui::Color32::from_rgb(255, 200, 60);
+const DANGER: egui::Color32 = egui::Color32::from_rgb(230, 110, 90);
+const GOOD: egui::Color32 = egui::Color32::from_rgb(120, 210, 140);
 
 fn main() -> eframe::Result {
     // Usage: wmds-app [file] [--project DIR] [--screenshot out.png]
@@ -54,7 +67,7 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Wright Motor Design Suite")
-            .with_inner_size([1500.0, 950.0]),
+            .with_inner_size([1600.0, 1000.0]),
         depth_buffer: DEPTH_BITS,
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
@@ -74,7 +87,33 @@ fn main() -> eframe::Result {
 enum Doc {
     None,
     Primitive(Box<PrimitiveDef>),
-    Assembly(Box<wmds_schema::AssemblyDef>),
+    Assembly(Box<AssemblyDef>),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tab {
+    Parts,
+    Joints,
+    Check,
+}
+
+/// One editable setting on the selected instance.
+struct InstParam {
+    name: String,
+    unit: String,
+    doc: String,
+    /// Present when the value is a plain number, which is most of them.
+    value: f64,
+    min: f64,
+    max: f64,
+    numeric: bool,
+    /// The text form, used for anything that is not a plain number.
+    text: String,
+    /// What the library says when the vehicle does not override it.
+    default_text: String,
+    overridden: bool,
+    /// A variant, which is a choice from a fixed list rather than a free value.
+    options: Vec<String>,
 }
 
 /// A row in the parts list.
@@ -87,9 +126,28 @@ struct PartRow {
     declared: bool,
 }
 
+/// Something the user asked for, applied after the panel has finished drawing.
+enum Action {
+    Add(usize),
+    Select(String),
+    Delete(String),
+    MakeRoot(String),
+    SetParam(String, String, Option<String>),
+    SetVariant(String, String, String),
+    PickPort(String, String),
+    AddJoint,
+    ClearJoint,
+    DeleteJoint(String),
+    SetChassis,
+    NewVehicle,
+    Open(String),
+    Save,
+}
+
 struct BuildResult {
     mesh: Option<Arc<GpuMeshData>>,
     bounds: Option<(Vec3, Vec3)>,
+    part_bounds: HashMap<String, (Vec3, Vec3)>,
     ports: Vec<(String, [f64; 3], [f64; 3])>,
     parts: Vec<PartRow>,
     total_mass: f64,
@@ -99,6 +157,9 @@ struct BuildResult {
     error: Option<String>,
     elapsed_ms: u128,
     version: u64,
+    /// How many parts came from the mesh cache instead of the geometry kernel.
+    reused: usize,
+    parts_built: usize,
 }
 
 impl BuildResult {
@@ -106,6 +167,7 @@ impl BuildResult {
         BuildResult {
             mesh: None,
             bounds: None,
+            part_bounds: HashMap::new(),
             ports: Vec::new(),
             parts: Vec::new(),
             total_mass: 0.0,
@@ -115,6 +177,8 @@ impl BuildResult {
             error: None,
             elapsed_ms: 0,
             version,
+            reused: 0,
+            parts_built: 0,
         }
     }
 }
@@ -129,31 +193,65 @@ struct ParamRow {
     doc: String,
 }
 
+/// The chassis controls, held separately so a half-made change does not disturb the model.
+#[derive(Default, Clone, PartialEq)]
+struct ChassisUi {
+    system: String,
+    configuration: String,
+    width: String,
+    rail_section: String,
+    lengths: IndexMap<String, f64>,
+}
+
 struct App {
     project: PathBuf,
     file: Option<PathBuf>,
     path_text: String,
     doc: Doc,
-    lib: Option<Library>,
+    lib: Option<Arc<Library>>,
     lib_note: String,
     params: Vec<ParamRow>,
     variants: Vec<(String, Vec<String>, usize)>,
     load_error: Option<String>,
 
+    // editing
+    tab: Tab,
+    catalogue: Arc<Vec<CatalogueEntry>>,
+    search: String,
+    selected: Option<String>,
+    inst_params: Vec<InstParam>,
+    unsaved: bool,
+    status: String,
+    chassis_ui: ChassisUi,
+
+    // joint making
+    mateable: Arc<Vec<UnitPorts>>,
+    used_ports: HashSet<(String, String)>,
+    joint_a: Option<(String, String)>,
+    joint_b: Option<(String, String)>,
+    joint_candidates: Vec<(String, String, f64)>,
+    joint_note: String,
+
     camera: Camera,
     mesh: Option<Arc<GpuMeshData>>,
     ports: Vec<(String, [f64; 3], [f64; 3])>,
     parts: Vec<PartRow>,
+    part_bounds: HashMap<String, (Vec3, Vec3)>,
     total_mass: f64,
     point_mass: f64,
     cg: [f64; 3],
     volume_m3: Option<f64>,
     build_error: Option<String>,
+    warnings: Vec<String>,
     build_ms: Option<u128>,
     building: bool,
     dirty: bool,
     build_version: u64,
     rx: Option<Receiver<BuildResult>>,
+
+    /// Tessellated parts, kept between builds so an edit to one part does not rebuild the rest.
+    cache: Arc<std::sync::Mutex<wmds_geom::MeshCache>>,
+    cache_note: String,
 
     show_ports: bool,
     show_cg: bool,
@@ -181,20 +279,38 @@ impl App {
             params: Vec::new(),
             variants: Vec::new(),
             load_error: None,
+            tab: Tab::Parts,
+            catalogue: Arc::new(Vec::new()),
+            search: String::new(),
+            selected: None,
+            inst_params: Vec::new(),
+            unsaved: false,
+            status: String::new(),
+            chassis_ui: ChassisUi::default(),
+            mateable: Arc::new(Vec::new()),
+            used_ports: HashSet::new(),
+            joint_a: None,
+            joint_b: None,
+            joint_candidates: Vec::new(),
+            joint_note: String::new(),
             camera: Camera::default(),
             mesh: None,
             ports: Vec::new(),
             parts: Vec::new(),
+            part_bounds: HashMap::new(),
             total_mass: 0.0,
             point_mass: 0.0,
             cg: [0.0; 3],
             volume_m3: None,
             build_error: None,
+            warnings: Vec::new(),
             build_ms: None,
             building: false,
             dirty: false,
             build_version: 0,
             rx: None,
+            cache: Arc::new(std::sync::Mutex::new(wmds_geom::MeshCache::new())),
+            cache_note: String::new(),
             show_ports: true,
             show_cg: true,
             has_renderer,
@@ -218,7 +334,8 @@ impl App {
                     self.lib_note
                         .push_str(&format!("  ({} file(s) failed)", l.failures.len()));
                 }
-                self.lib = Some(l);
+                self.catalogue = Arc::new(edit::catalogue(&l));
+                self.lib = Some(Arc::new(l));
             }
             Err(e) => {
                 self.lib_note = format!("no library: {e}");
@@ -258,23 +375,398 @@ impl App {
                     self.doc = Doc::Primitive(Box::new(def));
                 }
                 Err(e) => {
-                    self.load_error = Some(format!("{:?}", miette_string(e)));
+                    self.load_error = Some(miette_string(e));
                     self.doc = Doc::None;
                     return;
                 }
             }
         } else {
             match wmds_schema::parse_assembly(&name, &src) {
-                Ok(def) => self.doc = Doc::Assembly(Box::new(def)),
+                Ok(def) => {
+                    self.sync_chassis_ui(&def);
+                    self.doc = Doc::Assembly(Box::new(def));
+                }
                 Err(e) => {
-                    self.load_error = Some(format!("{:?}", miette_string(e)));
+                    self.load_error = Some(miette_string(e));
                     self.doc = Doc::None;
                     return;
                 }
             }
         }
+        self.selected = None;
+        self.inst_params.clear();
+        self.clear_joint();
+        self.unsaved = false;
+        self.status = format!("opened {}", path.display());
         self.framed = false;
         self.dirty = true;
+    }
+
+    fn sync_chassis_ui(&mut self, def: &AssemblyDef) {
+        self.chassis_ui = match &def.chassis {
+            Some(c) => ChassisUi {
+                system: c.system.clone(),
+                configuration: c.configuration.clone(),
+                width: c.width.clone(),
+                rail_section: c.rail_section.clone(),
+                lengths: c
+                    .section_lengths
+                    .iter()
+                    .map(|(k, e)| (k.clone(), length_mm(e).unwrap_or(1000.0)))
+                    .collect(),
+            },
+            None => ChassisUi::default(),
+        };
+    }
+
+    fn assembly(&self) -> Option<&AssemblyDef> {
+        match &self.doc {
+            Doc::Assembly(d) => Some(d),
+            _ => None,
+        }
+    }
+
+    fn assembly_mut(&mut self) -> Option<&mut AssemblyDef> {
+        match &mut self.doc {
+            Doc::Assembly(d) => Some(d),
+            _ => None,
+        }
+    }
+
+    fn clear_joint(&mut self) {
+        self.joint_a = None;
+        self.joint_b = None;
+        self.joint_candidates.clear();
+        self.joint_note.clear();
+    }
+
+    /// The ports that could legally join the one already chosen, nearest first.
+    ///
+    /// The ordering matters more than it sounds: a chassis offers dozens of identical stations,
+    /// and the one you want is nearly always the closest one that fits.
+    fn recompute_candidates(&mut self) {
+        self.joint_candidates.clear();
+        self.joint_note.clear();
+        let (Some(lib), Some((au, ap))) = (self.lib.clone(), self.joint_a.clone()) else {
+            return;
+        };
+        let Some(a) = find_port(&self.mateable, &au, &ap) else {
+            return;
+        };
+        let mut rejected = 0usize;
+        for u in self.mateable.iter() {
+            if u.unit == au {
+                continue;
+            }
+            for p in &u.ports {
+                if self.used_ports.contains(&(u.unit.clone(), p.name.clone())) {
+                    continue;
+                }
+                let ok = ports_compatible(
+                    &lib,
+                    &a.port_type,
+                    &a.params,
+                    &format!("{au}.{ap}"),
+                    &p.port_type,
+                    &p.params,
+                    &format!("{}.{}", u.unit, p.name),
+                )
+                .is_ok();
+                if !ok {
+                    rejected += 1;
+                    continue;
+                }
+                let d = dist(a.world, p.world);
+                self.joint_candidates.push((u.unit.clone(), p.name.clone(), d));
+            }
+        }
+        self.joint_candidates
+            .sort_by(|x, y| x.2.partial_cmp(&y.2).unwrap_or(std::cmp::Ordering::Equal));
+        self.joint_note = if self.joint_candidates.is_empty() {
+            format!(
+                "nothing in this vehicle can bolt to a {} port. {rejected} other ports were checked.",
+                a.port_type
+            )
+        } else {
+            format!(
+                "{} of {} free ports can take a {}",
+                self.joint_candidates.len(),
+                self.joint_candidates.len() + rejected,
+                a.port_type
+            )
+        };
+    }
+
+    /// Rebuild the editable settings for whichever instance is selected.
+    fn sync_inst_params(&mut self) {
+        self.inst_params.clear();
+        let (Some(lib), Some(sel)) = (self.lib.clone(), self.selected.clone()) else {
+            return;
+        };
+        let Some(def) = self.assembly() else { return };
+        // Cloned so the rest of this can write back to `self` without the definition still
+        // being borrowed out of it.
+        let Some(inst) = def.instances.iter().find(|i| i.id == sel).cloned() else {
+            return;
+        };
+        let (params, variants): (Vec<_>, Vec<_>) = match &inst.source {
+            wmds_schema::InstanceSource::Primitive(pid) => match lib.primitive(pid) {
+                Some(p) => (
+                    p.params.clone(),
+                    p.variants
+                        .iter()
+                        .map(|v| (v.name.clone(), v.options.clone()))
+                        .collect(),
+                ),
+                None => return,
+            },
+            wmds_schema::InstanceSource::Assembly(aid) => match lib.assembly(aid) {
+                // A sub-assembly's parameters are its dials; it has no separate variants.
+                Some(a) => (a.params.clone(), Vec::new()),
+                None => return,
+            },
+        };
+
+        for p in &params {
+            if p.expr.is_some() {
+                continue; // derived from the others; not something to set
+            }
+            let unit = p.unit.clone().unwrap_or_default();
+            let default_text = p
+                .default
+                .as_ref()
+                .map(wmds_schema::expr_text)
+                .unwrap_or_default();
+            let over = inst.params.get(&p.name);
+            let text = over.map(wmds_schema::expr_text).unwrap_or_default();
+            let value = over
+                .and_then(|e| number_in(e, &unit))
+                .or_else(|| p.default.as_ref().and_then(|e| number_in(e, &unit)))
+                .unwrap_or(0.0);
+            let dmin = p.min.as_ref().and_then(|e| number_in(e, &unit));
+            let dmax = p.max.as_ref().and_then(|e| number_in(e, &unit));
+            let numeric = over.map(|e| number_in(e, &unit).is_some()).unwrap_or(true)
+                && (p.default.is_none() || p.default.as_ref().and_then(|e| number_in(e, &unit)).is_some());
+            self.inst_params.push(InstParam {
+                name: p.name.clone(),
+                unit,
+                doc: p.doc.clone().unwrap_or_default(),
+                value,
+                min: dmin.unwrap_or(if value > 0.0 { value * 0.2 } else { value - 100.0 }),
+                max: dmax.unwrap_or(if value > 0.0 { value * 3.0 } else { value + 100.0 }),
+                numeric,
+                text,
+                default_text,
+                overridden: over.is_some(),
+                options: Vec::new(),
+            });
+        }
+        for (name, options) in variants {
+            let chosen = inst
+                .variants
+                .get(&name)
+                .map(wmds_schema::expr_text)
+                .map(|s| s.trim_matches('"').to_string())
+                .unwrap_or_else(|| options.first().cloned().unwrap_or_default());
+            self.inst_params.push(InstParam {
+                name,
+                unit: String::new(),
+                doc: "which hand or version of the part".into(),
+                value: 0.0,
+                min: 0.0,
+                max: 0.0,
+                numeric: false,
+                text: chosen.clone(),
+                default_text: options.first().cloned().unwrap_or_default(),
+                overridden: true,
+                options,
+            });
+        }
+    }
+
+    fn apply(&mut self, a: Action) {
+        match a {
+            Action::Add(idx) => {
+                let entry = self.catalogue.get(idx).cloned();
+                let (Some(entry), Some(def)) = (entry, self.assembly_mut()) else {
+                    return;
+                };
+                let id = edit::add_instance(def, &entry);
+                self.status = format!("added {id}");
+                self.selected = Some(id);
+                self.unsaved = true;
+                self.dirty = true;
+                self.sync_inst_params();
+            }
+            Action::Select(id) => {
+                self.selected = Some(id);
+                self.sync_inst_params();
+            }
+            Action::Delete(id) => {
+                if let Some(def) = self.assembly_mut() {
+                    let n = edit::remove_instance(def, &id);
+                    self.status = if n > 0 {
+                        format!("deleted {id} and {n} joint(s) that used it")
+                    } else {
+                        format!("deleted {id}")
+                    };
+                }
+                if self.selected.as_deref() == Some(id.as_str()) {
+                    self.selected = None;
+                    self.inst_params.clear();
+                }
+                self.clear_joint();
+                self.unsaved = true;
+                self.dirty = true;
+            }
+            Action::MakeRoot(id) => {
+                if let Some(def) = self.assembly_mut() {
+                    def.root = Some(id.clone());
+                }
+                self.status = format!("{id} is now the fixed part everything else is placed from");
+                self.unsaved = true;
+                self.dirty = true;
+            }
+            Action::SetParam(inst, name, value) => {
+                if let Some(def) = self.assembly_mut() {
+                    edit::set_param(def, &inst, &name, value);
+                }
+                self.unsaved = true;
+                self.dirty = true;
+                self.sync_inst_params();
+            }
+            Action::SetVariant(inst, name, option) => {
+                if let Some(def) = self.assembly_mut() {
+                    edit::set_variant(def, &inst, &name, &option);
+                }
+                self.unsaved = true;
+                self.dirty = true;
+                self.sync_inst_params();
+            }
+            Action::PickPort(unit, port) => {
+                if self.joint_a.is_none() {
+                    self.joint_a = Some((unit, port));
+                    self.joint_b = None;
+                    self.recompute_candidates();
+                } else if self.joint_a.as_ref() == Some(&(unit.clone(), port.clone())) {
+                    self.clear_joint();
+                } else if self
+                    .joint_candidates
+                    .iter()
+                    .any(|(u, p, _)| u == &unit && p == &port)
+                {
+                    self.joint_b = Some((unit, port));
+                } else {
+                    // Not compatible with the current first pick, so treat it as a new start.
+                    self.joint_a = Some((unit, port));
+                    self.joint_b = None;
+                    self.recompute_candidates();
+                }
+                self.tab = Tab::Joints;
+            }
+            Action::ClearJoint => self.clear_joint(),
+            Action::AddJoint => {
+                let (Some(a), Some(b)) = (self.joint_a.clone(), self.joint_b.clone()) else {
+                    return;
+                };
+                let bolt = self
+                    .lib
+                    .clone()
+                    .and_then(|_| find_port(&self.mateable, &a.0, &a.1))
+                    .and_then(|p| {
+                        p.params
+                            .get("bolt")
+                            .map(|v| value_text(v))
+                            .or_else(|| p.params.get("size").map(|v| value_text(v)))
+                    });
+                if let Some(def) = self.assembly_mut() {
+                    let id = edit::add_mate(
+                        def,
+                        PortRef { instance: a.0.clone(), port: a.1.clone() },
+                        PortRef { instance: b.0.clone(), port: b.1.clone() },
+                        Some(edit::default_fastener(bolt.as_deref())),
+                    );
+                    self.status = format!("joined {}.{} to {}.{} as {id}", a.0, a.1, b.0, b.1);
+                }
+                self.clear_joint();
+                self.unsaved = true;
+                self.dirty = true;
+            }
+            Action::DeleteJoint(id) => {
+                if let Some(def) = self.assembly_mut() {
+                    edit::remove_mate(def, &id);
+                }
+                self.status = format!("removed joint {id}");
+                self.unsaved = true;
+                self.dirty = true;
+            }
+            Action::SetChassis => {
+                let ui = self.chassis_ui.clone();
+                if let Some(def) = self.assembly_mut() {
+                    edit::set_chassis(
+                        def,
+                        &ui.system,
+                        &ui.configuration,
+                        &ui.width,
+                        &ui.rail_section,
+                        &ui.lengths,
+                    );
+                }
+                self.status = format!("chassis set to {} {}", ui.configuration, ui.width);
+                self.clear_joint();
+                self.unsaved = true;
+                self.dirty = true;
+                self.framed = false;
+            }
+            Action::NewVehicle => {
+                let def = edit::new_vehicle("new/vehicle");
+                self.sync_chassis_ui(&def);
+                self.doc = Doc::Assembly(Box::new(def));
+                self.file = None;
+                self.path_text = "vehicles/new-vehicle.veh.kdl".into();
+                self.selected = None;
+                self.inst_params.clear();
+                self.clear_joint();
+                self.load_error = None;
+                self.status = "new vehicle: add a chassis first, then parts".into();
+                self.unsaved = true;
+                self.framed = false;
+                self.dirty = true;
+            }
+            Action::Open(p) => {
+                self.file = Some(PathBuf::from(p.trim()));
+                self.load();
+            }
+            Action::Save => self.save(),
+        }
+    }
+
+    fn save(&mut self) {
+        let path = PathBuf::from(self.path_text.trim());
+        if path.as_os_str().is_empty() {
+            self.status = "give the file a name first".into();
+            return;
+        }
+        let Some(def) = self.assembly() else {
+            self.status = "only vehicles and assemblies can be saved from here".into();
+            return;
+        };
+        let text = wmds_schema::write_assembly(def);
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            self.status = format!("cannot make {}: {e}", parent.display());
+            return;
+        }
+        match std::fs::write(&path, text) {
+            Ok(()) => {
+                self.file = Some(path.clone());
+                self.unsaved = false;
+                self.status = format!("saved {}", path.display());
+            }
+            Err(e) => self.status = format!("cannot write {}: {e}", path.display()),
+        }
     }
 
     fn overrides(&self) -> Overrides {
@@ -315,14 +807,14 @@ impl App {
                 Ok(r) => {
                     // Show derived values straight away.
                     for row in &mut self.params {
-                        if row.derived {
-                            if let Some(q) = r.params.get(&row.name).and_then(|v| v.as_quantity()) {
-                                row.value = if row.unit.is_empty() {
-                                    q.value
-                                } else {
-                                    q.to_unit(&row.unit).unwrap_or(q.value)
-                                };
-                            }
+                        if row.derived
+                            && let Some(q) = r.params.get(&row.name).and_then(|v| v.as_quantity())
+                        {
+                            row.value = if row.unit.is_empty() {
+                                q.value
+                            } else {
+                                q.to_unit(&row.unit).unwrap_or(q.value)
+                            };
                         }
                     }
                     let d = r
@@ -336,25 +828,42 @@ impl App {
                     None
                 }
             },
-            Doc::Assembly(def) => match (&self.lib, def) {
-                (Some(lib), def) => {
+            Doc::Assembly(def) => match &self.lib {
+                Some(lib) => {
+                    let lib = lib.clone();
                     let mut extra = Vec::new();
+                    let mut chassis_error = None;
                     if let Some(req) = &def.chassis {
-                        match wmds_model::generate_chassis(lib, req) {
+                        match wmds_model::generate_chassis(&lib, req) {
                             Ok(g) => extra.push((req.id.clone(), g.assembly)),
-                            Err(e) => {
-                                self.load_error = Some(format!("chassis: {e}"));
-                                return;
-                            }
+                            Err(e) => chassis_error = Some(format!("chassis: {e}")),
                         }
                     }
-                    match wmds_model::resolve_assembly(lib, def, &Overrides::default(), extra) {
+                    if let Some(e) = chassis_error {
+                        self.load_error = Some(e);
+                        self.building = false;
+                        self.rx = None;
+                        return;
+                    }
+                    match wmds_model::resolve_assembly(&lib, def, &Overrides::default(), extra) {
                         Ok(a) => {
                             self.load_error = if a.errors.is_empty() {
                                 None
                             } else {
                                 Some(a.errors.join("\n"))
                             };
+                            self.warnings = a.warnings.clone();
+                            self.mateable = Arc::new(a.mateable.clone());
+                            self.used_ports = def
+                                .mates
+                                .iter()
+                                .flat_map(|m| {
+                                    [
+                                        (m.a.instance.clone(), m.a.port.clone()),
+                                        (m.b.instance.clone(), m.b.port.clone()),
+                                    ]
+                                })
+                                .collect();
                             let densities = lib
                                 .materials
                                 .iter()
@@ -368,7 +877,7 @@ impl App {
                         }
                     }
                 }
-                _ => {
+                None => {
                     self.load_error = Some(
                         "a vehicle needs a library; set --project to the repository root".into(),
                     );
@@ -376,14 +885,19 @@ impl App {
                 }
             },
         };
+        // Keep the joint picker honest after the model changed under it.
+        if self.joint_a.is_some() {
+            self.recompute_candidates();
+        }
         let Some(job) = job else {
             self.building = false;
             self.rx = None;
             return;
         };
+        let cache = self.cache.clone();
         std::thread::spawn(move || {
             let t0 = Instant::now();
-            let result = run_job(job, version);
+            let result = run_job(job, version, &cache);
             let _ = tx.send(BuildResult {
                 elapsed_ms: t0.elapsed().as_millis(),
                 ..result
@@ -402,10 +916,16 @@ impl App {
             }
             self.build_ms = Some(res.elapsed_ms);
             self.build_error = res.error;
+            self.cache_note = if res.parts_built > 0 {
+                format!("{} of {} parts reused", res.reused, res.parts_built)
+            } else {
+                String::new()
+            };
             if res.mesh.is_some() {
                 self.mesh = res.mesh;
                 self.ports = res.ports;
                 self.parts = res.parts;
+                self.part_bounds = res.part_bounds;
                 self.total_mass = res.total_mass;
                 self.point_mass = res.point_mass;
                 self.cg = res.cg;
@@ -418,53 +938,136 @@ impl App {
         }
     }
 
-    fn side_panel(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Open");
+    // ----------------------------------------------------------------- the toolbar
+
+    fn toolbar(&mut self, ui: &mut egui::Ui) {
+        let mut actions: Vec<Action> = Vec::new();
         ui.horizontal(|ui| {
+            if ui.button("New vehicle").clicked() {
+                actions.push(Action::NewVehicle);
+            }
             ui.add(
                 egui::TextEdit::singleline(&mut self.path_text)
-                    .desired_width(250.0)
-                    .hint_text("a .prim.kdl or .veh.kdl file"),
+                    .desired_width(340.0)
+                    .hint_text("vehicles/my-car/my-car.veh.kdl"),
             );
-            if ui.button("Load").clicked() {
-                self.file = Some(PathBuf::from(self.path_text.trim()));
-                self.load();
+            if ui.button("Open").clicked() {
+                let p = self.path_text.clone();
+                actions.push(Action::Open(p));
             }
+            let save = ui.add_enabled(
+                matches!(self.doc, Doc::Assembly(_)),
+                egui::Button::new(if self.unsaved { "Save *" } else { "Save" }),
+            );
+            if save.clicked() {
+                actions.push(Action::Save);
+            }
+            if self.unsaved {
+                ui.colored_label(ACCENT, "unsaved changes");
+            }
+            ui.separator();
+            if self.building {
+                ui.spinner();
+                ui.label("rebuilding");
+            } else if let Some(ms) = self.build_ms {
+                let note = if self.cache_note.is_empty() {
+                    format!("{ms} ms · {KERNEL_NAME}")
+                } else {
+                    format!("{ms} ms · {KERNEL_NAME} · {}", self.cache_note)
+                };
+                ui.label(egui::RichText::new(note).weak().monospace());
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if !self.status.is_empty() {
+                    ui.label(egui::RichText::new(&self.status).weak());
+                }
+            });
         });
-        ui.label(egui::RichText::new(&self.lib_note).weak());
+        for a in actions {
+            self.apply(a);
+        }
+    }
 
+    // ----------------------------------------------------------------- the side panel
+
+    fn side_panel(&mut self, ui: &mut egui::Ui) {
+        let mut actions: Vec<Action> = Vec::new();
+
+        // Header: what is open.
         match &self.doc {
-            Doc::None => {}
+            Doc::None => {
+                ui.heading("Nothing open");
+                ui.label("Start a new vehicle, or open one from the box above.");
+            }
             Doc::Primitive(d) => {
-                ui.label(format!("{} v{}", d.id, d.version));
+                ui.heading(&d.id);
                 if !d.description.is_empty() {
                     ui.label(egui::RichText::new(&d.description).italics());
                 }
-                if let Some(m) = &d.material {
-                    ui.label(format!("material: {m}"));
-                }
+                ui.label("A single part. Vehicles are where parts get put together.");
             }
             Doc::Assembly(d) => {
-                ui.label(format!("{} v{}", d.id, d.version));
+                ui.heading(&d.id);
                 if !d.description.is_empty() {
                     ui.label(egui::RichText::new(&d.description).italics());
                 }
-                if let Some(v) = &d.vehicle {
-                    ui.label(format!("category {}", v.category));
-                }
-                if let Some(c) = &d.chassis {
-                    ui.label(format!(
-                        "chassis {} {} {}",
-                        c.system, c.configuration, c.width
-                    ));
-                }
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} part(s), {} joint(s)",
+                        d.instances.len(),
+                        d.mates.len()
+                    ))
+                    .weak(),
+                );
             }
         }
+        ui.label(egui::RichText::new(&self.lib_note).weak());
         if let Some(e) = &self.load_error {
-            ui.colored_label(egui::Color32::from_rgb(230, 110, 90), e);
+            ui.colored_label(DANGER, shorten(e, 400));
         }
         ui.separator();
 
+        if matches!(self.doc, Doc::Primitive(_)) {
+            self.primitive_panel(ui);
+            return;
+        }
+        if matches!(self.doc, Doc::None) {
+            return;
+        }
+
+        ui.horizontal(|ui| {
+            for (t, name) in [
+                (Tab::Parts, "Parts"),
+                (Tab::Joints, "Joints"),
+                (Tab::Check, "Check"),
+            ] {
+                if ui.selectable_label(self.tab == t, name).clicked() {
+                    self.tab = t;
+                }
+            }
+        });
+        ui.separator();
+
+        match self.tab {
+            Tab::Parts => {
+                self.chassis_section(ui, &mut actions);
+                ui.separator();
+                self.catalogue_section(ui, &mut actions);
+                ui.separator();
+                self.parts_section(ui, &mut actions);
+                ui.separator();
+                self.selected_section(ui, &mut actions);
+            }
+            Tab::Joints => self.joints_tab(ui, &mut actions),
+            Tab::Check => self.check_tab(ui),
+        }
+
+        for a in actions {
+            self.apply(a);
+        }
+    }
+
+    fn primitive_panel(&mut self, ui: &mut egui::Ui) {
         let mut changed = false;
         if !self.variants.is_empty() {
             ui.heading("Variants");
@@ -507,29 +1110,461 @@ impl App {
                         ui.end_row();
                     }
                 });
-            ui.separator();
         }
         if changed {
             self.dirty = true;
         }
+    }
 
-        ui.heading("View");
-        ui.checkbox(&mut self.show_ports, "ports");
-        ui.checkbox(&mut self.show_cg, "centre of gravity");
-        if self.building {
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label("building…");
+    fn chassis_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+        let Some(lib) = self.lib.clone() else { return };
+        egui::CollapsingHeader::new("Chassis")
+            .default_open(self.chassis_ui.system.is_empty())
+            .show(ui, |ui| {
+                if lib.chassis.is_empty() {
+                    ui.label("no chassis systems in the library");
+                    return;
+                }
+                let before = self.chassis_ui.clone();
+                let systems: Vec<String> = lib.chassis.keys().cloned().collect();
+                if self.chassis_ui.system.is_empty() {
+                    self.chassis_ui.system = systems[0].clone();
+                }
+                combo(ui, "system", &mut self.chassis_ui.system, &systems);
+                let Some(cdef) = lib.chassis.get(&self.chassis_ui.system) else {
+                    return;
+                };
+                let configs: Vec<String> = cdef.configurations.keys().cloned().collect();
+                if !configs.contains(&self.chassis_ui.configuration) {
+                    self.chassis_ui.configuration = configs.first().cloned().unwrap_or_default();
+                }
+                combo(ui, "length", &mut self.chassis_ui.configuration, &configs);
+
+                let widths: Vec<String> = cdef.width_configs.keys().cloned().collect();
+                if !widths.contains(&self.chassis_ui.width) {
+                    self.chassis_ui.width = widths.first().cloned().unwrap_or_default();
+                }
+                combo(ui, "width", &mut self.chassis_ui.width, &widths);
+
+                let rails: Vec<String> = cdef.rail_sections.keys().cloned().collect();
+                if !rails.contains(&self.chassis_ui.rail_section) {
+                    self.chassis_ui.rail_section = rails.first().cloned().unwrap_or_default();
+                }
+                combo(ui, "rail", &mut self.chassis_ui.rail_section, &rails);
+
+                // The chosen length is a list of sections; each one gets its own dimension.
+                let kinds: Vec<String> = cdef
+                    .configurations
+                    .get(&self.chassis_ui.configuration)
+                    .cloned()
+                    .unwrap_or_default();
+                self.chassis_ui.lengths.retain(|k, _| kinds.contains(k));
+                for kind in &kinds {
+                    let sk = cdef.section_kinds.get(kind);
+                    let (lo, hi) = sk
+                        .map(|s| {
+                            (
+                                s.length_min.to_unit("mm").unwrap_or(500.0),
+                                s.length_max.to_unit("mm").unwrap_or(3000.0),
+                            )
+                        })
+                        .unwrap_or((500.0, 3000.0));
+                    let entry = self
+                        .chassis_ui
+                        .lengths
+                        .entry(kind.clone())
+                        .or_insert(((lo + hi) * 0.5).round());
+                    *entry = entry.clamp(lo, hi);
+                    ui.add(
+                        egui::Slider::new(entry, lo..=hi)
+                            .text(format!("{kind} length"))
+                            .suffix(" mm")
+                            .step_by(50.0),
+                    );
+                }
+                if self.chassis_ui != before || ui.button("Apply chassis").clicked() {
+                    actions.push(Action::SetChassis);
+                }
+                ui.label(
+                    egui::RichText::new(
+                        "Changing the chassis moves the mounting grid, so joints made to old \
+                         station numbers may land elsewhere. The Check tab lists any that broke.",
+                    )
+                    .weak()
+                    .small(),
+                );
             });
-        } else if let Some(ms) = self.build_ms {
-            ui.label(format!("built in {ms} ms with {KERNEL_NAME}"));
+    }
+
+    fn catalogue_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+        let catalogue = self.catalogue.clone();
+        egui::CollapsingHeader::new("Add a part")
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("find");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.search)
+                            .desired_width(200.0)
+                            .hint_text("battery, wishbone, upright"),
+                    );
+                    if ui.small_button("clear").clicked() {
+                        self.search.clear();
+                    }
+                });
+                let needle = self.search.to_lowercase();
+                let matches: Vec<usize> = catalogue
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, e)| {
+                        needle.is_empty()
+                            || e.id.to_lowercase().contains(&needle)
+                            || e.description.to_lowercase().contains(&needle)
+                            || e.category.to_lowercase().contains(&needle)
+                    })
+                    .map(|(i, _)| i)
+                    .collect();
+                if matches.is_empty() {
+                    ui.label(egui::RichText::new("nothing in the library matches").weak());
+                    return;
+                }
+                egui::ScrollArea::vertical()
+                    .max_height(230.0)
+                    .id_salt("catalogue")
+                    .show(ui, |ui| {
+                        let mut last_category = String::new();
+                        for i in matches {
+                            let e = &catalogue[i];
+                            if e.category != last_category {
+                                last_category = e.category.clone();
+                                ui.label(egui::RichText::new(&e.category).strong().small());
+                            }
+                            ui.horizontal(|ui| {
+                                if ui.small_button("add").clicked() {
+                                    actions.push(Action::Add(i));
+                                }
+                                let name = e.id.rsplit('/').next().unwrap_or(&e.id);
+                                let label = if e.kind == EntryKind::Assembly {
+                                    egui::RichText::new(format!("{name}  (sub-assembly)"))
+                                } else {
+                                    egui::RichText::new(name)
+                                };
+                                ui.label(label).on_hover_text(format!(
+                                    "{}\n{}",
+                                    e.id,
+                                    if e.description.is_empty() {
+                                        "no description"
+                                    } else {
+                                        &e.description
+                                    }
+                                ));
+                            });
+                        }
+                    });
+            });
+    }
+
+    fn parts_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+        let rows: Vec<(String, String, bool)> = match self.assembly() {
+            Some(d) => d
+                .instances
+                .iter()
+                .map(|i| {
+                    (
+                        i.id.clone(),
+                        match &i.source {
+                            wmds_schema::InstanceSource::Primitive(p) => p.clone(),
+                            wmds_schema::InstanceSource::Assembly(a) => a.clone(),
+                        },
+                        d.root.as_deref() == Some(i.id.as_str()),
+                    )
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+        // The chassis is generated rather than listed, but it is a part of the vehicle and
+        // leaving it out of the list makes the list a lie.
+        let has_chassis = self
+            .assembly()
+            .map(|d| d.chassis.is_some())
+            .unwrap_or(false);
+        ui.heading(format!("In this vehicle ({})", rows.len() + has_chassis as usize));
+        if has_chassis {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("chassis").monospace());
+                ui.label(egui::RichText::new("generated").weak().small());
+            });
         }
-        if let Some(e) = &self.build_error {
-            ui.colored_label(egui::Color32::from_rgb(230, 110, 90), e);
+        let placed: HashMap<&str, &PartRow> = self.parts.iter().map(|p| (p.id.as_str(), p)).collect();
+        for (id, source, is_root) in &rows {
+            ui.horizontal(|ui| {
+                let selected = self.selected.as_deref() == Some(id.as_str());
+                let unplaced = placed
+                    .get(id.as_str())
+                    .map(|p| p.how == "NOT PLACED")
+                    .unwrap_or(false);
+                let mut text = egui::RichText::new(id).monospace();
+                if unplaced {
+                    text = text.color(DANGER);
+                }
+                if ui
+                    .selectable_label(selected, text)
+                    .on_hover_text(format!(
+                        "{source}\n{}",
+                        placed.get(id.as_str()).map(|p| p.how.as_str()).unwrap_or("")
+                    ))
+                    .clicked()
+                {
+                    actions.push(Action::Select(id.clone()));
+                }
+                if *is_root {
+                    ui.label(egui::RichText::new("root").small().color(GOOD));
+                }
+                if unplaced {
+                    ui.label(egui::RichText::new("not joined to anything").small().color(DANGER));
+                }
+            });
+        }
+        if rows.is_empty() && !has_chassis {
+            ui.label(egui::RichText::new("empty. add a chassis, then parts.").weak());
+        }
+    }
+
+    fn selected_section(&mut self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+        let Some(sel) = self.selected.clone() else {
+            ui.label(egui::RichText::new("select a part to change its dimensions").weak());
+            return;
+        };
+        ui.heading(&sel);
+        ui.horizontal(|ui| {
+            if ui.button("Delete").clicked() {
+                actions.push(Action::Delete(sel.clone()));
+            }
+            if ui
+                .button("Make root")
+                .on_hover_text("the one part that stays put; everything else is placed from it")
+                .clicked()
+            {
+                actions.push(Action::MakeRoot(sel.clone()));
+            }
+            if ui.button("Join this…").clicked() {
+                self.tab = Tab::Joints;
+                self.clear_joint();
+            }
+        });
+        if self.inst_params.is_empty() {
+            ui.label(egui::RichText::new("this part has nothing to adjust").weak());
+            return;
+        }
+        for p in &mut self.inst_params {
+            if !p.options.is_empty() {
+                let before = p.text.clone();
+                egui::ComboBox::from_id_salt(format!("variant_{}", p.name))
+                    .selected_text(p.text.clone())
+                    .show_ui(ui, |ui| {
+                        for o in &p.options {
+                            ui.selectable_value(&mut p.text, o.clone(), o);
+                        }
+                    });
+                ui.label(egui::RichText::new(&p.name).small().weak());
+                if p.text != before {
+                    actions.push(Action::SetVariant(sel.clone(), p.name.clone(), p.text.clone()));
+                }
+                continue;
+            }
+            ui.horizontal(|ui| {
+                if p.numeric {
+                    let r = ui.add(
+                        egui::Slider::new(&mut p.value, p.min..=p.max)
+                            .text(&p.name)
+                            .suffix(format!(" {}", p.unit)),
+                    );
+                    if r.drag_stopped() || r.lost_focus() || (r.changed() && !r.dragged()) {
+                        let text = if p.unit.is_empty() {
+                            format!("{}", round3(p.value))
+                        } else {
+                            format!("{} {}", round3(p.value), p.unit)
+                        };
+                        actions.push(Action::SetParam(
+                            sel.clone(),
+                            p.name.clone(),
+                            Some(text),
+                        ));
+                    }
+                    r.on_hover_text(&p.doc);
+                } else {
+                    ui.label(&p.name).on_hover_text(&p.doc);
+                    let r = ui.add(
+                        egui::TextEdit::singleline(&mut p.text)
+                            .desired_width(140.0)
+                            .hint_text(p.default_text.clone()),
+                    );
+                    if r.lost_focus() {
+                        let v = if p.text.trim().is_empty() {
+                            None
+                        } else {
+                            Some(p.text.clone())
+                        };
+                        actions.push(Action::SetParam(sel.clone(), p.name.clone(), v));
+                    }
+                }
+                if p.overridden {
+                    if ui
+                        .small_button("reset")
+                        .on_hover_text(format!("back to the library value: {}", p.default_text))
+                        .clicked()
+                    {
+                        actions.push(Action::SetParam(sel.clone(), p.name.clone(), None));
+                    }
+                } else {
+                    ui.label(egui::RichText::new("library").weak().small());
+                }
+            });
+        }
+    }
+
+    // ----------------------------------------------------------------- joints
+
+    fn joints_tab(&mut self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+        ui.heading("Make a joint");
+        ui.label(
+            egui::RichText::new(
+                "Click a yellow port in the 3D view, or pick one below. Only ports that \
+                 actually fit are offered second.",
+            )
+            .weak()
+            .small(),
+        );
+
+        let mateable = self.mateable.clone();
+
+        // First port.
+        ui.horizontal(|ui| {
+            ui.label("from");
+            let text = match &self.joint_a {
+                Some((u, p)) => format!("{u}.{p}"),
+                None => "choose a port".into(),
+            };
+            egui::ComboBox::from_id_salt("joint_a")
+                .width(280.0)
+                .selected_text(text)
+                .show_ui(ui, |ui| {
+                    for u in mateable.iter() {
+                        for p in &u.ports {
+                            if self.used_ports.contains(&(u.unit.clone(), p.name.clone())) {
+                                continue;
+                            }
+                            let label = format!("{}.{}", u.unit, p.name);
+                            if ui.selectable_label(false, &label).clicked() {
+                                actions.push(Action::PickPort(u.unit.clone(), p.name.clone()));
+                            }
+                        }
+                    }
+                });
+            if self.joint_a.is_some() && ui.small_button("clear").clicked() {
+                actions.push(Action::ClearJoint);
+            }
+        });
+
+        if let Some((au, ap)) = self.joint_a.clone() {
+            if let Some(a) = find_port(&mateable, &au, &ap) {
+                ui.label(
+                    egui::RichText::new(format!("a {} port on {au}", a.port_type))
+                        .weak()
+                        .small(),
+                );
+            }
+            ui.horizontal(|ui| {
+                ui.label("to");
+                let text = match &self.joint_b {
+                    Some((u, p)) => format!("{u}.{p}"),
+                    None => "choose what it bolts to".into(),
+                };
+                egui::ComboBox::from_id_salt("joint_b")
+                    .width(280.0)
+                    .selected_text(text)
+                    .show_ui(ui, |ui| {
+                        for (u, p, d) in &self.joint_candidates {
+                            let label = format!("{u}.{p}   {:.0} mm away", d * 1e3);
+                            if ui.selectable_label(false, label).clicked() {
+                                actions.push(Action::PickPort(u.clone(), p.clone()));
+                            }
+                        }
+                    });
+            });
+            let col = if self.joint_candidates.is_empty() { DANGER } else { GOOD };
+            ui.colored_label(col, egui::RichText::new(&self.joint_note).small());
         }
 
-        if self.total_mass > 0.0 {
-            ui.separator();
+        let ready = self.joint_a.is_some() && self.joint_b.is_some();
+        if ui
+            .add_enabled(ready, egui::Button::new("Bolt them together"))
+            .clicked()
+        {
+            actions.push(Action::AddJoint);
+        }
+
+        ui.separator();
+        let mates: Vec<(String, String, String, String, String, bool)> = match self.assembly() {
+            Some(d) => d
+                .mates
+                .iter()
+                .map(|m| {
+                    let broken = self
+                        .mateable
+                        .iter()
+                        .find(|u| u.unit == m.a.instance)
+                        .map(|u| !u.ports.iter().any(|p| p.name == m.a.port))
+                        .unwrap_or(true)
+                        || self
+                            .mateable
+                            .iter()
+                            .find(|u| u.unit == m.b.instance)
+                            .map(|u| !u.ports.iter().any(|p| p.name == m.b.port))
+                            .unwrap_or(true);
+                    (
+                        m.id.clone(),
+                        m.a.instance.clone(),
+                        m.a.port.clone(),
+                        m.b.instance.clone(),
+                        m.b.port.clone(),
+                        broken,
+                    )
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+        ui.heading(format!("Joints ({})", mates.len()));
+        egui::ScrollArea::vertical()
+            .max_height(320.0)
+            .id_salt("mates")
+            .show(ui, |ui| {
+                for (id, ai, ap, bi, bp, broken) in &mates {
+                    ui.horizontal(|ui| {
+                        if ui.small_button("x").on_hover_text("remove this joint").clicked() {
+                            actions.push(Action::DeleteJoint(id.clone()));
+                        }
+                        let t = format!("{ai}.{ap}  →  {bi}.{bp}");
+                        let rt = if *broken {
+                            egui::RichText::new(t).monospace().small().color(DANGER)
+                        } else {
+                            egui::RichText::new(t).monospace().small()
+                        };
+                        ui.label(rt).on_hover_text(if *broken {
+                            "one of these ports no longer exists"
+                        } else {
+                            id.as_str()
+                        });
+                    });
+                }
+                if mates.is_empty() {
+                    ui.label(egui::RichText::new("nothing is bolted together yet").weak());
+                }
+            });
+    }
+
+    fn check_tab(&mut self, ui: &mut egui::Ui) {
+        if self.total_mass > 0.0 || self.point_mass > 0.0 {
             ui.heading("Mass");
             ui.label(format!("{:.1} kg modelled", self.total_mass));
             if self.point_mass > 0.0 {
@@ -537,86 +1572,111 @@ impl App {
                 ui.label(format!("{:.1} kg total", self.total_mass + self.point_mass));
             }
             ui.label(format!(
-                "cg ({:.0}, {:.0}, {:.0}) mm",
+                "centre of gravity ({:.0}, {:.0}, {:.0}) mm",
                 self.cg[0] * 1e3,
                 self.cg[1] * 1e3,
                 self.cg[2] * 1e3
             ));
-            if let Some(v) = self.volume_m3 {
-                ui.label(format!("volume {:.1} cm3", v * 1e6));
-            }
-            ui.label(egui::RichText::new("densities are placeholders").weak());
+            ui.separator();
         }
 
-        if !self.parts.is_empty() {
+        let unplaced: Vec<&PartRow> = self.parts.iter().filter(|p| p.how == "NOT PLACED").collect();
+        ui.heading("Problems");
+        if let Some(e) = &self.build_error {
+            for line in e.lines() {
+                ui.colored_label(DANGER, egui::RichText::new(line).small());
+            }
+        }
+        if !unplaced.is_empty() {
+            ui.colored_label(
+                DANGER,
+                format!(
+                    "{} part(s) are not joined to anything, so they sit at the origin",
+                    unplaced.len()
+                ),
+            );
+            for p in &unplaced {
+                ui.label(egui::RichText::new(format!("  {}", p.id)).monospace().small());
+            }
+        }
+        if self.build_error.is_none() && unplaced.is_empty() {
+            ui.colored_label(GOOD, "everything resolves and every part is placed");
+        }
+
+        if !self.warnings.is_empty() {
             ui.separator();
-            ui.heading(format!("Parts ({})", self.parts.len()));
-            egui::Grid::new("parts")
-                .num_columns(3)
-                .spacing([8.0, 2.0])
-                .striped(true)
+            ui.heading(format!("Warnings ({})", self.warnings.len()));
+            egui::ScrollArea::vertical()
+                .max_height(260.0)
+                .id_salt("warnings")
                 .show(ui, |ui| {
-                    for p in &self.parts {
-                        ui.label(&p.id)
-                            .on_hover_text(format!("{}\n{}", p.source, p.how));
-                        ui.label(format!(
-                            "{:.0}, {:.0}, {:.0}",
-                            p.position[0] * 1e3,
-                            p.position[1] * 1e3,
-                            p.position[2] * 1e3
-                        ));
-                        match p.mass {
-                            Some(m) => {
-                                let t = format!("{m:.1} kg");
-                                ui.label(if p.declared {
-                                    egui::RichText::new(t).strong()
-                                } else {
-                                    egui::RichText::new(t)
-                                });
-                            }
-                            None => {
-                                ui.label("-");
-                            }
-                        }
-                        ui.end_row();
+                    for w in &self.warnings {
+                        ui.label(egui::RichText::new(w).small().weak());
                     }
                 });
         }
 
-        if !self.ports.is_empty() && self.parts.is_empty() {
-            ui.separator();
-            ui.heading("Ports");
-            for (name, o, _) in &self.ports {
-                ui.label(format!(
-                    "{name}  ({:.0}, {:.0}, {:.0}) mm",
-                    o[0] * 1e3,
-                    o[1] * 1e3,
-                    o[2] * 1e3
-                ));
-            }
-        }
+        ui.separator();
+        ui.heading("Parts placed");
+        egui::ScrollArea::vertical()
+            .max_height(300.0)
+            .id_salt("parts_detail")
+            .show(ui, |ui| {
+                egui::Grid::new("parts")
+                    .num_columns(3)
+                    .spacing([8.0, 2.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for p in &self.parts {
+                            ui.label(egui::RichText::new(&p.id).monospace().small())
+                                .on_hover_text(format!("{}\n{}", p.source, p.how));
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{:.0}, {:.0}, {:.0}",
+                                    p.position[0] * 1e3,
+                                    p.position[1] * 1e3,
+                                    p.position[2] * 1e3
+                                ))
+                                .small(),
+                            );
+                            match p.mass {
+                                Some(m) => {
+                                    let t = egui::RichText::new(format!("{m:.1} kg")).small();
+                                    ui.label(if p.declared { t.strong() } else { t });
+                                }
+                                None => {
+                                    ui.label("-");
+                                }
+                            }
+                            ui.end_row();
+                        }
+                    });
+            });
 
+        ui.separator();
+        ui.checkbox(&mut self.show_ports, "show ports");
+        ui.checkbox(&mut self.show_cg, "show centre of gravity");
         if !self.has_renderer {
-            ui.separator();
             ui.colored_label(
                 egui::Color32::YELLOW,
                 "no wgpu render state: the viewport is disabled",
             );
         }
-        ui.separator();
-        ui.label(
-            egui::RichText::new("drag orbit   shift-drag or middle pan   wheel zoom   F frame")
-                .weak(),
-        );
     }
 
+    // ----------------------------------------------------------------- the 3D view
+
     fn viewport(&mut self, ui: &mut egui::Ui) {
+        let mut actions: Vec<Action> = Vec::new();
         let size = ui.available_size();
         let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
         viewport::handle_input(&mut self.camera, ui, &response);
         if ui.input(|i| i.key_pressed(egui::Key::F)) {
             self.framed = false;
             self.dirty = true;
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.clear_joint();
         }
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 0.0, egui::Color32::from_rgb(28, 30, 34));
@@ -631,6 +1691,8 @@ impl App {
                 },
             ));
         }
+
+        // Axes.
         let axis_len = self.camera.distance * 0.08;
         for (dir, color, label) in [
             (Vec3::X, egui::Color32::from_rgb(230, 80, 80), "x"),
@@ -651,32 +1713,103 @@ impl App {
                 );
             }
         }
+
+        // The selected part, boxed so it can be picked out of a full vehicle.
+        if let Some(sel) = &self.selected
+            && let Some((lo, hi)) = self.part_bounds.get(sel).copied()
+        {
+            draw_box(&painter, &self.camera, rect, lo, hi, ACCENT);
+            if let Some(p) = self.camera.project(rect, (lo + hi) * 0.5) {
+                painter.text(
+                    p + egui::vec2(0.0, -12.0),
+                    egui::Align2::CENTER_BOTTOM,
+                    sel,
+                    egui::FontId::proportional(13.0),
+                    ACCENT,
+                );
+            }
+        }
+
+        // Ports, and picking them.
+        let mut hits: Vec<(String, String, egui::Pos2)> = Vec::new();
         if self.show_ports {
-            let port_len = self.camera.distance * 0.03;
-            let col = egui::Color32::from_rgb(255, 200, 60);
-            // Above a few dozen ports the labels are unreadable, so draw markers only.
-            let label_them = self.ports.len() <= 24;
-            for (name, o, a) in &self.ports {
-                let origin = Vec3::new(o[0] as f32, o[1] as f32, o[2] as f32);
-                let axis = Vec3::new(a[0] as f32, a[1] as f32, a[2] as f32);
-                if let (Some(s0), Some(s1)) = (
-                    self.camera.project(rect, origin),
-                    self.camera.project(rect, origin + axis * port_len),
-                ) {
-                    painter.circle(s0, 3.0, col, egui::Stroke::new(1.0, egui::Color32::BLACK));
-                    painter.line_segment([s0, s1], egui::Stroke::new(1.5, col));
-                    if label_them {
+            let candidates: HashSet<(&str, &str)> = self
+                .joint_candidates
+                .iter()
+                .map(|(u, p, _)| (u.as_str(), p.as_str()))
+                .collect();
+            let picking = self.tab == Tab::Joints;
+            let label_them = self.mateable.iter().map(|u| u.ports.len()).sum::<usize>() <= 24;
+            for u in self.mateable.iter() {
+                let unit_selected = self.selected.as_deref() == Some(u.unit.as_str());
+                for p in &u.ports {
+                    let key = (u.unit.clone(), p.name.clone());
+                    let used = self.used_ports.contains(&key);
+                    let is_a = self.joint_a.as_ref() == Some(&key);
+                    let is_b = self.joint_b.as_ref() == Some(&key);
+                    let is_candidate = candidates.contains(&(u.unit.as_str(), p.name.as_str()));
+
+                    // While a joint is being made, show what matters: the pick and its options.
+                    // Otherwise show what is already bolted, plus the selected part's own ports.
+                    let show = if picking && self.joint_a.is_some() {
+                        is_a || is_b || is_candidate
+                    } else if picking {
+                        !used || unit_selected
+                    } else {
+                        used || unit_selected
+                    };
+                    if !show {
+                        continue;
+                    }
+                    let world = Vec3::new(p.world[0] as f32, p.world[1] as f32, p.world[2] as f32);
+                    let Some(s) = self.camera.project(rect, world) else {
+                        continue;
+                    };
+                    let (col, r) = if is_a {
+                        (egui::Color32::from_rgb(120, 220, 255), 6.0)
+                    } else if is_b {
+                        (GOOD, 6.0)
+                    } else if is_candidate {
+                        (ACCENT, 4.5)
+                    } else if used {
+                        (egui::Color32::from_rgb(150, 150, 160), 2.5)
+                    } else {
+                        (egui::Color32::from_rgb(200, 170, 90), 3.0)
+                    };
+                    painter.circle(s, r, col, egui::Stroke::new(1.0, egui::Color32::BLACK));
+                    if is_a || is_b || (label_them && !used) {
                         painter.text(
-                            s0 + egui::vec2(6.0, -6.0),
+                            s + egui::vec2(7.0, -7.0),
                             egui::Align2::LEFT_BOTTOM,
-                            name,
-                            egui::FontId::proportional(12.0),
+                            format!("{}.{}", u.unit, p.name),
+                            egui::FontId::proportional(11.0),
                             col,
                         );
+                    }
+                    if picking && !used {
+                        hits.push((u.unit.clone(), p.name.clone(), s));
                     }
                 }
             }
         }
+
+        // A click near a drawn port picks it. Dragging still orbits, so this never fights the
+        // camera.
+        if response.clicked()
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            let mut best: Option<(f32, &(String, String, egui::Pos2))> = None;
+            for h in &hits {
+                let d = h.2.distance(pos);
+                if d < 14.0 && best.map(|(bd, _)| d < bd).unwrap_or(true) {
+                    best = Some((d, h));
+                }
+            }
+            if let Some((_, h)) = best {
+                actions.push(Action::PickPort(h.0.clone(), h.1.clone()));
+            }
+        }
+
         if self.show_cg && self.total_mass > 0.0 {
             let cg = Vec3::new(self.cg[0] as f32, self.cg[1] as f32, self.cg[2] as f32);
             if let Some(p) = self.camera.project(rect, cg) {
@@ -691,6 +1824,18 @@ impl App {
                     col,
                 );
             }
+        }
+
+        painter.text(
+            rect.left_bottom() + egui::vec2(10.0, -8.0),
+            egui::Align2::LEFT_BOTTOM,
+            "drag orbit   shift-drag pan   wheel zoom   F frame   click a port to join   Esc cancel",
+            egui::FontId::proportional(11.0),
+            egui::Color32::from_gray(120),
+        );
+
+        for a in actions {
+            self.apply(a);
         }
     }
 
@@ -734,13 +1879,123 @@ impl eframe::App for App {
             self.start_build(&ctx);
         }
         self.handle_screenshot(ui.ctx());
+        egui::Panel::top("toolbar").show(ui, |ui| {
+            ui.add_space(2.0);
+            self.toolbar(ui);
+            ui.add_space(2.0);
+        });
         egui::Panel::left("side").resizable(true).show(ui, |ui| {
-            ui.set_min_width(380.0);
-            egui::ScrollArea::vertical().show(ui, |ui| self.side_panel(ui));
+            ui.set_min_width(400.0);
+            egui::ScrollArea::vertical()
+                .id_salt("side")
+                .show(ui, |ui| self.side_panel(ui));
         });
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| self.viewport(ui));
+    }
+}
+
+// --------------------------------------------------------------------------- small helpers
+
+fn combo(ui: &mut egui::Ui, label: &str, current: &mut String, options: &[String]) {
+    egui::ComboBox::from_label(label)
+        .selected_text(current.clone())
+        .show_ui(ui, |ui| {
+            for o in options {
+                ui.selectable_value(current, o.clone(), o);
+            }
+        });
+}
+
+fn find_port<'a>(
+    mateable: &'a [UnitPorts],
+    unit: &str,
+    port: &str,
+) -> Option<&'a wmds_model::PortSlot> {
+    mateable
+        .iter()
+        .find(|u| u.unit == unit)?
+        .ports
+        .iter()
+        .find(|p| p.name == port)
+}
+
+fn dist(a: [f64; 3], b: [f64; 3]) -> f64 {
+    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+}
+
+fn round3(v: f64) -> f64 {
+    (v * 1000.0).round() / 1000.0
+}
+
+fn shorten(s: &str, n: usize) -> String {
+    if s.len() <= n {
+        s.to_string()
+    } else {
+        format!("{}…", &s[..n])
+    }
+}
+
+/// The numeric value of an expression in a given unit, when it has one.
+fn number_in(e: &wmds_expr::Expr, unit: &str) -> Option<f64> {
+    let mut e = e;
+    while let wmds_expr::Expr::TextOr(_, inner) = e {
+        e = inner;
+    }
+    match e {
+        wmds_expr::Expr::Num(q) => {
+            if unit.is_empty() || q.dim.is_dimensionless() {
+                Some(q.value)
+            } else {
+                q.to_unit(unit).ok()
+            }
+        }
+        _ => None,
+    }
+}
+
+fn length_mm(e: &wmds_expr::Expr) -> Option<f64> {
+    number_in(e, "mm")
+}
+
+fn value_text(v: &Value) -> String {
+    match v {
+        Value::Str(s) => s.clone(),
+        Value::Num(q) => format!("{}", q.value),
+        other => format!("{other:?}"),
+    }
+}
+
+/// Draw a wireframe box, used to show which part is selected.
+fn draw_box(
+    painter: &egui::Painter,
+    camera: &Camera,
+    rect: egui::Rect,
+    lo: Vec3,
+    hi: Vec3,
+    color: egui::Color32,
+) {
+    let c = [
+        Vec3::new(lo.x, lo.y, lo.z),
+        Vec3::new(hi.x, lo.y, lo.z),
+        Vec3::new(hi.x, hi.y, lo.z),
+        Vec3::new(lo.x, hi.y, lo.z),
+        Vec3::new(lo.x, lo.y, hi.z),
+        Vec3::new(hi.x, lo.y, hi.z),
+        Vec3::new(hi.x, hi.y, hi.z),
+        Vec3::new(lo.x, hi.y, hi.z),
+    ];
+    const EDGES: [(usize, usize); 12] = [
+        (0, 1), (1, 2), (2, 3), (3, 0),
+        (4, 5), (5, 6), (6, 7), (7, 4),
+        (0, 4), (1, 5), (2, 6), (3, 7),
+    ];
+    let stroke = egui::Stroke::new(1.2, color);
+    for (a, b) in EDGES {
+        if let (Some(pa), Some(pb)) = (camera.project(rect, c[a]), camera.project(rect, c[b])) {
+            painter.line_segment([pa, pb], stroke);
+        }
     }
 }
 
@@ -755,7 +2010,7 @@ enum Job {
     ),
 }
 
-fn run_job(job: Job, version: u64) -> BuildResult {
+fn run_job(job: Job, version: u64, cache: &std::sync::Mutex<wmds_geom::MeshCache>) -> BuildResult {
     let k = Kernel::default();
     match job {
         Job::Primitive(r, density_from_library) => {
@@ -784,10 +2039,8 @@ fn run_job(job: Job, version: u64) -> BuildResult {
                 }
             };
             let mp = mesh.mass_props();
-            let density = r
-                .material
-                .as_deref()
-                .and_then(wmds_geom::placeholder_density);
+            let density = density_from_library
+                .or_else(|| r.material.as_deref().and_then(wmds_geom::placeholder_density));
             BuildResult {
                 mesh: Some(Arc::new(GpuMeshData::from_mesh(&mesh, version))),
                 bounds: bounds_of(&mesh),
@@ -799,10 +2052,28 @@ fn run_job(job: Job, version: u64) -> BuildResult {
             }
         }
         Job::Assembly(asm, densities) => {
-            let built = wmds_geom::build_assembly(&k, &asm);
-            let mesh = wmds_geom::assembly_mesh(&k, &built, 2e-4);
             let density_of = |m: &str| densities.get(m).copied();
-            let masses = wmds_geom::assembly_masses(&k, &built, &density_of);
+            let mut guard = cache.lock().expect("the mesh cache is not poisoned");
+            let hits_before = guard.hits;
+            let built = wmds_geom::build_assembly_cached(&k, &asm, &mut guard, 2e-4, &density_of);
+            let reused = guard.hits - hits_before;
+            drop(guard);
+
+            let mesh = built.mesh;
+            let part_bounds: HashMap<String, (Vec3, Vec3)> = built
+                .bounds
+                .iter()
+                .map(|(k, (lo, hi))| {
+                    (
+                        k.clone(),
+                        (
+                            Vec3::new(lo[0] as f32, lo[1] as f32, lo[2] as f32),
+                            Vec3::new(hi[0] as f32, hi[1] as f32, hi[2] as f32),
+                        ),
+                    )
+                })
+                .collect();
+            let masses = built.masses;
             let (total, cg, _unknown) = wmds_geom::roll_up(&masses);
             let point_mass: f64 = asm.point_masses.iter().map(|p| p.mass.value).sum();
 
@@ -815,34 +2086,13 @@ fn run_job(job: Job, version: u64) -> BuildResult {
                     position: i.placement.translation,
                     how: match &i.placed_by {
                         PlacedBy::Root => "root".into(),
-                        PlacedBy::Mate(m) => format!("placed by mate {m}"),
+                        PlacedBy::Mate(m) => format!("placed by joint {m}"),
                         PlacedBy::Free(w) => format!("placed explicitly: {w}"),
                         PlacedBy::Unreached => "NOT PLACED".into(),
                     },
                     mass: m.and_then(|m| m.mass),
                     declared: m.map(|m| m.from_declaration).unwrap_or(false),
                 });
-            }
-
-            // Show only the ports a mate actually uses; a chassis has dozens of free stations
-            // and drawing all of them buries the ones that matter.
-            let mut ports = Vec::new();
-            for mate in asm.mates.iter().filter(|m| m.compatible.is_ok()) {
-                for (inst, port) in [(&mate.a, &mate.a_port), (&mate.b, &mate.b_port)] {
-                    if let Some(i) = asm
-                        .instances
-                        .iter()
-                        .find(|i| &i.id == inst || i.id.ends_with(&format!(".{inst}")))
-                    {
-                        if let Some(f) = i.port_world(port) {
-                            ports.push((
-                                format!("{inst}.{port}"),
-                                f.translation,
-                                f.direction([0.0, 0.0, 1.0]),
-                            ));
-                        }
-                    }
-                }
             }
 
             let errors = if asm.errors.is_empty() {
@@ -853,13 +2103,16 @@ fn run_job(job: Job, version: u64) -> BuildResult {
             BuildResult {
                 mesh: Some(Arc::new(GpuMeshData::from_mesh(&mesh, version))),
                 bounds: bounds_of(&mesh),
-                ports,
+                part_bounds,
+                ports: Vec::new(),
                 parts,
                 total_mass: total,
                 point_mass,
                 cg,
                 volume_m3: None,
                 error: errors,
+                reused,
+                parts_built: asm.instances.len(),
                 ..BuildResult::empty(version)
             }
         }
@@ -889,20 +2142,7 @@ fn param_rows(def: &PrimitiveDef) -> Vec<ParamRow> {
         .map(|p| {
             let unit = p.unit.clone().unwrap_or_default();
             let lit = |e: &Option<wmds_expr::Expr>| -> Option<f64> {
-                let mut e = e.as_ref()?;
-                if let wmds_expr::Expr::TextOr(_, inner) = e {
-                    e = inner;
-                }
-                match e {
-                    wmds_expr::Expr::Num(q) => {
-                        if q.dim.is_dimensionless() {
-                            Some(q.value)
-                        } else {
-                            q.to_unit(&unit).ok()
-                        }
-                    }
-                    _ => None,
-                }
+                number_in(e.as_ref()?, &unit)
             };
             let value = lit(&p.default).unwrap_or(0.0);
             let min = lit(&p.min).unwrap_or(if value > 0.0 {

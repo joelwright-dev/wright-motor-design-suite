@@ -163,3 +163,28 @@ material "glass/laminated" version="0.1.0" {
     cost "22 AUD/kg"
     note "Glazing is certified by the supplier; see the glazing rule in the ADR pack."
 }
+
+material "iron/grey-cast-g3000" version="0.1.0" {
+    description "Grey cast iron for brake discs and drums. Chosen for thermal capacity and \
+                 damping, not for strength."
+    family "metal"
+    form "cast"
+    density "7150 kg/m^3"
+    isotropic e="110 GPa" nu=0.26
+    strength yield="200 MPa" ultimate="220 MPa"
+    environment corrosion="none"
+    cost "2.80 AUD/kg"
+    source "PROVISIONAL: ASTM A48 class 30 nominal properties"
+}
+
+material "steel/4140-bar" version="0.1.0" {
+    description "4140 chromoly bar for tie rods, stub shafts and highly loaded links"
+    family "metal"
+    form "bar"
+    density "7850 kg/m^3"
+    isotropic e="210 GPa" nu=0.3
+    strength yield="655 MPa" ultimate="950 MPa"
+    environment corrosion="paint-or-plate"
+    cost "7.20 AUD/kg"
+    source "PROVISIONAL: AISI 4140 quenched and tempered nominal properties"
+}

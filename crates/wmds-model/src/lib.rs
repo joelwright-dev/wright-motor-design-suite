@@ -10,7 +10,8 @@ pub mod library;
 pub mod transform;
 
 pub use assembly::{
-    MateError, PlacedBy, PlacedInstance, ResolvedAssembly, ResolvedMate, resolve_assembly,
+    MateError, PlacedBy, PlacedInstance, PortSlot, ResolvedAssembly, ResolvedMate, UnitPorts,
+    ports_compatible, resolve_assembly,
 };
 pub use chassis::{ChassisError, GeneratedChassis, generate as generate_chassis};
 pub use library::Library;
@@ -59,6 +60,10 @@ pub struct ResolvedPrimitive {
     /// Set when a variant selected the mirrored hand of this part. Holds the normal of the
     /// mirror plane. Ports are already mirrored; the geometry builder applies it to the solid.
     pub mirror: Option<[f64; 3]>,
+    /// What this part claims to be, for the compliance rules. Carried through resolution
+    /// because a rule asking "does this vehicle have a dual circuit brake system" has to be
+    /// answerable from the model rather than from a part name.
+    pub compliance_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -448,6 +453,7 @@ pub fn resolve(def: &PrimitiveDef, overrides: &Overrides) -> Result<ResolvedPrim
         ports,
         manufacturing,
         mirror,
+        compliance_tags: def.compliance_tags.clone(),
     })
 }
 

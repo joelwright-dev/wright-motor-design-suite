@@ -1,0 +1,69 @@
+// Tandem master cylinder with reservoir.
+//
+// Tandem, not single, because a road vehicle needs two independent circuits: the rule pack
+// checks for it and a single circuit fails. The bore is a parameter because pedal effort and
+// line pressure both follow from it.
+//
+// Local frame: the origin is the pushrod end, x along the bore pointing forward away from the
+// pedal, z up.
+
+primitive "braking/master-cylinder" version="0.1.0" {
+    description "Tandem master cylinder with an integral reservoir"
+    category "braking" sub="master-cylinder"
+
+    params {
+        bore          unit="mm" default=22  min=15  max=32  doc="cylinder bore"
+        stroke        unit="mm" default=36  min=20  max=55  doc="piston stroke per circuit"
+        body_length   unit="mm" default=160 min=100 max=240 doc="body length"
+        reservoir     unit="L"  default=0.5 min=0.2 max=1.2 doc="fluid reservoir capacity"
+        mount_span_y  unit="mm" default=84  min=60  max=140 doc="bolt spacing on the mounting flange"
+        mount_rise    unit="mm" default=120 min=40  max=400 doc="how far the cylinder axis sits above its chassis mount"
+
+        // Line pressure per newton of pushrod force. Pedal ratio is applied by the pedal box,
+        // which is not modelled yet.
+        bore_area unit="mm^2" expr="pi * (bore/2)^2" doc="derived: piston area"
+    }
+
+    material "alu/housing-average"
+
+    geometry level="display" {
+        cylinder "body" d="bore + 22 mm" h="body_length" at="(body_length/2, 0 mm, 0 mm)" axis="x"
+        box "reservoir_tank" size="(110 mm, 70 mm, 60 mm)" \
+            at="(body_length/2, 0 mm, bore/2 + 52 mm)"
+        box "flange" size="(14 mm, mount_span_y + 40 mm, 70 mm)" at="(-7 mm, 0 mm, 0 mm)"
+        box "bracket" size="(70 mm, 60 mm, mount_rise)" at="(60 mm, 0 mm, 0 mm - mount_rise/2)"
+        union
+    }
+
+    massprops declared mass="2.6 kg" cg="(70 mm, 0 mm, 20 mm)"
+
+    ports {
+        // Bolts to a pedal box, which is what a driver pushes against.
+        port "flange" type="bolt.pattern" at="(-14 mm, 0 mm, 0 mm)" axis="-x" clock="z" {
+            params count=2 pcd=mount_span_y bolt="M8"
+        }
+        // On a modular platform the pedal box assembly bolts to the grid like everything else,
+        // so the master cylinder carries the grid mount rather than needing a bulkhead that is
+        // not modelled yet.
+        port "chassis_mount" type="mcds.grid-mount" at="(60 mm, 0 mm, -mount_rise)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        // Two circuits. A vehicle with only one of these joined is caught by the rule pack.
+        port "circuit_front" type="brake.line" at="(body_length * 0.35, 0 mm, bore/2 + 12 mm)" axis="z" clock="x" {
+            params thread="M10x1.0" flare="bubble"
+        }
+        port "circuit_rear" type="brake.line" at="(body_length * 0.75, 0 mm, bore/2 + 12 mm)" axis="z" clock="x" {
+            params thread="M10x1.0" flare="bubble"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            cost fixed="0 AUD" per_unit="140 AUD"
+        }
+    }
+
+    compliance "braking" "braking.dual-circuit" "braking.master-cylinder"
+}

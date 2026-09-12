@@ -1,0 +1,59 @@
+// Steering column with a collapsible section.
+//
+// The collapse length is a parameter and not decoration: a steering column that does not shorten
+// in a frontal impact drives the wheel into the driver, and the rule pack asks for this number.
+//
+// Local frame: the origin is the lower coupling, where the column meets the pinion. z is up
+// along the column axis, so the wheel end is at positive z with the rake applied by the mate.
+
+primitive "steering/column" version="0.1.0" {
+    description "Steering column with an energy absorbing collapsible section"
+    category "steering" sub="column"
+
+    params {
+        length         unit="mm" default=680 min=350 max=1100 doc="coupling to wheel boss"
+        shaft_od       unit="mm" default=25  min=16  max=38   doc="shaft diameter"
+        collapse       unit="mm" default=90  min=40  max=180  doc="stroke available in a frontal impact"
+        collapse_force unit="kN" default=8   min=3   max=15   doc="force at which the column starts to collapse"
+        tube_od        unit="mm" default=48  min=35  max=70   doc="outer support tube diameter"
+        mount_height   unit="mm" default=380 min=150 max=900  doc="height up the column of the bracket mount"
+    }
+
+    material "steel/e355-tube"
+
+    geometry level="display" {
+        tube "support" od="tube_od" wall="2.5 mm" \
+             from="(0 mm, 0 mm, 60 mm)" to="(0 mm, 0 mm, length - 80 mm)"
+        cylinder "shaft" d="shaft_od" h="length" at="(0 mm, 0 mm, length/2)" axis="z"
+        box "bracket" size="(90 mm, 60 mm, 16 mm)" at="(0 mm, 0 mm, mount_height)"
+        union
+    }
+
+    massprops declared mass="5.2 kg" cg="(0 mm, 0 mm, 300 mm)"
+
+    ports {
+        port "pinion" type="steer.column" at="(0 mm, 0 mm, 0 mm)" axis="z" clock="x" {
+            params spline="36x2" diameter="19 mm"
+        }
+        port "wheel" type="steer.wheel-boss" at="(0 mm, 0 mm, length)" axis="z" clock="x" {
+            params spline="36x2" diameter="19 mm"
+        }
+        // The column has to be held up somewhere. It bolts to structure, not to the grid,
+        // because it lives in the cabin above the rails.
+        port "bracket" type="bolt.pattern" at="(0 mm, 0 mm, mount_height + 8 mm)" axis="z" clock="x" {
+            params count=2 pcd="70 mm" bolt="M8"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            cost fixed="0 AUD" per_unit="180 AUD"
+            note "PROVISIONAL: a collapsible column is a certified safety item and is bought in \
+                  with its own test evidence. See the steering column rule."
+        }
+    }
+
+    compliance "steering" "safety" "steering.column" "impact.steering-column"
+}

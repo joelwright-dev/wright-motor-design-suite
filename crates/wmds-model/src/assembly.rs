@@ -104,6 +104,29 @@ pub struct PointMass {
     pub state: String,
 }
 
+/// One port that a mate in this assembly is allowed to name.
+///
+/// An editor needs this to offer choices: a person picking what to bolt to what should only ever
+/// see ports that exist, and only ones that will actually fit.
+#[derive(Debug, Clone)]
+pub struct PortSlot {
+    /// The name a mate would write, which for a sub-assembly is its exported name.
+    pub name: String,
+    pub port_type: String,
+    pub params: IndexMap<String, Value>,
+    /// Where the port sits in assembly coordinates, once placement is solved.
+    pub world: [f64; 3],
+}
+
+/// Every port one instance offers.
+#[derive(Debug, Clone)]
+pub struct UnitPorts {
+    /// The instance id a mate would write.
+    pub unit: String,
+    pub source_id: String,
+    pub ports: Vec<PortSlot>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ResolvedAssembly {
     pub id: String,
@@ -114,6 +137,8 @@ pub struct ResolvedAssembly {
     pub point_masses: Vec<PointMass>,
     /// Ports this assembly offers to a parent: exported name -> (instance id, port name).
     pub exports: IndexMap<String, (String, String)>,
+    /// Every port a mate could name, by instance. What an editor offers when joining parts.
+    pub mateable: Vec<UnitPorts>,
     pub warnings: Vec<String>,
     pub errors: Vec<String>,
 }
@@ -369,6 +394,33 @@ pub fn resolve_assembly(
     // Solve placement.
     let placements = solve_placement(def, &units, &mates, lib, &env, &mut warnings, &mut errors);
 
+    // The port index, for an editor. Built before flattening so a sub-assembly's exported
+    // names survive; after flattening only the dotted part ids remain, and a mate cannot
+    // name those.
+    let mut mateable: Vec<UnitPorts> = Vec::new();
+    for (i, u) in units.iter().enumerate() {
+        let unit_xform = &placements[i].0;
+        let mut ports = Vec::new();
+        for (name, (pi, pname)) in &u.ports {
+            let part = &u.parts[*pi];
+            let Some(p) = part.primitive.ports.iter().find(|p| &p.name == pname) else {
+                continue;
+            };
+            let world = port_frame(p).then(&part.placement).then(unit_xform);
+            ports.push(PortSlot {
+                name: name.clone(),
+                port_type: p.port_type.clone(),
+                params: p.params.clone(),
+                world: world.translation,
+            });
+        }
+        mateable.push(UnitPorts {
+            unit: u.id.clone(),
+            source_id: u.source_id.clone(),
+            ports,
+        });
+    }
+
     // Flatten.
     let mut instances = Vec::new();
     for (i, u) in units.iter().enumerate() {
@@ -450,6 +502,7 @@ pub fn resolve_assembly(
         mates,
         point_masses,
         exports,
+        mateable,
         warnings,
         errors,
     })
@@ -676,6 +729,57 @@ fn solve_placement(
         }
     }
     out
+}
+
+/// Can these two ports be joined? The public form, for an editor offering choices.
+///
+/// Takes the port type names and their parameters rather than whole instances, so a user
+/// interface can ask "what could this port mate with?" without building anything.
+pub fn ports_compatible(
+    lib: &Library,
+    a_type: &str,
+    a_params: &IndexMap<String, Value>,
+    a_label: &str,
+    b_type: &str,
+    b_params: &IndexMap<String, Value>,
+    b_label: &str,
+) -> Result<(), MateError> {
+    let Some(defa) = lib.port_types.get(a_type) else {
+        return Err(MateError::UnknownPortType(a_type.to_string()));
+    };
+    let Some(defb) = lib.port_types.get(b_type) else {
+        return Err(MateError::UnknownPortType(b_type.to_string()));
+    };
+    let Some(rule) = defa.compatible.iter().find(|c| c.other == b_type) else {
+        return Err(MateError::Incompatible {
+            a: a_label.to_string(),
+            a_type: a_type.to_string(),
+            b: b_label.to_string(),
+            b_type: b_type.to_string(),
+        });
+    };
+    check_required(defa, a_params, a_label)?;
+    check_required(defb, b_params, b_label)?;
+    let Some(when) = &rule.when else { return Ok(()) };
+    let env = PortPairEnv { a: record(a_params), b: record(b_params) };
+    match eval(when, &env) {
+        Ok(Value::Bool(true)) => Ok(()),
+        Ok(Value::Bool(false)) => Err(MateError::ParamsDiffer {
+            a: format!("{a_label} [{}]", describe(a_params)),
+            b: format!("{b_label} [{}]", describe(b_params)),
+            reason: "the compatibility rule for these port types is not satisfied".into(),
+        }),
+        Ok(v) => Err(MateError::ParamsDiffer {
+            a: a_label.to_string(),
+            b: b_label.to_string(),
+            reason: format!("compatibility rule returned {} instead of a yes or no", v.type_name()),
+        }),
+        Err(e) => Err(MateError::ParamsDiffer {
+            a: a_label.to_string(),
+            b: b_label.to_string(),
+            reason: e.to_string(),
+        }),
+    }
 }
 
 /// Are these two ports allowed to be joined?

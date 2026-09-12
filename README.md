@@ -15,9 +15,11 @@ Phase 0 complete, Phase 1 and the compliance engine well under way. See
 
 ### What works today
 
-**Design.** Primitives, assemblies and whole vehicles are defined in text files. Components
-connect only through typed ports, and where a part sits is solved from the mate graph rather
-than stored, so a change to the chassis moves everything mounted on it.
+**Design.** Vehicles are built in the application: choose a chassis, add parts from the library,
+and bolt them together by picking two ports that fit. Components connect only through typed
+ports, and where a part sits is solved from the mate graph rather than stored, so a change to
+the chassis moves everything mounted on it. Definition files are the storage format and remain
+fully hand-editable, but nothing has to be typed. See [docs/11-editor.md](docs/11-editor.md).
 
 **MCDSv1.** The chassis platform is a data file. A generator turns a configuration choice into
 rails, cross-members, section joints and a mount grid. There is no chassis-specific code.
@@ -30,6 +32,10 @@ pass.
 pure-Rust mesh kernel for fast previews with no C++ toolchain.
 
 ### Try it
+
+On Windows, double-click `view.cmd` to open the editor on the reference vehicle, or run
+`wmds.cmd` with any command-line arguments. Both set up the environment themselves, so a
+terminal opened before Rust was installed still works.
 
 ```bash
 cargo run -- lib validate
@@ -55,7 +61,7 @@ so overlapping bodies are counted twice. Every report says which kernel produced
 | `wmds-geom-occt` | OpenCASCADE implementation of the kernel |
 | `wmds-rules` | Compliance rule evaluation and reporting |
 | `wmds-cli` | The `wmds` command line |
-| `wmds-app` | Desktop viewer |
+| `wmds-app` | The desktop editor: catalogue, joint making, 3D view |
 
 **Materials.** A material database with density, elastic constants, strengths, environmental
 notes and per-solver cards. Every mass in the reference vehicle now comes from it; anything that
@@ -116,6 +122,8 @@ Read them in order; each one builds on the last.
 | 08 | [Technology Research](docs/08-technology-research.md) | Language and tooling evaluation, with a recommendation |
 | 09 | [Roadmap](docs/09-roadmap.md) | Phased delivery plan and current progress |
 | 10 | [Progress notes](docs/10-overnight-progress.md) | What was built on 12 to 13 September, what it found, and what needs a decision |
+| 11 | [The editor](docs/11-editor.md) | The design surface: how a vehicle gets built, and what it still cannot do |
+| 12 | [Progress notes](docs/12-editor-session.md) | 13 September: the editor, brakes, steering, and two bugs the work uncovered |
 
 ## Conventions used in the documents
 
