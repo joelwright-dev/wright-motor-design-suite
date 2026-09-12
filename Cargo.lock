@@ -3767,6 +3767,7 @@ dependencies = [
  "egui-wgpu",
  "glam",
  "image",
+ "miette",
  "wgpu",
  "wmds-expr",
  "wmds-geom",
