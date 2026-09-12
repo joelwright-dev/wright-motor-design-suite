@@ -1,0 +1,17 @@
+# Rust
+target/
+Cargo.lock.bak
+
+# Simulation outputs (large, reproducible from input hash)
+results/
+
+# OS and editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
