@@ -57,10 +57,14 @@ so overlapping bodies are counted twice. Every report says which kernel produced
 | `wmds-cli` | The `wmds` command line |
 | `wmds-app` | Desktop viewer |
 
+**Materials.** A material database with density, elastic constants, strengths, environmental
+notes and per-solver cards. Every mass in the reference vehicle now comes from it; anything that
+still has to guess a density says so by name.
+
 ### Not yet
 
-Suspension, steering, brakes, wheels, body and interior primitives. Materials database, so every
-density is a placeholder and says so. Simulation of any kind. Manufacturing and assembly export.
+Steering, brakes, rear suspension, body and interior primitives. Simulation of any kind.
+Manufacturing and assembly export. Project save and undo.
 
 ## Building
 

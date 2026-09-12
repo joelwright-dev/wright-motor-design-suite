@@ -15,12 +15,14 @@
 
 mod assembly;
 mod chassis;
+mod material;
 mod ports;
 mod primitive;
 mod rules;
 
 pub use assembly::*;
 pub use chassis::*;
+pub use material::*;
 pub use ports::*;
 pub use primitive::*;
 pub use rules::*;

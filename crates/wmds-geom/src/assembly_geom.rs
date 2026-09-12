@@ -100,6 +100,31 @@ pub struct PartMass {
     pub centroid: Vec3,
     /// True when the mass came from the primitive rather than from geometry and a density.
     pub from_declaration: bool,
+    /// Where the density came from, for reports that have to be honest about their inputs.
+    pub density_source: DensitySource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DensitySource {
+    /// The mass was declared, so no density was needed.
+    NotNeeded,
+    /// From the material database.
+    Database,
+    /// Guessed from the material name because the database does not define it.
+    Placeholder,
+    /// Neither, so this part has no mass.
+    None,
+}
+
+impl DensitySource {
+    pub fn label(&self) -> &'static str {
+        match self {
+            DensitySource::NotNeeded => "declared",
+            DensitySource::Database => "material database",
+            DensitySource::Placeholder => "PLACEHOLDER density",
+            DensitySource::None => "no density",
+        }
+    }
 }
 
 /// Mass of every part.
@@ -107,18 +132,31 @@ pub struct PartMass {
 /// A primitive that declares its mass is believed; anything else is its geometry volume times a
 /// placeholder density. Declared mass wins because an envelope model is drawn as a box for
 /// packaging, and the box's volume is not the part.
-pub fn assembly_masses<K: GeomKernel>(k: &K, built: &BuiltAssembly<K::Solid>) -> Vec<PartMass> {
+pub fn assembly_masses<K: GeomKernel>(
+    k: &K,
+    built: &BuiltAssembly<K::Solid>,
+    density_of: &dyn Fn(&str) -> Option<f64>,
+) -> Vec<PartMass> {
     let mut out = Vec::new();
     for p in &built.parts {
         let mp = k.mass_props(&p.solid).ok();
         let volume = mp.as_ref().map(|m| m.volume).unwrap_or(0.0);
-        let density = p.material.as_deref().and_then(placeholder_density);
-        let (mass, centroid, declared) = match p.declared {
-            Some((m, cg)) => (Some(m), cg, true),
+        let material = p.material.as_deref().unwrap_or("");
+        // The database first. A guess from the name is a fallback, and it is labelled as one.
+        let (density, source) = match density_of(material) {
+            Some(d) => (Some(d), DensitySource::Database),
+            None => match placeholder_density(material) {
+                Some(d) => (Some(d), DensitySource::Placeholder),
+                None => (None, DensitySource::None),
+            },
+        };
+        let (mass, centroid, declared, source) = match p.declared {
+            Some((m, cg)) => (Some(m), cg, true, DensitySource::NotNeeded),
             None => (
                 density.map(|d| volume * d),
                 mp.as_ref().map(|m| m.centroid).unwrap_or([0.0; 3]),
                 false,
+                source,
             ),
         };
         out.push(PartMass {
@@ -129,6 +167,7 @@ pub fn assembly_masses<K: GeomKernel>(k: &K, built: &BuiltAssembly<K::Solid>) ->
             mass,
             centroid,
             from_declaration: declared,
+            density_source: source,
         });
     }
     out
@@ -158,11 +197,11 @@ pub fn roll_up(masses: &[PartMass]) -> (f64, Vec3, usize) {
     (total, cg, unknown)
 }
 
-/// Placeholder densities in kg/m^3, keyed by the material id prefix.
+/// Last-resort densities in kg/m^3, guessed from the material id prefix.
 ///
-/// These stand in until the material database lands. Every number they produce is labelled as a
-/// placeholder wherever it is shown, because a mass that looks authoritative and is not is worse
-/// than no mass at all.
+/// Used only when the material database does not define the material. Every number they produce
+/// is labelled as a placeholder wherever it is shown, because a mass that looks authoritative
+/// and is not is worse than no mass at all.
 pub fn placeholder_density(material: &str) -> Option<f64> {
     let m = material.to_ascii_lowercase();
     let table: &[(&str, f64)] = &[

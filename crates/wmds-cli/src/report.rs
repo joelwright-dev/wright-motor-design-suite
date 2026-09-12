@@ -351,7 +351,7 @@ pub fn show_chassis(
     if !build {
         return ExitCode::SUCCESS;
     }
-    build_and_report(&chassis.assembly, step, stl)
+    build_and_report(&chassis.assembly, Some(&lib), step, stl)
 }
 
 fn print_chassis(chassis: &wmds_model::GeneratedChassis, req: &ChassisRef, list_parts: bool) {
@@ -558,37 +558,46 @@ pub fn show_vehicle(
             ExitCode::FAILURE
         };
     }
-    let code = build_and_report(&asm, step, stl);
+    let code = build_and_report(&asm, Some(&lib), step, stl);
     if asm.is_ok() { code } else { ExitCode::FAILURE }
 }
 
-fn build_and_report(asm: &ResolvedAssembly, step: Option<&Path>, stl: Option<&Path>) -> ExitCode {
+fn build_and_report(
+    asm: &ResolvedAssembly,
+    lib: Option<&Library>,
+    step: Option<&Path>,
+    stl: Option<&Path>,
+) -> ExitCode {
     let k = kernel();
     println!("\nbuilding geometry with {KERNEL_NAME}");
     let built = wmds_geom::build_assembly(&k, asm);
     for (id, e) in &built.failures {
         println!("  FAIL {id}: {e}");
     }
-    let masses = wmds_geom::assembly_masses(&k, &built);
+    let density_of = |m: &str| lib.and_then(|l| l.density(m));
+    let masses = wmds_geom::assembly_masses(&k, &built, &density_of);
     let (total, cg, unknown) = wmds_geom::roll_up(&masses);
 
     println!("\nmass by part");
-    let mut by_source: IndexMap<String, (usize, f64, bool)> = IndexMap::new();
+    let mut by_source: IndexMap<String, (usize, f64, wmds_geom::DensitySource)> = IndexMap::new();
     for m in &masses {
         let part = built.parts.iter().find(|p| p.id == m.id);
         let source = part.map(|p| p.source_id.clone()).unwrap_or_default();
-        let e = by_source.entry(source).or_insert((0, 0.0, false));
+        let e = by_source
+            .entry(source)
+            .or_insert((0, 0.0, wmds_geom::DensitySource::None));
         e.0 += 1;
         e.1 += m.mass.unwrap_or(0.0);
-        e.2 |= m.from_declaration;
+        e.2 = m.density_source;
     }
-    for (source, (count, mass, declared)) in &by_source {
-        let how = if *declared {
-            "declared"
-        } else {
-            "from geometry"
-        };
-        println!("  {:<40} x{:<4} {:>8.2} kg   {}", source, count, mass, how);
+    for (source, (count, mass, how)) in &by_source {
+        println!(
+            "  {:<40} x{:<4} {:>8.2} kg   {}",
+            source,
+            count,
+            mass,
+            how.label()
+        );
     }
     println!(
         "\ntotal mass {total:.1} kg at cg ({:.0}, {:.0}, {:.0}) mm",
@@ -597,11 +606,25 @@ fn build_and_report(asm: &ResolvedAssembly, step: Option<&Path>, stl: Option<&Pa
         cg[2] * 1e3
     );
     if unknown > 0 {
-        println!("  {unknown} part(s) have no density yet and are not counted");
+        println!("  {unknown} part(s) have no density and are not counted");
     }
-    println!(
-        "  masses marked \"from geometry\" use placeholder densities; the material database is not built yet"
-    );
+    // Say plainly which numbers rest on a guess rather than on the material database.
+    let mut guessed: Vec<&str> = masses
+        .iter()
+        .filter(|m| m.density_source == wmds_geom::DensitySource::Placeholder)
+        .filter_map(|m| m.material.as_deref())
+        .collect();
+    guessed.sort_unstable();
+    guessed.dedup();
+    if guessed.is_empty() {
+        println!("  every density came from the material database");
+    } else {
+        println!(
+            "  densities guessed from the name for: {}",
+            guessed.join(", ")
+        );
+        println!("  add those to materials/ to stop guessing");
+    }
 
     let mut point_total = 0.0;
     for p in &asm.point_masses {
@@ -696,7 +719,8 @@ pub fn check_vehicle(project: &Path, file: &Path, json: Option<&Path>, show_all:
     // Facts that need geometry: part masses and the overall centre of gravity.
     let k = kernel();
     let built = wmds_geom::build_assembly(&k, &asm);
-    let masses = wmds_geom::assembly_masses(&k, &built);
+    let density_of = |m: &str| lib.density(m);
+    let masses = wmds_geom::assembly_masses(&k, &built, &density_of);
     let mut facts = wmds_rules::Facts::from_assembly(&asm, &def);
     for p in &mut facts.parts {
         if let Some(m) = masses.iter().find(|m| m.id == p.id) {

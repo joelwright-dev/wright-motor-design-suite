@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use indexmap::IndexMap;
 use thiserror::Error;
-use wmds_schema::{AssemblyDef, ChassisDef, PortTypeDef, PrimitiveDef};
+use wmds_schema::{AssemblyDef, ChassisDef, MaterialDef, PortTypeDef, PrimitiveDef};
 
 #[derive(Error, Debug)]
 pub enum LibraryError {
@@ -27,6 +27,7 @@ pub struct Library {
     pub primitives: BTreeMap<String, PrimitiveDef>,
     pub assemblies: BTreeMap<String, AssemblyDef>,
     pub chassis: BTreeMap<String, ChassisDef>,
+    pub materials: BTreeMap<String, MaterialDef>,
     pub port_types: IndexMap<String, PortTypeDef>,
     /// Files that failed to parse, reported rather than fatal so one bad file does not stop work.
     pub failures: Vec<(PathBuf, String)>,
@@ -57,6 +58,7 @@ impl Library {
         let mut files = Vec::new();
         collect(&lib_root, &mut files);
         collect(&project_root.join("chassis"), &mut files);
+        collect(&project_root.join("materials"), &mut files);
 
         for f in files {
             let name = f
@@ -82,6 +84,15 @@ impl Library {
                 match wmds_schema::parse_assembly(&name, &src) {
                     Ok(d) => {
                         lib.assemblies.insert(d.id.clone(), d);
+                    }
+                    Err(e) => lib.failures.push((f, format!("{e:?}"))),
+                }
+            } else if name.ends_with(".mat.kdl") {
+                match wmds_schema::parse_materials(&name, &src) {
+                    Ok(ms) => {
+                        for m in ms {
+                            lib.materials.insert(m.id.clone(), m);
+                        }
                     }
                     Err(e) => lib.failures.push((f, format!("{e:?}"))),
                 }
@@ -118,12 +129,33 @@ impl Library {
         self.assemblies.get(id)
     }
 
+    /// Density in kg/m^3 for a material id, if the database knows it.
+    pub fn density(&self, material: &str) -> Option<f64> {
+        self.materials.get(material).map(|m| m.density_si())
+    }
+
+    /// Material ids named by primitives that the database does not define. A part with an
+    /// unknown material has no mass, no cost and no manufacturing route, so this is worth
+    /// surfacing rather than silently falling back.
+    pub fn unknown_materials(&self) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .primitives
+            .values()
+            .filter_map(|p| p.material.clone())
+            .filter(|m| !m.is_empty() && !self.materials.contains_key(m))
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
     pub fn summary(&self) -> String {
         format!(
-            "{} primitives, {} assemblies, {} chassis systems, {} port types",
+            "{} primitives, {} assemblies, {} chassis systems, {} materials, {} port types",
             self.primitives.len(),
             self.assemblies.len(),
             self.chassis.len(),
+            self.materials.len(),
             self.port_types.len()
         )
     }

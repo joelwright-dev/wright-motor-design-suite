@@ -1,0 +1,165 @@
+// Material database.
+//
+// Every number here is PROVISIONAL unless its `source` says otherwise. They are typical
+// published values for the class of material, good enough to size a part and to get a mass
+// within a few percent, and not good enough to sign anything off. The `source` line on each
+// material is the place to record where a real number came from when one arrives.
+//
+// The composite entries matter most and are trusted least. Doc 06 section 4.4 is explicit that
+// no crash result on a CFRP part counts as evidence until the material is calibrated against
+// coupon and crush-tube tests. Nothing here is calibrated.
+
+// ------------------------------------------------------------------------------ composites
+
+material "cfrp/pultruded-ud-t700-epoxy" version="0.1.0" {
+    description "Pultruded unidirectional T700 carbon fibre in epoxy, the MCDSv1 rail material"
+    family "cfrp"
+    form "pultrusion"
+    density "1550 kg/m^3"
+    orthotropic e1="130 GPa" e2="8 GPa" g12="4.5 GPa" nu12=0.3
+    strength xt="2000 MPa" xc="1100 MPa" yt="50 MPa" yc="180 MPa" s="70 MPa"
+    environment max_service_temp="120 C" uv="coat-required" galvanic="isolate-from-aluminium"
+    cost "38 AUD/kg"
+    source "PROVISIONAL: typical published values for a 60 percent fibre volume UD pultrusion"
+    note "Not calibrated. No crash result using this material is evidence of anything yet."
+    solver "openradioss" law="LAW25" formulation="CRASURV" \
+        note="Progressive damage. Parameters must come from crush-tube tests before use."
+}
+
+material "cfrp/woven-2x2-t300-epoxy" version="0.1.0" {
+    description "2x2 twill woven carbon in epoxy, for panels and covers"
+    family "cfrp"
+    form "prepreg"
+    density "1520 kg/m^3"
+    orthotropic e1="62 GPa" e2="62 GPa" g12="5 GPa" nu12=0.05
+    strength xt="800 MPa" xc="600 MPa" yt="800 MPa" yc="600 MPa" s="90 MPa"
+    environment max_service_temp="120 C" uv="coat-required"
+    cost "60 AUD/kg"
+    source "PROVISIONAL: typical published values"
+    solver "openradioss" law="LAW25" formulation="CRASURV"
+}
+
+material "gfrp/e-glass-polyester" version="0.1.0" {
+    description "E-glass in polyester, for non-structural panels"
+    family "gfrp"
+    form "laminate"
+    density "1900 kg/m^3"
+    orthotropic e1="25 GPa" e2="25 GPa" g12="4 GPa" nu12=0.15
+    strength xt="300 MPa" xc="250 MPa" yt="300 MPa" yc="250 MPa" s="45 MPa"
+    cost "12 AUD/kg"
+    source "PROVISIONAL: typical published values"
+}
+
+// ---------------------------------------------------------------------------------- metals
+
+material "steel/e355-tube" version="0.1.0" {
+    description "E355 cold drawn seamless tube, for suspension arms"
+    family "metal"
+    form "tube"
+    density "7850 kg/m^3"
+    isotropic e="210 GPa" nu=0.3
+    strength yield="355 MPa" ultimate="490 MPa"
+    environment corrosion="paint-or-plate"
+    cost "3.60 AUD/kg"
+    source "PROVISIONAL: EN 10305-1 grade E355 nominal properties"
+}
+
+material "steel/s355-plate" version="0.1.0" {
+    description "S355 structural steel plate, for brackets"
+    family "metal"
+    form "sheet"
+    density "7850 kg/m^3"
+    isotropic e="210 GPa" nu=0.3
+    strength yield="355 MPa" ultimate="490 MPa"
+    environment corrosion="paint-or-galvanise"
+    cost "2.20 AUD/kg"
+    source "PROVISIONAL: EN 10025-2 grade S355 nominal properties"
+}
+
+material "steel/dc04-sheet" version="0.1.0" {
+    description "DC04 deep drawing steel sheet, for pressed wheels and panels"
+    family "metal"
+    form "sheet"
+    density "7850 kg/m^3"
+    isotropic e="210 GPa" nu=0.3
+    strength yield="210 MPa" ultimate="330 MPa"
+    cost "1.90 AUD/kg"
+    source "PROVISIONAL: EN 10130 grade DC04 nominal properties"
+}
+
+material "alu/6061-t6" version="0.1.0" {
+    description "6061-T6 aluminium, for cross-members and extrusions"
+    family "metal"
+    form "extrusion"
+    density "2700 kg/m^3"
+    isotropic e="69 GPa" nu=0.33
+    strength yield="276 MPa" ultimate="310 MPa"
+    environment galvanic="isolate-from-carbon"
+    cost "8.50 AUD/kg"
+    source "PROVISIONAL: typical published values for 6061-T6"
+}
+
+material "alu/a356-cast" version="0.1.0" {
+    description "A356-T6 cast aluminium, for uprights and housings"
+    family "metal"
+    form "casting"
+    density "2680 kg/m^3"
+    isotropic e="72 GPa" nu=0.33
+    strength yield="205 MPa" ultimate="280 MPa"
+    environment galvanic="isolate-from-carbon"
+    cost "9.20 AUD/kg"
+    source "PROVISIONAL: typical published values for A356-T6"
+}
+
+material "alu/housing-average" version="0.1.0" {
+    description "Stand-in for a bought-in aluminium housing whose real construction is unknown"
+    family "metal"
+    form "assembly"
+    density "2700 kg/m^3"
+    cost "12 AUD/kg"
+    note "An averaged stand-in. Parts using it should declare their mass rather than rely on this."
+}
+
+// ------------------------------------------------------------------ polymers and elastomers
+
+material "polymer/pack-composite-average" version="0.1.0" {
+    description "Stand-in for a battery pack case: a mixture of steel, aluminium and plastic"
+    family "polymer"
+    form "assembly"
+    density "1200 kg/m^3"
+    cost "14 AUD/kg"
+    note "An averaged stand-in. The pack declares its own mass from energy and specific energy, \
+          so this density affects nothing but a volume figure."
+}
+
+material "rubber/tyre-compound" version="0.1.0" {
+    description "Tyre carcass and tread, averaged"
+    family "elastomer"
+    form "moulding"
+    density "1100 kg/m^3"
+    cost "6 AUD/kg"
+    note "A tyre is mostly air, so tyres declare their mass rather than deriving it."
+}
+
+material "polymer/abs" version="0.1.0" {
+    description "ABS, for interior trim and non-structural covers"
+    family "polymer"
+    form "moulding"
+    density "1050 kg/m^3"
+    isotropic e="2.2 GPa" nu=0.35
+    strength yield="42 MPa"
+    cost "5.50 AUD/kg"
+    source "PROVISIONAL: typical published values"
+}
+
+// ---------------------------------------------------------------------------------- glazing
+
+material "glass/laminated" version="0.1.0" {
+    description "Laminated safety glass, for windscreens"
+    family "glass"
+    form "sheet"
+    density "2500 kg/m^3"
+    isotropic e="70 GPa" nu=0.22
+    cost "22 AUD/kg"
+    note "Glazing is certified by the supplier; see the glazing rule in the ADR pack."
+}

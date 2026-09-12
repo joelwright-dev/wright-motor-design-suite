@@ -325,7 +325,11 @@ impl App {
                             }
                         }
                     }
-                    Some(Job::Primitive(Box::new(r)))
+                    let d = r
+                        .material
+                        .as_deref()
+                        .and_then(|m| self.lib.as_ref().and_then(|l| l.density(m)));
+                    Some(Job::Primitive(Box::new(r), d))
                 }
                 Err(e) => {
                     self.load_error = Some(e.to_string());
@@ -351,7 +355,12 @@ impl App {
                             } else {
                                 Some(a.errors.join("\n"))
                             };
-                            Some(Job::Assembly(Box::new(a)))
+                            let densities = lib
+                                .materials
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.density_si()))
+                                .collect();
+                            Some(Job::Assembly(Box::new(a), densities))
                         }
                         Err(e) => {
                             self.load_error = Some(e.to_string());
@@ -738,14 +747,18 @@ impl eframe::App for App {
 // --------------------------------------------------------------------------- the build job
 
 enum Job {
-    Primitive(Box<ResolvedPrimitive>),
-    Assembly(Box<ResolvedAssembly>),
+    Primitive(Box<ResolvedPrimitive>, Option<f64>),
+    /// The assembly, plus the densities its materials resolve to.
+    Assembly(
+        Box<ResolvedAssembly>,
+        std::collections::HashMap<String, f64>,
+    ),
 }
 
 fn run_job(job: Job, version: u64) -> BuildResult {
     let k = Kernel::default();
     match job {
-        Job::Primitive(r) => {
+        Job::Primitive(r, density_from_library) => {
             let built = match wmds_geom::build_primitive(&k, &r) {
                 Ok(b) => b,
                 Err(e) => {
@@ -785,10 +798,11 @@ fn run_job(job: Job, version: u64) -> BuildResult {
                 ..BuildResult::empty(version)
             }
         }
-        Job::Assembly(asm) => {
+        Job::Assembly(asm, densities) => {
             let built = wmds_geom::build_assembly(&k, &asm);
             let mesh = wmds_geom::assembly_mesh(&k, &built, 2e-4);
-            let masses = wmds_geom::assembly_masses(&k, &built);
+            let density_of = |m: &str| densities.get(m).copied();
+            let masses = wmds_geom::assembly_masses(&k, &built, &density_of);
             let (total, cg, _unknown) = wmds_geom::roll_up(&masses);
             let point_mass: f64 = asm.point_masses.iter().map(|p| p.mass.value).sum();
 
