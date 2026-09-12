@@ -1,0 +1,67 @@
+// MCDSv1: the first Modular Chassis Design System platform.
+//
+// See docs/04-mcds-v1-spec.md for the reasoning behind every number here. In short: a carbon
+// fibre ladder frame built from up to three sections joined end to end, on a fixed mount grid,
+// so that one chassis family covers a city car through a light truck.
+//
+// Everything in this file is data. The generator in wmds-model reads it and produces rails,
+// cross-members, joint ports and the mount grid. A second chassis family is another file.
+//
+// Values marked PROVISIONAL are placeholders pending the first packaging studies and the
+// structural work. They exist so the software has bounds to validate against from day one.
+
+chassis "mcds-v1" version="0.1.0" {
+    description "Carbon fibre, length-adjustable ladder frame with interchangeable sections"
+    generation 1
+
+    // The mount grid pitch. Coarser is cheaper (fewer bonded inserts); finer is more flexible
+    // in packaging. 100 mm matches common component spacing and keeps the insert count sane.
+    // PROVISIONAL: revisit after the first three vehicle layouts.
+    grid_pitch "100 mm"
+
+    // Width is chosen per vehicle and every section must share it, which the section joint
+    // compatibility rule enforces. Values are the clear span between the rail inner faces.
+    width_configs {
+        narrow   inner_rail_spacing="900 mm"
+        standard inner_rail_spacing="1050 mm"
+        wide     inner_rail_spacing="1200 mm"
+    }
+
+    // Rail cross-sections. The wall thicknesses are PROVISIONAL pending the structural work.
+    rail_sections {
+        section "120x60" height="120 mm" width="60 mm" wall="6 mm" material="cfrp/pultruded-ud-t700-epoxy"
+        section "160x80" height="160 mm" width="80 mm" wall="7 mm" material="cfrp/pultruded-ud-t700-epoxy"
+    }
+
+    // Section kinds and their length ranges, all on the grid pitch. PROVISIONAL.
+    //
+    // front   carries the engine or drive unit, front suspension, steering, cooling and the
+    //         front crash structure.
+    // central carries the cabin: floor, seats, restraints, battery or fuel tank, side impact
+    //         structure. It is the survival cell and is not the primary energy absorber.
+    // rear    carries rear suspension, rear drive, the tray or load area and the tow point.
+    section_kinds {
+        front   length_min="900 mm"  length_max="1500 mm" joints="rear"
+        central length_min="1600 mm" length_max="2800 mm" joints="front rear"
+        rear    length_min="800 mm"  length_max="2200 mm" joints="front"
+    }
+
+    // "2/3" means two of the three section kinds are fitted, not a fraction of the width.
+    configurations {
+        config "2/3-length"  sections="front central"
+        config "full-length" sections="front central rear"
+    }
+
+    parts {
+        rail primitive="chassis/mcds-v1/rail-box"
+        crossmember primitive="chassis/mcds-v1/crossmember"
+        joint_fitting primitive="chassis/mcds-v1/joint-fitting"
+    }
+
+    // No more than this between cross-members, plus one at every section joint plane.
+    crossmembers spacing_max="600 mm"
+
+    // Thread size of the bonded metallic inserts at every grid station. PROVISIONAL: the insert
+    // material and thread are open questions in doc 04 section 8.
+    station_bolt "M12"
+}

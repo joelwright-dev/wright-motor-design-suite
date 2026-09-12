@@ -1,0 +1,57 @@
+// MCDSv1 chassis rail: a pultruded carbon fibre rectangular hollow section.
+//
+// The rail is deliberately a constant cross-section cut to length. That is what makes
+// pultrusion, the cheapest continuous carbon process, applicable, and it is also what makes the
+// platform length-adjustable: a different vehicle is a different cut, not different tooling
+// (doc 04, section 5.1).
+//
+// The chassis generator sets length, height, width and wall from the chassis system definition,
+// and adds the grid station and section joint ports, whose number depends on the length.
+//
+// Local frame: x along the rail, y across the section width, z through the section height.
+// The origin is at the centre of the rail.
+
+primitive "chassis/mcds-v1/rail-box" version="0.1.0" {
+    description "Pultruded CFRP rectangular hollow section chassis rail"
+    category "chassis" sub="rail"
+
+    params {
+        length unit="mm" default=1900 min=300  max=3000 doc="cut length"
+        height unit="mm" default=120  min=80   max=250  doc="section height, vertical"
+        width  unit="mm" default=60   min=40   max=120  doc="section width, lateral"
+        wall   unit="mm" default=6    min=2    max=15   doc="wall thickness, all four faces"
+
+        // Reported so that a designer can see the consequence of a section change immediately.
+        area   unit="mm^2" expr="height * width - (height - 2 * wall) * (width - 2 * wall)" doc="derived: cross-sectional area"
+        i_yy   unit="mm^4" expr="(width * height^3 - (width - 2 * wall) * (height - 2 * wall)^3) / 12" doc="derived: second moment of area in bending"
+    }
+
+    material "cfrp/pultruded-ud-t700-epoxy"
+
+    geometry level="manufacture" {
+        box_tube "rail" size="(length, width, height)" wall=wall
+    }
+
+    massprops computed=#true
+
+    ports {}
+
+    behaviour "none"
+
+    manufacturing {
+        method "pultrusion-cut" scale="1..*" {
+            export "cut-list"
+            export "insert-schedule"
+            // Pultrusion tooling is per profile, not per part, so the fixed cost belongs to the
+            // section rather than to any one vehicle. Carried here until the cost model can
+            // amortise tooling across a programme.
+            cost fixed="0 AUD" per_unit="0.062 AUD/mm * length"
+        }
+        method "aluminium-extrusion-cut" scale="1..*" {
+            export "cut-list"
+            cost fixed="0 AUD" per_unit="0.021 AUD/mm * length"
+        }
+    }
+
+    compliance "structural" "chassis.rail"
+}

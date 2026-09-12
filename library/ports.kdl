@@ -93,19 +93,19 @@ port_type "wheel.mount" {
 
 port_type "tyre.bead" {
     doc "Tyre to rim interface"
-    params diameter="in" width="mm"
+    params diameter="inch" width="mm"
     dof "fixed"
     mate_axis "aligned"
-    compatible_with "rim.bead" when="abs(a.diameter - b.diameter) < 0.1 in"
+    compatible_with "rim.bead" when="abs(a.diameter - b.diameter) < 0.1 inch"
     stage "factory"
 }
 
 port_type "rim.bead" {
     doc "Rim bead seat"
-    params diameter="in" width="mm"
+    params diameter="inch" width="mm"
     dof "fixed"
     mate_axis "aligned"
-    compatible_with "tyre.bead" when="abs(a.diameter - b.diameter) < 0.1 in"
+    compatible_with "tyre.bead" when="abs(a.diameter - b.diameter) < 0.1 inch"
     stage "factory"
 }
 

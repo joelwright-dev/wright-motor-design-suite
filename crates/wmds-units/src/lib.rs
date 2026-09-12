@@ -171,7 +171,10 @@ fn unit_table(symbol: &str) -> Option<UnitDef> {
         "mm" => d(1e-3, m),
         "cm" => d(1e-2, m),
         "km" => d(1e3, m),
-        "in" => d(0.0254, m),
+        // Spelled `inch`, not `in`: `in` is the list-membership operator in the expression
+        // language, and `x in [a, b]` reads better in a compliance rule than inches do in the
+        // handful of places the imperial unit is needed (wheel diameters, mostly).
+        "inch" => d(0.0254, m),
         // mass
         "kg" => d(1.0, kg),
         "g" => d(1e-3, kg),

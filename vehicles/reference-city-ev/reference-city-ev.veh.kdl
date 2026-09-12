@@ -1,0 +1,97 @@
+// Reference vehicle: a small electric hatchback on a 2/3-length narrow MCDSv1 chassis.
+//
+// This is the vehicle the suite is developed against. It is deliberately the smallest
+// configuration MCDS supports, because the hardest packaging question for a modular platform is
+// whether the small end of the range is still a sensible car.
+//
+// It is incomplete. Suspension, steering, brakes, wheels, body and interior are not in the
+// library yet, so the mass below is the chassis, the battery and the drive unit plus declared
+// point masses for everything else. Every number here is provisional and says so.
+//
+// Try it:
+//   wmds veh show vehicles/reference-city-ev/reference-city-ev.veh.kdl --build
+//   wmds veh show vehicles/reference-city-ev/reference-city-ev.veh.kdl --build --step car.step
+
+vehicle "reference/city-ev" version="0.1.0" {
+    description "Reference small EV on a 2/3-length narrow MCDSv1 chassis"
+
+    // ADR category MA: a passenger car with up to nine seats.
+    category "MA"
+    markets "AU"
+    rule_packs "wright-internal"
+
+    chassis system="mcds-v1" id="chassis" {
+        configuration "2/3-length"
+        width "narrow"
+        rail_section "120x60"
+        section "front" length="1100 mm"
+        section "central" length="1900 mm"
+    }
+
+    instances {
+        // The pack spans most of the central section, under the floor between the rails.
+        instance "battery" primitive="energy/battery/pack-modular" {
+            set energy="40 kWh" length="1400 mm" width="900 mm" height="150 mm" \
+                mount_span_x="1200 mm" mount_span_y="960 mm"
+        }
+
+        // Rear-mounted drive unit, ahead of the rear axle line.
+        instance "drive" primitive="drivetrain/motor/drive-unit" {
+            set peak_power="110 kW" mount_span_x="300 mm" mount_span_y="960 mm"
+        }
+    }
+
+    mates {
+        // The battery is bolted at four corners. The first mate positions it; the other three
+        // are checked for closure, which is how a mislaid mounting foot gets caught.
+        mate "battery_fl" a="chassis.station_left_2"   b="battery.mount_fl" {
+            fasteners kind="bolt" size="M12" grade="8.8" qty="1" torque="90 Nm" washer="flat"
+            stage "kit"
+        }
+        mate "battery_fr" a="chassis.station_right_2"  b="battery.mount_fr" {
+            fasteners kind="bolt" size="M12" grade="8.8" qty="1" torque="90 Nm" washer="flat"
+            stage "kit"
+        }
+        mate "battery_rl" a="chassis.station_left_14"  b="battery.mount_rl" {
+            fasteners kind="bolt" size="M12" grade="8.8" qty="1" torque="90 Nm" washer="flat"
+            stage "kit"
+        }
+        mate "battery_rr" a="chassis.station_right_14" b="battery.mount_rr" {
+            fasteners kind="bolt" size="M12" grade="8.8" qty="1" torque="90 Nm" washer="flat"
+            stage "kit"
+        }
+
+        mate "drive_fl" a="chassis.station_left_16"  b="drive.mount_fl" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
+            stage "kit"
+        }
+        mate "drive_fr" a="chassis.station_right_16" b="drive.mount_fr" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
+            stage "kit"
+        }
+        mate "drive_rl" a="chassis.station_left_19"  b="drive.mount_rl" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
+            stage "kit"
+        }
+        mate "drive_rr" a="chassis.station_right_19" b="drive.mount_rr" {
+            fasteners kind="bolt" size="M12" grade="10.9" qty="1" torque="110 Nm"
+            stage "kit"
+        }
+    }
+
+    // Everything not yet modelled, carried as point masses so the vehicle mass is not a
+    // fiction. These are PROVISIONAL estimates for a car of this size and go away one by one as
+    // the real primitives arrive.
+    masses {
+        mass "body_and_closures"  value="180 kg" at="(400 mm, 0 mm, 700 mm)"  state="kerb"
+        mass "suspension_front"   value="55 kg"  at="(-900 mm, 0 mm, 100 mm)" state="kerb"
+        mass "suspension_rear"    value="50 kg"  at="(1800 mm, 0 mm, 100 mm)" state="kerb"
+        mass "wheels_and_tyres"   value="60 kg"  at="(450 mm, 0 mm, 300 mm)"  state="kerb"
+        mass "brakes_and_lines"   value="35 kg"  at="(450 mm, 0 mm, 200 mm)"  state="kerb"
+        mass "steering"           value="18 kg"  at="(-700 mm, 0 mm, 400 mm)" state="kerb"
+        mass "interior_and_seats" value="90 kg"  at="(700 mm, 0 mm, 600 mm)"  state="kerb"
+        mass "electrical_lv"      value="25 kg"  at="(0 mm, 0 mm, 400 mm)"    state="kerb"
+        mass "driver"             value="80 kg"  at="(600 mm, 350 mm, 750 mm)" state="laden"
+        mass "passenger"          value="80 kg"  at="(600 mm, -350 mm, 750 mm)" state="laden"
+    }
+}

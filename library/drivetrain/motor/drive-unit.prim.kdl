@@ -1,0 +1,78 @@
+// Electric drive unit: motor, inverter and single-speed reduction in one housing.
+//
+// Envelope-level model. The torque and power figures are carried as parameters so that Tier 0
+// acceleration and gradeability calculations have something to work with once those land; the
+// geometry is a box with mounting feet.
+//
+// Local frame: x rearward, y left, z up, origin at the centre of the housing. Output shafts run
+// laterally, one each side.
+
+primitive "drivetrain/motor/drive-unit" version="0.1.0" {
+    description "Integrated electric drive unit, envelope model"
+    category "drivetrain" sub="e-motor"
+
+    params {
+        peak_power   unit="kW"  default=110 min=20 max=400
+        peak_torque  unit="Nm"  default=280 min=50 max=1200
+        reduction    default=9.0 min=4 max=15 doc="single-speed reduction ratio"
+        specific_power unit="kW" default=2.2 doc="kW per kg at unit level, PROVISIONAL"
+
+        length unit="mm" default=420 min=200 max=800
+        width  unit="mm" default=500 min=250 max=900
+        height unit="mm" default=340 min=180 max=600
+
+        mount_span_x unit="mm" default=300
+        mount_span_y unit="mm" default=960 doc="lateral spacing, must match the rail spacing"
+
+        mass unit="kg" expr="peak_power / specific_power" doc="derived: from power and specific power"
+    }
+
+    material "alu/housing-average"
+
+    geometry level="manufacture" {
+        box "housing" size="(length, width, height)"
+        cylinder "shaft_left"  d="35 mm" h="width + 160 mm" at="(0 mm, 0 mm, 0 mm)" axis="y"
+        union
+    }
+
+    massprops declared mass=mass cg="(0 mm, 0 mm, 0 mm)"
+
+    ports {
+        port "mount_fl" type="mcds.grid-mount" at="(-mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_fr" type="mcds.grid-mount" at="(-mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_rl" type="mcds.grid-mount" at="(mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_rr" type="mcds.grid-mount" at="(mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "output_left" type="shaft.spline" at="(0 mm, width/2 + 80 mm, 0 mm)" axis="y" {
+            params spline="27x1.0" diameter="35 mm"
+        }
+        port "output_right" type="shaft.spline" at="(0 mm, -width/2 - 80 mm, 0 mm)" axis="-y" {
+            params spline="27x1.0" diameter="35 mm"
+        }
+        port "hv_in" type="hv.connector" at="(-length/2, 0 mm, height/4)" axis="-x" {
+            params family="amphenol-surlok" current="300 A" gender="female"
+        }
+    }
+
+    behaviour "e-motor" {
+        torque_curve rpm="(0, 3000, 6000, 9000, 12000)" nm="(280, 280, 210, 145, 105)"
+        efficiency_peak 0.94
+        max_rpm 12000
+    }
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            export "spec-sheet"
+            cost fixed="0 AUD" per_unit="38 AUD/kW * peak_power"
+        }
+    }
+
+    compliance "drivetrain.motor" "structural"
+}

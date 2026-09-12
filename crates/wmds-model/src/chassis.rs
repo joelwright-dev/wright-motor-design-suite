@@ -293,6 +293,7 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
 fn literal_length(e: &wmds_expr::Expr) -> Option<Quantity> {
     match e {
         wmds_expr::Expr::Num(q) if q.dim == Dim::LENGTH => Some(*q),
+        wmds_expr::Expr::TextOr(_, inner) => literal_length(inner),
         _ => None,
     }
 }

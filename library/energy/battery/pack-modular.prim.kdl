@@ -1,0 +1,67 @@
+// Modular traction battery pack.
+//
+// Envelope-level model: the pack is a box with a declared energy content and four mounting feet
+// that bolt to chassis grid stations. Cell chemistry, module layout, cooling and the battery
+// management system are not modelled yet; the mass is declared from the energy content and a
+// pack-level specific energy, which is the number that actually drives vehicle mass at this
+// stage of design.
+//
+// Local frame: x rearward, y left, z up, origin at the centre of the pack. The mounting feet
+// are on the underside and face downward, so the pack sits on top of the rails.
+
+primitive "energy/battery/pack-modular" version="0.1.0" {
+    description "Modular traction battery pack, envelope model"
+    category "energy" sub="battery-pack"
+
+    params {
+        energy      unit="kWh"  default=40  min=10 max=120 doc="usable energy"
+        specific_energy unit="kWh" default=0.16 doc="pack-level energy per kg, PROVISIONAL"
+        length      unit="mm"  default=1400 min=600 max=2600
+        width       unit="mm"  default=900  min=400 max=1400
+        height      unit="mm"  default=150  min=80  max=350
+        mount_span_x unit="mm" default=1200 doc="longitudinal spacing of the mounting feet"
+        mount_span_y unit="mm" default=960  doc="lateral spacing, must match the rail spacing"
+        voltage     unit="V"   default=400
+
+        mass unit="kg" expr="energy / specific_energy" doc="derived: from energy and specific energy"
+    }
+
+    material "polymer/pack-composite-average"
+
+    geometry level="manufacture" {
+        box "case" size="(length, width, height)"
+    }
+
+    // Declared rather than computed: the box is an envelope, so its volume says nothing useful
+    // about what the pack weighs.
+    massprops declared mass=mass cg="(0 mm, 0 mm, 0 mm)"
+
+    ports {
+        port "mount_fl" type="mcds.grid-mount" at="(-mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_fr" type="mcds.grid-mount" at="(-mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_rl" type="mcds.grid-mount" at="(mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_rr" type="mcds.grid-mount" at="(mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "hv_out" type="hv.connector" at="(length/2, 0 mm, 0 mm)" axis="x" {
+            params family="amphenol-surlok" current="300 A" gender="male"
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "purchased" scale="1..*" {
+            export "spec-sheet"
+            cost fixed="0 AUD" per_unit="140 AUD/kWh * energy"
+        }
+    }
+
+    compliance "energy.traction-battery" "structural"
+}

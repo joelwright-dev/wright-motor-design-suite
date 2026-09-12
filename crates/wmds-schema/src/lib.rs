@@ -132,7 +132,9 @@ pub(crate) fn value_to_expr(v: &KdlValue) -> Expr {
         KdlValue::Bool(b) => Expr::Bool(*b),
         KdlValue::Null => Expr::Str(String::new()),
         KdlValue::String(s) => match wmds_expr::parse(s) {
-            Ok(e) => e,
+            // Keep the original text alongside the parse: see `Expr::TextOr`.
+            Ok(Expr::Str(t)) => Expr::Str(t),
+            Ok(e) => Expr::TextOr(s.clone(), Box::new(e)),
             Err(_) => Expr::Str(s.clone()),
         },
     }

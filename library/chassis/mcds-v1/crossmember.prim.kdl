@@ -1,0 +1,46 @@
+// MCDSv1 cross-member: a tube spanning between the two rails.
+//
+// Cross-members carry the torsional load path between the rails. The generator places one at
+// each section joint plane and then evenly along each section.
+//
+// Local frame: y runs across the vehicle between the rail inner faces, so the tube lies along y
+// and the origin is on the vehicle centreline.
+
+primitive "chassis/mcds-v1/crossmember" version="0.1.0" {
+    description "Chassis cross-member tube, rail to rail"
+    category "chassis" sub="crossmember"
+
+    params {
+        length unit="mm" default=1050 min=600 max=1600 doc="clear span between rail inner faces"
+        od     unit="mm" default=60   min=30  max=120  doc="outside diameter"
+        wall   unit="mm" default=3    min=1.5 max=8    doc="wall thickness"
+    }
+
+    material "alu/6061-t6"
+
+    geometry level="manufacture" {
+        tube "tube" od=od wall=wall from="(0 mm, -length/2, 0 mm)" to="(0 mm, length/2, 0 mm)"
+    }
+
+    massprops computed=#true
+
+    ports {
+        port "end_left" type="mcds.crossmember" at="(0 mm, length/2, 0 mm)" axis="y" {
+            params bolt="M10" height=od
+        }
+        port "end_right" type="mcds.crossmember" at="(0 mm, -length/2, 0 mm)" axis="-y" {
+            params bolt="M10" height=od
+        }
+    }
+
+    behaviour "none"
+
+    manufacturing {
+        method "tube-cut" scale="1..*" {
+            export "cut-list"
+            cost fixed="0 AUD" per_unit="0.018 AUD/mm * length + 12 AUD"
+        }
+    }
+
+    compliance "structural" "chassis.crossmember"
+}

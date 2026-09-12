@@ -16,6 +16,10 @@ pub struct BuiltPart<S> {
     pub solid: S,
     /// Which geometry level was used.
     pub level: String,
+    /// Mass and centre of gravity declared by the primitive, already placed into assembly
+    /// coordinates. Envelope models declare their mass because the volume of the box they are
+    /// drawn as says nothing about what they weigh.
+    pub declared: Option<(f64, Vec3)>,
 }
 
 pub struct BuiltAssembly<S> {
@@ -50,12 +54,20 @@ fn build_one<K: GeomKernel>(k: &K, inst: &PlacedInstance) -> Result<BuiltPart<K:
         .map(|(l, s)| (l.to_string(), s.clone()))
         .ok_or_else(|| crate::GeomError::Feature(inst.id.clone(), "no geometry level built".into()))?;
     let placed = k.placed(&solid, &inst.placement)?;
+    let declared = match &inst.primitive.massprops {
+        wmds_model::ResolvedMassProps::Declared { mass, cg, .. } => {
+            let local = cg.map(|c| [c[0].value, c[1].value, c[2].value]).unwrap_or([0.0; 3]);
+            Some((mass.value, inst.placement.point(local)))
+        }
+        wmds_model::ResolvedMassProps::Computed => None,
+    };
     Ok(BuiltPart {
         id: inst.id.clone(),
         source_id: inst.source_id.clone(),
         material: inst.primitive.material.clone(),
         solid: placed,
         level,
+        declared,
     })
 }
 
@@ -78,21 +90,37 @@ pub struct PartMass {
     pub volume: f64,
     pub mass: Option<f64>,
     pub centroid: Vec3,
+    /// True when the mass came from the primitive rather than from geometry and a density.
+    pub from_declaration: bool,
 }
 
-/// Mass of every part, using placeholder densities until the material database exists.
+/// Mass of every part.
+///
+/// A primitive that declares its mass is believed; anything else is its geometry volume times a
+/// placeholder density. Declared mass wins because an envelope model is drawn as a box for
+/// packaging, and the box's volume is not the part.
 pub fn assembly_masses<K: GeomKernel>(k: &K, built: &BuiltAssembly<K::Solid>) -> Vec<PartMass> {
     let mut out = Vec::new();
     for p in &built.parts {
-        let Ok(mp) = k.mass_props(&p.solid) else { continue };
+        let mp = k.mass_props(&p.solid).ok();
+        let volume = mp.as_ref().map(|m| m.volume).unwrap_or(0.0);
         let density = p.material.as_deref().and_then(placeholder_density);
+        let (mass, centroid, declared) = match p.declared {
+            Some((m, cg)) => (Some(m), cg, true),
+            None => (
+                density.map(|d| volume * d),
+                mp.as_ref().map(|m| m.centroid).unwrap_or([0.0; 3]),
+                false,
+            ),
+        };
         out.push(PartMass {
             id: p.id.clone(),
             material: p.material.clone(),
             density,
-            volume: mp.volume,
-            mass: density.map(|d| mp.volume * d),
-            centroid: mp.centroid,
+            volume,
+            mass,
+            centroid,
+            from_declaration: declared,
         });
     }
     out

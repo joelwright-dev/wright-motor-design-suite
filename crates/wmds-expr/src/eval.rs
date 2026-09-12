@@ -164,6 +164,10 @@ pub fn eval(e: &Expr, env: &dyn Env) -> Result<Value, EvalError> {
                 .collect::<Result<Vec<_>, _>>()?;
             call(name, vals, env)
         }
+        Expr::TextOr(text, inner) => match eval(inner, env) {
+            Err(EvalError::Unknown(_)) if !inner.contains_number() => Ok(Value::Str(text.clone())),
+            other => other,
+        },
         Expr::Member(base, name) => {
             let v = eval(base, env)?;
             walk(&v, std::slice::from_ref(name))

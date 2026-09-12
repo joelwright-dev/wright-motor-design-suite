@@ -3782,6 +3782,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
+ "indexmap",
  "miette",
  "wmds-expr",
  "wmds-geom",

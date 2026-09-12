@@ -10,7 +10,7 @@
 //! through the ports they export. Final placements are flattened to a single list with dotted
 //! ids, so everything downstream (geometry, mass, bills of materials) walks one flat structure.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use indexmap::IndexMap;
 use thiserror::Error;
@@ -286,6 +286,27 @@ pub fn resolve_assembly(
                 .map(|t| t.stage)
                 .unwrap_or_default()
         });
+        // A rigid joint whose ports do not say which way round they go has an arbitrary
+        // rotation about the mating axis. That is almost never what the designer meant, and it
+        // is invisible in the numbers, so it is called out here.
+        if dof == Dof::Fixed && compatible.is_ok() {
+            for (u, port, who) in [(ua, &m.a.port, &m.a.instance), (ub, &m.b.port, &m.b.instance)] {
+                let unclocked = u
+                    .ports
+                    .get(port)
+                    .map(|(i, _)| &u.parts[*i])
+                    .and_then(|p| p.primitive.ports.iter().find(|x| Some(&x.name) == u.ports.get(port).map(|(_, n)| n)))
+                    .map(|p| p.clock.is_none())
+                    .unwrap_or(false);
+                if unclocked {
+                    warnings.push(format!(
+                        "mate `{}`: port `{who}.{port}` declares no clock=, so its rotation about the mating axis is arbitrary",
+                        m.id
+                    ));
+                }
+            }
+        }
+
         mates.push(ResolvedMate {
             id: m.id.clone(),
             a: m.a.instance.clone(),
@@ -514,21 +535,34 @@ fn solve_placement(
         ));
     }
 
-    // Over-constrained mates are legitimate (a part bolted at four corners) but worth counting,
-    // because a closed loop that does not actually close is a common modelling mistake.
-    let mut seen: HashSet<(usize, usize)> = HashSet::new();
-    let mut redundant = 0;
+    // Over-constrained joints are normal: a part bolted at four corners has four mates but only
+    // the first sets its position. What matters is whether the others actually line up. A bolt
+    // hole that misses by 8 mm is a real modelling error and is worth naming precisely.
+    const TOLERANCE_M: f64 = 1e-4;
     for m in mates.iter().filter(|m| m.compatible.is_ok()) {
         let (Some(&a), Some(&b)) = (index.get(m.a.as_str()), index.get(m.b.as_str())) else { continue };
-        let key = (a.min(b), a.max(b));
-        if !seen.insert(key) {
-            redundant += 1;
+        if !placed[a] || !placed[b] {
+            continue;
         }
-    }
-    if redundant > 0 {
-        warnings.push(format!(
-            "{redundant} mate(s) join a pair of parts that is already joined; positions come from the first and the rest are assumed consistent"
-        ));
+        if matches!(&out[b].1, PlacedBy::Mate(id) if *id == m.id) || matches!(&out[a].1, PlacedBy::Mate(id) if *id == m.id) {
+            continue; // This mate defined one of the two placements, so it fits by construction.
+        }
+        let (Some(la), Some(lb)) = (units[a].port_local(&m.a_port), units[b].port_local(&m.b_port)) else { continue };
+        let wa = la.then(&out[a].0);
+        let wb = lb.then(&out[b].0);
+        let d = crate::transform::sub(wa.translation, wb.translation);
+        let gap = crate::transform::norm(d);
+        if gap > TOLERANCE_M {
+            warnings.push(format!(
+                "mate `{}` does not close: `{}.{}` and `{}.{}` are {:.1} mm apart once everything else is placed",
+                m.id,
+                m.a,
+                m.a_port,
+                m.b,
+                m.b_port,
+                gap * 1000.0
+            ));
+        }
     }
     out
 }

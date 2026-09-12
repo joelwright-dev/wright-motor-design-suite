@@ -12,3 +12,8 @@ wmds-expr = { workspace = true }
 wmds-schema = { workspace = true }
 thiserror = { workspace = true }
 indexmap = { workspace = true }
+
+[dev-dependencies]
+wmds-schema = { workspace = true }
+wmds-expr = { workspace = true }
+wmds-units = { workspace = true }
