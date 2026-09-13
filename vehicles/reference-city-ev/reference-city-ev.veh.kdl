@@ -82,7 +82,7 @@ vehicle "reference/city-ev" version="0.1.0" {
         // Steering. The rack bolts to the grid behind the front axle, which is the whole point
         // of a mount grid: where the rack goes is a choice rather than a weld.
         instance "rack" primitive="steering/rack" {
-            set rack_length="700 mm" mount_span_y="960 mm" pinion_offset="340 mm" mount_rise="60 mm"
+            set rack_length="700 mm" mount_span_y="960 mm" pinion_offset="-340 mm" mount_rise="60 mm"
         }
         instance "tie_rod_l" primitive="steering/tie-rod" {
             set span=tie_rod_span sweep=tie_rod_sweep
@@ -329,8 +329,9 @@ vehicle "reference/city-ev" version="0.1.0" {
             stage "kit"
         }
 
-        // The master cylinder, on the left rail ahead of the cabin.
-        mate "master_cylinder_mount" a="chassis.station_left_-4" b="master_cylinder.chassis_mount" {
+        // The master cylinder, on the driver's side rail ahead of the cabin, because the pedal
+        // box it feeds is at the driver's feet.
+        mate "master_cylinder_mount" a="chassis.station_right_-4" b="master_cylinder.chassis_mount" {
             fasteners kind="bolt" size="M12" grade="8.8" qty="2" torque="90 Nm"
             stage "kit"
         }
@@ -347,7 +348,9 @@ vehicle "reference/city-ev" version="0.1.0" {
         mass "brake_lines_and_pedals" value="14 kg" at="(-400 mm, 0 mm, 300 mm)" state="kerb"
         mass "interior_and_seats" value="90 kg"  at="(700 mm, 0 mm, 600 mm)"  state="kerb"
         mass "electrical_lv"      value="25 kg"  at="(0 mm, 0 mm, 400 mm)"    state="kerb"
-        mass "driver"             value="80 kg"  at="(600 mm, 350 mm, 750 mm)" state="laden"
-        mass "passenger"          value="80 kg"  at="(600 mm, -350 mm, 750 mm)" state="laden"
+        // Australia drives on the left, so the driver sits on the right, which is negative y.
+        // The symmetry report caught this: the steering was on the left and the driver with it.
+        mass "driver"             value="80 kg"  at="(600 mm, -350 mm, 750 mm)" state="laden"
+        mass "passenger"          value="80 kg"  at="(600 mm, 350 mm, 750 mm)" state="laden"
     }
 }

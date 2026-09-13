@@ -1,0 +1,365 @@
+reference/city-ev v0.1.0
+  Reference small EV on a 2/3-length narrow MCDSv1 chassis
+  category MA  markets AU
+  rule packs wright-internal
+
+mcds-v1/2/3-length/narrow
+  configuration 2/3-length  width narrow  rail 120x60
+  overall length 3000 mm, width across rails 1020 mm
+  grid pitch 100 mm, stations -11 to 19
+
+sections
+  front    x   -1100 to       0 mm   length   1100 mm
+  central  x       0 to    1900 mm   length   1900 mm
+  11 chassis parts, included in the list below
+
+mount points: 68 grid stations and section joints exported
+
+parts (78)
+  chassis.front_rail_left      chassis/mcds-v1/rail-box       (   -550,     480,     -60) mm  root
+  chassis.front_rail_right     chassis/mcds-v1/rail-box       (   -550,    -480,     -60) mm  root
+  chassis.central_rail_left    chassis/mcds-v1/rail-box       (    950,     480,     -60) mm  root
+  chassis.central_rail_right   chassis/mcds-v1/rail-box       (    950,    -480,     -60) mm  root
+  chassis.front_crossmember_0  chassis/mcds-v1/crossmember    (  -1100,       0,     -60) mm  root
+  chassis.front_crossmember_1  chassis/mcds-v1/crossmember    (   -550,       0,     -60) mm  root
+  chassis.front_crossmember_2  chassis/mcds-v1/crossmember    (      0,       0,     -60) mm  root
+  chassis.central_crossmember_1 chassis/mcds-v1/crossmember    (    475,       0,     -60) mm  root
+  chassis.central_crossmember_2 chassis/mcds-v1/crossmember    (    950,       0,     -60) mm  root
+  chassis.central_crossmember_3 chassis/mcds-v1/crossmember    (   1425,       0,     -60) mm  root
+  chassis.central_crossmember_4 chassis/mcds-v1/crossmember    (   1900,       0,     -60) mm  root
+  battery                      energy/battery/pack-modular    (    400,       0,      75) mm  mate battery_fl
+  drive                        drivetrain/motor/drive-unit    (   1150,       0,     170) mm  mate drive_fl
+  corner_fl.bracket_lower_front suspension/brackets/arm-bracket (  -1000,     480,       0) mm  root
+  corner_fl.bracket_lower_rear suspension/brackets/arm-bracket (   -600,     480,       0) mm  mate corner_fl.lower_arm_rear
+  corner_fl.bracket_upper_front suspension/brackets/arm-bracket (   -900,     480,       0) mm  mate corner_fl.upper_arm_front
+  corner_fl.bracket_upper_rear suspension/brackets/arm-bracket (   -700,     480,       0) mm  mate corner_fl.upper_arm_rear
+  corner_fl.lower_arm          suspension/arms/lca-wishbone-a (   -800,     250,    -150) mm  mate corner_fl.lower_arm_front
+  corner_fl.upper_arm          suspension/arms/lca-wishbone-a (   -800,     300,     250) mm  mate corner_fl.upper_balljoint
+  corner_fl.upright            suspension/uprights/upright-dw (   -800,     570,    -150) mm  mate corner_fl.lower_balljoint
+  corner_fl.disc               braking/disc                   (   -800,     630,       0) mm  mate corner_fl.disc_on_hub
+  corner_fl.caliper            braking/caliper                (   -800,     573,     112) mm  mate corner_fl.caliper_on_upright
+  corner_fl.damper             suspension/dampers/twin-tube   (   -800,     460,    -143) mm  mate corner_fl.damper_on_arm
+  corner_fl.spring             suspension/springs/coil        (   -800,     460,     -18) mm  mate corner_fl.spring_on_damper
+  corner_fl.tower              suspension/brackets/damper-tower (   -800,     480,       0) mm  mate corner_fl.damper_to_tower
+  corner_fl.wheel              wheels/wheel-steel             (   -800,     640,       0) mm  mate corner_fl.wheel_on_disc
+  corner_fl.tyre               wheels/tyre                    (   -800,     680,       0) mm  mate corner_fl.tyre_on_rim
+  corner_fr.bracket_lower_front suspension/brackets/arm-bracket (  -1000,    -480,       0) mm  root
+  corner_fr.bracket_lower_rear suspension/brackets/arm-bracket (   -600,    -480,       0) mm  mate corner_fr.lower_arm_rear
+  corner_fr.bracket_upper_front suspension/brackets/arm-bracket (   -900,    -480,       0) mm  mate corner_fr.upper_arm_front
+  corner_fr.bracket_upper_rear suspension/brackets/arm-bracket (   -700,    -480,       0) mm  mate corner_fr.upper_arm_rear
+  corner_fr.lower_arm          suspension/arms/lca-wishbone-a (   -800,    -250,    -150) mm  mate corner_fr.lower_arm_front
+  corner_fr.upper_arm          suspension/arms/lca-wishbone-a (   -800,    -300,     250) mm  mate corner_fr.upper_balljoint
+  corner_fr.upright            suspension/uprights/upright-dw (   -800,    -570,    -150) mm  mate corner_fr.lower_balljoint
+  corner_fr.disc               braking/disc                   (   -800,    -630,       0) mm  mate corner_fr.disc_on_hub
+  corner_fr.caliper            braking/caliper                (   -800,    -573,     112) mm  mate corner_fr.caliper_on_upright
+  corner_fr.damper             suspension/dampers/twin-tube   (   -800,    -460,    -143) mm  mate corner_fr.damper_on_arm
+  corner_fr.spring             suspension/springs/coil        (   -800,    -460,     -18) mm  mate corner_fr.spring_on_damper
+  corner_fr.tower              suspension/brackets/damper-tower (   -800,    -480,       0) mm  mate corner_fr.damper_to_tower
+  corner_fr.wheel              wheels/wheel-steel             (   -800,    -640,       0) mm  mate corner_fr.wheel_on_disc
+  corner_fr.tyre               wheels/tyre                    (   -800,    -680,       0) mm  mate corner_fr.tyre_on_rim
+  corner_rl.bracket_lower_front suspension/brackets/arm-bracket (   1400,     480,       0) mm  root
+  corner_rl.bracket_lower_rear suspension/brackets/arm-bracket (   1800,     480,       0) mm  mate corner_rl.lower_arm_rear
+  corner_rl.bracket_upper_front suspension/brackets/arm-bracket (   1500,     480,       0) mm  mate corner_rl.upper_arm_front
+  corner_rl.bracket_upper_rear suspension/brackets/arm-bracket (   1700,     480,       0) mm  mate corner_rl.upper_arm_rear
+  corner_rl.lower_arm          suspension/arms/lca-wishbone-a (   1600,     250,    -150) mm  mate corner_rl.lower_arm_front
+  corner_rl.upper_arm          suspension/arms/lca-wishbone-a (   1600,     300,     250) mm  mate corner_rl.upper_balljoint
+  corner_rl.upright            suspension/uprights/upright-dw (   1600,     570,    -150) mm  mate corner_rl.lower_balljoint
+  corner_rl.disc               braking/disc                   (   1600,     630,       0) mm  mate corner_rl.disc_on_hub
+  corner_rl.caliper            braking/caliper                (   1600,     573,     112) mm  mate corner_rl.caliper_on_upright
+  corner_rl.damper             suspension/dampers/twin-tube   (   1600,     460,    -143) mm  mate corner_rl.damper_on_arm
+  corner_rl.spring             suspension/springs/coil        (   1600,     460,     -18) mm  mate corner_rl.spring_on_damper
+  corner_rl.tower              suspension/brackets/damper-tower (   1600,     480,       0) mm  mate corner_rl.damper_to_tower
+  corner_rl.wheel              wheels/wheel-steel             (   1600,     640,       0) mm  mate corner_rl.wheel_on_disc
+  corner_rl.tyre               wheels/tyre                    (   1600,     680,       0) mm  mate corner_rl.tyre_on_rim
+  corner_rr.bracket_lower_front suspension/brackets/arm-bracket (   1400,    -480,       0) mm  root
+  corner_rr.bracket_lower_rear suspension/brackets/arm-bracket (   1800,    -480,       0) mm  mate corner_rr.lower_arm_rear
+  corner_rr.bracket_upper_front suspension/brackets/arm-bracket (   1500,    -480,       0) mm  mate corner_rr.upper_arm_front
+  corner_rr.bracket_upper_rear suspension/brackets/arm-bracket (   1700,    -480,       0) mm  mate corner_rr.upper_arm_rear
+  corner_rr.lower_arm          suspension/arms/lca-wishbone-a (   1600,    -250,    -150) mm  mate corner_rr.lower_arm_front
+  corner_rr.upper_arm          suspension/arms/lca-wishbone-a (   1600,    -300,     250) mm  mate corner_rr.upper_balljoint
+  corner_rr.upright            suspension/uprights/upright-dw (   1600,    -570,    -150) mm  mate corner_rr.lower_balljoint
+  corner_rr.disc               braking/disc                   (   1600,    -630,       0) mm  mate corner_rr.disc_on_hub
+  corner_rr.caliper            braking/caliper                (   1600,    -573,     112) mm  mate corner_rr.caliper_on_upright
+  corner_rr.damper             suspension/dampers/twin-tube   (   1600,    -460,    -143) mm  mate corner_rr.damper_on_arm
+  corner_rr.spring             suspension/springs/coil        (   1600,    -460,     -18) mm  mate corner_rr.spring_on_damper
+  corner_rr.tower              suspension/brackets/damper-tower (   1600,    -480,       0) mm  mate corner_rr.damper_to_tower
+  corner_rr.wheel              wheels/wheel-steel             (   1600,    -640,       0) mm  mate corner_rr.wheel_on_disc
+  corner_rr.tyre               wheels/tyre                    (   1600,    -680,       0) mm  mate corner_rr.tyre_on_rim
+  rack                         steering/rack                  (   -500,       0,     -60) mm  mate rack_l
+  tie_rod_l                    steering/tie-rod               (   -500,     350,     -60) mm  mate tie_rod_l_outer
+  tie_rod_r                    steering/tie-rod               (   -500,    -350,     -60) mm  mate tie_rod_r_outer
+  intermediate_shaft           steering/intermediate-shaft    (   -500,    -340,      15) mm  mate shaft_on_rack
+  column                       steering/column                (   -117,    -340,     336) mm  mate column_on_shaft
+  steering_wheel               steering/wheel                 (    404,    -340,     773) mm  mate wheel_on_column
+  arb_front                    suspension/anti-roll/bar       (  -1100,       0,    -150) mm  mate arb_front_l
+  arb_rear                     suspension/anti-roll/bar       (   1200,       0,    -150) mm  mate arb_rear_l
+  master_cylinder              braking/master-cylinder        (   -460,    -480,     120) mm  mate master_cylinder_mount
+
+mates (98)
+  battery_fl             chassis.station_left_0 <-> battery.mount_fl  fixed kit  1x bolt M12 8.8
+  battery_fr             chassis.station_right_0 <-> battery.mount_fr  fixed kit  1x bolt M12 8.8
+  battery_rl             chassis.station_left_8 <-> battery.mount_rl  fixed kit  1x bolt M12 8.8
+  battery_rr             chassis.station_right_8 <-> battery.mount_rr  fixed kit  1x bolt M12 8.8
+  drive_fl               chassis.station_left_10 <-> drive.mount_fl  fixed kit  1x bolt M12 10.9
+  drive_fr               chassis.station_right_10 <-> drive.mount_fr  fixed kit  1x bolt M12 10.9
+  drive_rl               chassis.station_left_13 <-> drive.mount_rl  fixed kit  1x bolt M12 10.9
+  drive_rr               chassis.station_right_13 <-> drive.mount_rr  fixed kit  1x bolt M12 10.9
+  corner_fl_lf           chassis.station_left_-10 <-> corner_fl.station_lower_front  fixed kit  2x bolt M12 10.9
+  corner_fl_uf           chassis.station_left_-9 <-> corner_fl.station_upper_front  fixed kit  2x bolt M12 10.9
+  corner_fl_ur           chassis.station_left_-7 <-> corner_fl.station_upper_rear  fixed kit  2x bolt M12 10.9
+  corner_fl_lr           chassis.station_left_-6 <-> corner_fl.station_lower_rear  fixed kit  2x bolt M12 10.9
+  corner_fr_lf           chassis.station_right_-10 <-> corner_fr.station_lower_front  fixed kit  2x bolt M12 10.9
+  corner_fr_uf           chassis.station_right_-9 <-> corner_fr.station_upper_front  fixed kit  2x bolt M12 10.9
+  corner_fr_ur           chassis.station_right_-7 <-> corner_fr.station_upper_rear  fixed kit  2x bolt M12 10.9
+  corner_fr_lr           chassis.station_right_-6 <-> corner_fr.station_lower_rear  fixed kit  2x bolt M12 10.9
+  corner_rl_lf           chassis.station_left_14 <-> corner_rl.station_lower_front  fixed kit  2x bolt M12 10.9
+  corner_rl_uf           chassis.station_left_15 <-> corner_rl.station_upper_front  fixed kit  2x bolt M12 10.9
+  corner_rl_ur           chassis.station_left_17 <-> corner_rl.station_upper_rear  fixed kit  2x bolt M12 10.9
+  corner_rl_lr           chassis.station_left_18 <-> corner_rl.station_lower_rear  fixed kit  2x bolt M12 10.9
+  corner_rr_lf           chassis.station_right_14 <-> corner_rr.station_lower_front  fixed kit  2x bolt M12 10.9
+  corner_rr_uf           chassis.station_right_15 <-> corner_rr.station_upper_front  fixed kit  2x bolt M12 10.9
+  corner_rr_ur           chassis.station_right_17 <-> corner_rr.station_upper_rear  fixed kit  2x bolt M12 10.9
+  corner_rr_lr           chassis.station_right_18 <-> corner_rr.station_lower_rear  fixed kit  2x bolt M12 10.9
+  corner_fl_tower        chassis.station_left_-8 <-> corner_fl.station_tower  fixed kit  2x bolt M12 10.9
+  corner_fr_tower        chassis.station_right_-8 <-> corner_fr.station_tower  fixed kit  2x bolt M12 10.9
+  corner_rl_tower        chassis.station_left_16 <-> corner_rl.station_tower  fixed kit  2x bolt M12 10.9
+  corner_rr_tower        chassis.station_right_16 <-> corner_rr.station_tower  fixed kit  2x bolt M12 10.9
+  rack_l                 chassis.station_left_-5 <-> rack.mount_l  fixed kit  2x bolt M12 8.8
+  rack_r                 chassis.station_right_-5 <-> rack.mount_r  fixed kit  2x bolt M12 8.8
+  tie_rod_l_inner        rack.end_l <-> tie_rod_l.inner  fixed kit  1x nut M14x1.5 8.8
+  tie_rod_l_outer        corner_fl.steering_arm <-> tie_rod_l.outer  spherical kit  1x nut M12 10.9
+  tie_rod_r_inner        rack.end_r <-> tie_rod_r.inner  fixed kit  1x nut M14x1.5 8.8
+  tie_rod_r_outer        corner_fr.steering_arm <-> tie_rod_r.outer  spherical kit  1x nut M12 10.9
+  shaft_on_rack          rack.pinion <-> intermediate_shaft.lower  revolute kit  1x bolt M8 8.8
+  column_on_shaft        intermediate_shaft.upper <-> column.pinion  revolute kit  1x bolt M8 8.8
+  wheel_on_column        column.wheel <-> steering_wheel.boss  fixed kit  1x nut M16 8.8
+  arb_front_l            chassis.station_left_-11 <-> arb_front.mount_l  fixed kit  2x bolt M12 8.8
+  arb_front_r            chassis.station_right_-11 <-> arb_front.mount_r  fixed kit  2x bolt M12 8.8
+  arb_front_link_l       corner_fl.antiroll <-> arb_front.link_l  spherical kit  1x nut M10 8.8
+  arb_front_link_r       corner_fr.antiroll <-> arb_front.link_r  spherical kit  1x nut M10 8.8
+  arb_rear_l             chassis.station_left_12 <-> arb_rear.mount_l  fixed kit  2x bolt M12 8.8
+  arb_rear_r             chassis.station_right_12 <-> arb_rear.mount_r  fixed kit  2x bolt M12 8.8
+  arb_rear_link_l        corner_rl.antiroll <-> arb_rear.link_l  spherical kit  1x nut M10 8.8
+  arb_rear_link_r        corner_rr.antiroll <-> arb_rear.link_r  spherical kit  1x nut M10 8.8
+  master_cylinder_mount  chassis.station_right_-4 <-> master_cylinder.chassis_mount  fixed kit  2x bolt M12 8.8
+  corner_fl.lower_arm_front corner_fl.bracket_lower_front.bush <-> corner_fl.lower_arm.bush_front  revolute kit  1x bolt M12 10.9
+  corner_fl.lower_arm_rear corner_fl.bracket_lower_rear.bush <-> corner_fl.lower_arm.bush_rear  revolute kit  1x bolt M12 10.9
+  corner_fl.upper_arm_front corner_fl.bracket_upper_front.bush <-> corner_fl.upper_arm.bush_front  revolute kit  1x bolt M12 10.9
+  corner_fl.upper_arm_rear corner_fl.bracket_upper_rear.bush <-> corner_fl.upper_arm.bush_rear  revolute kit  1x bolt M12 10.9
+  corner_fl.lower_balljoint corner_fl.lower_arm.balljoint <-> corner_fl.upright.lower_bj  spherical kit  1x nut M14 10.9
+  corner_fl.upper_balljoint corner_fl.upper_arm.balljoint <-> corner_fl.upright.upper_bj  spherical kit  1x nut M12 10.9
+  corner_fl.disc_on_hub  corner_fl.upright.hub <-> corner_fl.disc.hub  fixed kit  1x screw M8 8.8
+  corner_fl.wheel_on_disc corner_fl.disc.wheel <-> corner_fl.wheel.mount  fixed kit  4x bolt M12x1.5 10.9
+  corner_fl.damper_on_arm corner_fl.lower_arm.spring <-> corner_fl.damper.lower  revolute kit  1x bolt M12 10.9
+  corner_fl.spring_on_damper corner_fl.damper.spring_seat <-> corner_fl.spring.bottom  fixed factory
+  corner_fl.damper_to_tower corner_fl.tower.eye <-> corner_fl.damper.upper  revolute kit  1x bolt M12 10.9
+  corner_fl.caliper_on_upright corner_fl.upright.caliper <-> corner_fl.caliper.mount  fixed kit  2x bolt M12 10.9
+  corner_fl.tyre_on_rim  corner_fl.wheel.bead <-> corner_fl.tyre.bead  fixed factory
+  corner_fr.lower_arm_front corner_fr.bracket_lower_front.bush <-> corner_fr.lower_arm.bush_front  revolute kit  1x bolt M12 10.9
+  corner_fr.lower_arm_rear corner_fr.bracket_lower_rear.bush <-> corner_fr.lower_arm.bush_rear  revolute kit  1x bolt M12 10.9
+  corner_fr.upper_arm_front corner_fr.bracket_upper_front.bush <-> corner_fr.upper_arm.bush_front  revolute kit  1x bolt M12 10.9
+  corner_fr.upper_arm_rear corner_fr.bracket_upper_rear.bush <-> corner_fr.upper_arm.bush_rear  revolute kit  1x bolt M12 10.9
+  corner_fr.lower_balljoint corner_fr.lower_arm.balljoint <-> corner_fr.upright.lower_bj  spherical kit  1x nut M14 10.9
+  corner_fr.upper_balljoint corner_fr.upper_arm.balljoint <-> corner_fr.upright.upper_bj  spherical kit  1x nut M12 10.9
+  corner_fr.disc_on_hub  corner_fr.upright.hub <-> corner_fr.disc.hub  fixed kit  1x screw M8 8.8
+  corner_fr.wheel_on_disc corner_fr.disc.wheel <-> corner_fr.wheel.mount  fixed kit  4x bolt M12x1.5 10.9
+  corner_fr.damper_on_arm corner_fr.lower_arm.spring <-> corner_fr.damper.lower  revolute kit  1x bolt M12 10.9
+  corner_fr.spring_on_damper corner_fr.damper.spring_seat <-> corner_fr.spring.bottom  fixed factory
+  corner_fr.damper_to_tower corner_fr.tower.eye <-> corner_fr.damper.upper  revolute kit  1x bolt M12 10.9
+  corner_fr.caliper_on_upright corner_fr.upright.caliper <-> corner_fr.caliper.mount  fixed kit  2x bolt M12 10.9
+  corner_fr.tyre_on_rim  corner_fr.wheel.bead <-> corner_fr.tyre.bead  fixed factory
+  corner_rl.lower_arm_front corner_rl.bracket_lower_front.bush <-> corner_rl.lower_arm.bush_front  revolute kit  1x bolt M12 10.9
+  corner_rl.lower_arm_rear corner_rl.bracket_lower_rear.bush <-> corner_rl.lower_arm.bush_rear  revolute kit  1x bolt M12 10.9
+  corner_rl.upper_arm_front corner_rl.bracket_upper_front.bush <-> corner_rl.upper_arm.bush_front  revolute kit  1x bolt M12 10.9
+  corner_rl.upper_arm_rear corner_rl.bracket_upper_rear.bush <-> corner_rl.upper_arm.bush_rear  revolute kit  1x bolt M12 10.9
+  corner_rl.lower_balljoint corner_rl.lower_arm.balljoint <-> corner_rl.upright.lower_bj  spherical kit  1x nut M14 10.9
+  corner_rl.upper_balljoint corner_rl.upper_arm.balljoint <-> corner_rl.upright.upper_bj  spherical kit  1x nut M12 10.9
+  corner_rl.disc_on_hub  corner_rl.upright.hub <-> corner_rl.disc.hub  fixed kit  1x screw M8 8.8
+  corner_rl.wheel_on_disc corner_rl.disc.wheel <-> corner_rl.wheel.mount  fixed kit  4x bolt M12x1.5 10.9
+  corner_rl.damper_on_arm corner_rl.lower_arm.spring <-> corner_rl.damper.lower  revolute kit  1x bolt M12 10.9
+  corner_rl.spring_on_damper corner_rl.damper.spring_seat <-> corner_rl.spring.bottom  fixed factory
+  corner_rl.damper_to_tower corner_rl.tower.eye <-> corner_rl.damper.upper  revolute kit  1x bolt M12 10.9
+  corner_rl.caliper_on_upright corner_rl.upright.caliper <-> corner_rl.caliper.mount  fixed kit  2x bolt M12 10.9
+  corner_rl.tyre_on_rim  corner_rl.wheel.bead <-> corner_rl.tyre.bead  fixed factory
+  corner_rr.lower_arm_front corner_rr.bracket_lower_front.bush <-> corner_rr.lower_arm.bush_front  revolute kit  1x bolt M12 10.9
+  corner_rr.lower_arm_rear corner_rr.bracket_lower_rear.bush <-> corner_rr.lower_arm.bush_rear  revolute kit  1x bolt M12 10.9
+  corner_rr.upper_arm_front corner_rr.bracket_upper_front.bush <-> corner_rr.upper_arm.bush_front  revolute kit  1x bolt M12 10.9
+  corner_rr.upper_arm_rear corner_rr.bracket_upper_rear.bush <-> corner_rr.upper_arm.bush_rear  revolute kit  1x bolt M12 10.9
+  corner_rr.lower_balljoint corner_rr.lower_arm.balljoint <-> corner_rr.upright.lower_bj  spherical kit  1x nut M14 10.9
+  corner_rr.upper_balljoint corner_rr.upper_arm.balljoint <-> corner_rr.upright.upper_bj  spherical kit  1x nut M12 10.9
+  corner_rr.disc_on_hub  corner_rr.upright.hub <-> corner_rr.disc.hub  fixed kit  1x screw M8 8.8
+  corner_rr.wheel_on_disc corner_rr.disc.wheel <-> corner_rr.wheel.mount  fixed kit  4x bolt M12x1.5 10.9
+  corner_rr.damper_on_arm corner_rr.lower_arm.spring <-> corner_rr.damper.lower  revolute kit  1x bolt M12 10.9
+  corner_rr.spring_on_damper corner_rr.damper.spring_seat <-> corner_rr.spring.bottom  fixed factory
+  corner_rr.damper_to_tower corner_rr.tower.eye <-> corner_rr.damper.upper  revolute kit  1x bolt M12 10.9
+  corner_rr.caliper_on_upright corner_rr.upright.caliper <-> corner_rr.caliper.mount  fixed kit  2x bolt M12 10.9
+  corner_rr.tyre_on_rim  corner_rr.wheel.bead <-> corner_rr.tyre.bead  fixed factory
+
+point masses
+  body_and_closures      180 kg at (400, 0, 700) mm  [kerb]
+  brake_lines_and_pedals    14 kg at (-400, 0, 300) mm  [kerb]
+  interior_and_seats      90 kg at (700, 0, 600) mm  [kerb]
+  electrical_lv           25 kg at (0, 0, 400) mm  [kerb]
+  driver                  80 kg at (600, -350, 750) mm  [laden]
+  passenger               80 kg at (600, 350, 750) mm  [laden]
+
+building geometry with mesh kernel (preview: no booleans, overlapping volume counted twice)
+
+extent of each part, in vehicle coordinates (mm)
+  part                                              x from / to                y from / to                z from / to
+  arb_front                                 -1125         -900         -500          500         -160            0
+  arb_rear                                   1175         1500         -500          500         -158            0
+  battery                                    -100          900         -450          450            0          150
+  chassis.central_crossmember_1               445          505         -450          450          -90          -30
+  chassis.central_crossmember_2               920          980         -450          450          -90          -30
+  chassis.central_crossmember_3              1395         1455         -450          450          -90          -30
+  chassis.central_crossmember_4              1870         1930         -450          450          -90          -30
+  chassis.central_rail_left                     0         1900          450          510         -120            0
+  chassis.central_rail_right                    0         1900         -510         -450         -120            0
+  chassis.front_crossmember_0               -1130        -1070         -450          450          -90          -30
+  chassis.front_crossmember_1                -580         -520         -450          450          -90          -30
+  chassis.front_crossmember_2                 -30           30         -450          450          -90          -30
+  chassis.front_rail_left                   -1100            0          450          510         -120            0
+  chassis.front_rail_right                  -1100            0         -510         -450         -120            0
+  column                                     -125          412         -370         -310          327          783
+  corner_fl.bracket_lower_front             -1030         -970          219          484         -180            0
+  corner_fl.bracket_lower_rear               -630         -570          219          484         -180            0
+  corner_fl.bracket_upper_front              -930         -870          269          484            0          280
+  corner_fl.bracket_upper_rear               -730         -670          269          484            0          280
+  corner_fl.caliper                          -860         -740          501          611          112          211
+  corner_fl.damper                           -850         -750          410          510         -158          356
+  corner_fl.disc                             -940         -660          561          640         -140          140
+  corner_fl.lower_arm                       -1025         -575          227          592         -172         -128
+  corner_fl.spring                           -853         -747          407          513          -18          302
+  corner_fl.tower                            -845         -755          420          495            0          357
+  corner_fl.tyre                            -1102         -499          587          772         -302          302
+  corner_fl.upper_arm                        -925         -675          277          562          228          272
+  corner_fl.upright                          -860         -690          514          650         -175          272
+  corner_fl.wheel                            -990         -610          604          756         -190          190
+  corner_fr.bracket_lower_front             -1030         -970         -484         -219         -180            0
+  corner_fr.bracket_lower_rear               -630         -570         -484         -219         -180            0
+  corner_fr.bracket_upper_front              -930         -870         -484         -269            0          280
+  corner_fr.bracket_upper_rear               -730         -670         -484         -269            0          280
+  corner_fr.caliper                          -860         -740         -611         -501          112          211
+  corner_fr.damper                           -850         -750         -510         -410         -158          356
+  corner_fr.disc                             -940         -660         -640         -561         -140          140
+  corner_fr.lower_arm                       -1025         -575         -592         -227         -172         -128
+  corner_fr.spring                           -853         -747         -513         -407          -18          302
+  corner_fr.tower                            -845         -755         -495         -420            0          357
+  corner_fr.tyre                            -1102         -499         -772         -587         -302          302
+  corner_fr.upper_arm                        -925         -675         -562         -277          228          272
+  corner_fr.upright                          -860         -690         -650         -514         -175          272
+  corner_fr.wheel                            -990         -610         -756         -604         -190          190
+  corner_rl.bracket_lower_front              1370         1430          219          484         -180            0
+  corner_rl.bracket_lower_rear               1770         1830          219          484         -180            0
+  corner_rl.bracket_upper_front              1470         1530          269          484            0          280
+  corner_rl.bracket_upper_rear               1670         1730          269          484            0          280
+  corner_rl.caliper                          1540         1660          501          611          112          211
+  corner_rl.damper                           1550         1650          410          510         -158          356
+  corner_rl.disc                             1460         1740          561          640         -140          140
+  corner_rl.lower_arm                        1375         1825          227          592         -172         -128
+  corner_rl.spring                           1547         1653          407          513          -18          302
+  corner_rl.tower                            1555         1645          420          495            0          357
+  corner_rl.tyre                             1268         1932          562          798         -332          332
+  corner_rl.upper_arm                        1475         1725          277          562          228          272
+  corner_rl.upright                          1540         1710          514          650         -175          272
+  corner_rl.wheel                            1410         1791          578          782         -190          190
+  corner_rr.bracket_lower_front              1370         1430         -484         -219         -180            0
+  corner_rr.bracket_lower_rear               1770         1830         -484         -219         -180            0
+  corner_rr.bracket_upper_front              1470         1530         -484         -269            0          280
+  corner_rr.bracket_upper_rear               1670         1730         -484         -269            0          280
+  corner_rr.caliper                          1540         1660         -611         -501          112          211
+  corner_rr.damper                           1550         1650         -510         -410         -158          356
+  corner_rr.disc                             1460         1740         -640         -561         -140          140
+  corner_rr.lower_arm                        1375         1825         -592         -227         -172         -128
+  corner_rr.spring                           1547         1653         -513         -407          -18          302
+  corner_rr.tower                            1555         1645         -495         -420            0          357
+  corner_rr.tyre                             1268         1932         -798         -562         -332          332
+  corner_rr.upper_arm                        1475         1725         -562         -277          228          272
+  corner_rr.upright                          1540         1710         -650         -514         -175          272
+  corner_rr.wheel                            1410         1791         -782         -578         -190          190
+  drive                                       940         1360         -330          330            0          340
+  intermediate_shaft                         -523          -94         -363         -317          -15          366
+  master_cylinder                            -474         -300         -542         -418            0          213
+  rack                                       -530         -470         -500          500          -86           15
+  steering_wheel                              219          481         -525         -155          576          880
+  tie_rod_l                                  -707         -483          335          605         -100          -43
+  tie_rod_r                                  -707         -483         -605         -335         -100          -43
+
+left and right pairs
+  chassis.central_rail_left          y     450 to     510   chassis.central_rail_right         y    -510 to    -450   mirrored
+  chassis.front_rail_left            y     450 to     510   chassis.front_rail_right           y    -510 to    -450   mirrored
+  corner_fl.bracket_lower_front      y     219 to     484   corner_fr.bracket_lower_front      y    -484 to    -219   mirrored
+  corner_fl.bracket_lower_rear       y     219 to     484   corner_fr.bracket_lower_rear       y    -484 to    -219   mirrored
+  corner_fl.bracket_upper_front      y     269 to     484   corner_fr.bracket_upper_front      y    -484 to    -269   mirrored
+  corner_fl.bracket_upper_rear       y     269 to     484   corner_fr.bracket_upper_rear       y    -484 to    -269   mirrored
+  corner_fl.caliper                  y     501 to     611   corner_fr.caliper                  y    -611 to    -501   mirrored
+  corner_fl.damper                   y     410 to     510   corner_fr.damper                   y    -510 to    -410   mirrored
+  corner_fl.disc                     y     561 to     640   corner_fr.disc                     y    -640 to    -561   mirrored
+  corner_fl.lower_arm                y     227 to     592   corner_fr.lower_arm                y    -592 to    -227   mirrored
+  corner_fl.spring                   y     407 to     513   corner_fr.spring                   y    -513 to    -407   mirrored
+  corner_fl.tower                    y     420 to     495   corner_fr.tower                    y    -495 to    -420   mirrored
+  corner_fl.tyre                     y     587 to     772   corner_fr.tyre                     y    -772 to    -587   mirrored
+  corner_fl.upper_arm                y     277 to     562   corner_fr.upper_arm                y    -562 to    -277   mirrored
+  corner_fl.upright                  y     514 to     650   corner_fr.upright                  y    -650 to    -514   mirrored
+  corner_fl.wheel                    y     604 to     756   corner_fr.wheel                    y    -756 to    -604   mirrored
+  corner_rl.bracket_lower_front      y     219 to     484   corner_rr.bracket_lower_front      y    -484 to    -219   mirrored
+  corner_rl.bracket_lower_rear       y     219 to     484   corner_rr.bracket_lower_rear       y    -484 to    -219   mirrored
+  corner_rl.bracket_upper_front      y     269 to     484   corner_rr.bracket_upper_front      y    -484 to    -269   mirrored
+  corner_rl.bracket_upper_rear       y     269 to     484   corner_rr.bracket_upper_rear       y    -484 to    -269   mirrored
+  corner_rl.caliper                  y     501 to     611   corner_rr.caliper                  y    -611 to    -501   mirrored
+  corner_rl.damper                   y     410 to     510   corner_rr.damper                   y    -510 to    -410   mirrored
+  corner_rl.disc                     y     561 to     640   corner_rr.disc                     y    -640 to    -561   mirrored
+  corner_rl.lower_arm                y     227 to     592   corner_rr.lower_arm                y    -592 to    -227   mirrored
+  corner_rl.spring                   y     407 to     513   corner_rr.spring                   y    -513 to    -407   mirrored
+  corner_rl.tower                    y     420 to     495   corner_rr.tower                    y    -495 to    -420   mirrored
+  corner_rl.tyre                     y     562 to     798   corner_rr.tyre                     y    -798 to    -562   mirrored
+  corner_rl.upper_arm                y     277 to     562   corner_rr.upper_arm                y    -562 to    -277   mirrored
+  corner_rl.upright                  y     514 to     650   corner_rr.upright                  y    -650 to    -514   mirrored
+  corner_rl.wheel                    y     578 to     782   corner_rr.wheel                    y    -782 to    -578   mirrored
+  tie_rod_l                          y     335 to     605   tie_rod_r                          y    -605 to    -335   mirrored
+
+parts off the centreline with no twin
+  column                             y    -370 to    -310   sits on the RIGHT
+  intermediate_shaft                 y    -363 to    -317   sits on the RIGHT
+  master_cylinder                    y    -542 to    -418   sits on the RIGHT
+  steering_wheel                     y    -525 to    -155   sits on the RIGHT
+
+31 pair(s) checked, 0 not mirrored, 4 part(s) alone off the centreline
+
+mass by part
+  chassis/mcds-v1/rail-box                 x4       18.75 kg   material database
+  chassis/mcds-v1/crossmember              x7        9.11 kg   material database
+  energy/battery/pack-modular              x1      225.00 kg   declared
+  drivetrain/motor/drive-unit              x1       50.00 kg   declared
+  suspension/brackets/arm-bracket          x16      46.38 kg   material database
+  suspension/arms/lca-wishbone-a           x8       24.80 kg   material database
+  suspension/uprights/upright-dw           x4       22.55 kg   material database
+  braking/disc                             x4       32.17 kg   material database
+  braking/caliper                          x4       13.60 kg   declared
+  suspension/dampers/twin-tube             x4        9.20 kg   declared
+  suspension/springs/coil                  x4        8.02 kg   declared
+  suspension/brackets/damper-tower         x4       13.61 kg   material database
+  wheels/wheel-steel                       x4       34.00 kg   declared
+  wheels/tyre                              x4       30.00 kg   declared
+  steering/rack                            x1        6.80 kg   declared
+  steering/tie-rod                         x2        1.90 kg   material database
+  steering/intermediate-shaft              x1        2.40 kg   declared
+  steering/column                          x1        5.20 kg   declared
+  steering/wheel                           x1        2.10 kg   declared
+  suspension/anti-roll/bar                 x2       15.04 kg   material database
+  braking/master-cylinder                  x1        2.60 kg   declared
+
+total mass 573.2 kg at cg (432, -8, 63) mm
+  every density came from the material database
+  plus 469.0 kg of declared point masses
+
+Tier 0 (closed form, from mass and geometry)
+  overall            3062 x 1595 x 1212 mm
+  wheelbase          2400 mm
+  front              x    -800 mm   track   1280 mm   2 wheels     431.0 kg  (49%)
+  rear               x    1600 mm   track   1280 mm   2 wheels     451.3 kg  (51%)
+  overhangs          front 330 mm, rear 332 mm
+  cg height          562 mm above the ground
+  ground clearance   121 mm
+  static stability   1.14   (half track over cg height; higher resists rollover)

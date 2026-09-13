@@ -268,4 +268,32 @@ rulepack "wright-internal" version="0.1.0" {
     }
 
 
+    rule "steering.right-hand-drive" {
+        title "An Australian vehicle is right-hand drive"
+        source "Motor Vehicle Standards Act and ADR 42: vehicles for the Australian market are                 right-hand drive, and the driving controls are on the right"
+        verified "J. Wright" date="2026-09-13"
+        applies_when "\"AU\" in vehicle.markets and count(filter(parts, p -> \"steering.wheel\" in p.tags)) > 0"
+        evidence "calculation"
+        // Vehicle y is positive to the left, so the driver's side is negative.
+        check "all(filter(parts, p -> \"steering.wheel\" in p.tags), p -> p.y < 0 mm)"
+        on_fail "The steering wheel is on the left. This vehicle is built for a market that                  drives on the left, which means the driver sits on the right."
+        note "Found by the symmetry report: the steering column, the wheel and the master               cylinder were all on the wrong side, and so was the driver's mass."
+        severity "fail"
+    }
+
+    rule "layout.symmetric-about-the-centreline" {
+        title "Everything off the centreline is either paired or deliberately single"
+        source "Design practice: an unpaired part is usually one somebody forgot to fit twice"
+        verified "J. Wright" date="2026-09-13"
+        evidence "calculation"
+        // Suspension and wheels always come in pairs. Braking is left out because a master
+        // cylinder is legitimately a single part on the driver's side, and steering is left out
+        // because all of it is.
+        // The same count on each side of the centreline, rather than a total, so that a part
+        // fitted twice on one side is caught as well as one fitted only once.
+        check "count(filter(parts, p -> (p.category == \"suspension\" or p.category == \"wheels\") and p.y > 20 mm)) == count(filter(parts, p -> (p.category == \"suspension\" or p.category == \"wheels\") and p.y < -20 mm))"
+        on_fail "There are more suspension or wheel parts on one side than the other, so one of                  them has no opposite number."
+        severity "fail"
+    }
+
 }

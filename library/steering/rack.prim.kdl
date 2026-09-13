@@ -17,7 +17,7 @@ primitive "steering/rack" version="0.1.0" {
         housing_od    unit="mm" default=52  min=35  max=80  doc="housing diameter"
         ratio         unit="mm" default=44  min=30  max=70  doc="rack travel per turn of the pinion"
         mount_span_y  unit="mm" default=960 min=200 max=1400 doc="distance between the mounting feet; on MCDS this is the rail spacing"
-        pinion_offset unit="mm" default=230 min=0   max=450 doc="pinion position left of centre"
+        pinion_offset unit="mm" default=230 min=-450 max=450 doc="pinion position, positive to the left. Negative for a right-hand drive vehicle, which is what Australia needs."
         pinion_angle  unit="deg" default=20 min=0   max=45  doc="pinion rake back from vertical"
         mount_rise    unit="mm" default=60  min=0   max=200 doc="how far the mounting feet sit above the rack axis; this is what sets rack height"
 

@@ -1,0 +1,54 @@
+reference/city-ev  driving dynamics
+  1042 kg, wheelbase 2400 mm, track 1280/1280 mm, cg 562 mm up, 48/52 split
+
+steady state cornering, 30 m radius
+  maximum          0.98 g
+  understeer       +0.59 degrees of steer per g
+  balance          close to neutral: quick, and less forgiving at the limit
+  body roll        4.7 degrees at the limit
+  limited by       the tyres let go at 0.98 g, around 63 km/h
+
+springs and bars, read from the vehicle
+  front            1.43 Hz ride frequency
+  rear             1.37 Hz ride frequency
+  roll stiffness   598 front, 322 rear Nm per degree, a 65/35 split
+
+step steer, 80 km/h, 2 degrees at the road wheel
+  response         152 ms to nine tenths of the final yaw rate
+  overshoot        4 percent
+  settles in       0.32 s
+
+braking from 100 km/h
+  distance         33.5 m
+  best             1.19 g
+  stability        the front axle reaches its limit first, which is what keeps it straight
+
+acceleration
+  0 to 100 km/h    4.1 s
+  0 to 60 km/h     2.1 s
+  standing 400 m   13.1 s
+  top speed        145 km/h
+  launch           limited by grip rather than by the motor
+
+double lane change at 70 km/h
+  worst deviation  0.41 m from the intended path
+  peak lateral     0.44 g, body slip 0.3 degrees
+  steering wheel   30 degrees at the worst point
+  verdict          held the path without drama
+
+the model contradicts itself
+  drivetrain/motor/drive-unit declares 110 kW but its torque curve implies 137 kW at the wheels; the acceleration figures follow the curve.
+
+where the inputs came from: 15 measured off the model, 7 assumed
+  yaw inertia                    1497.759 kg m2   estimated as mass times the axle distances; no inertia tensor yet
+  roll axis height                  0.100 m       no suspension kinematics; a low roll axis is typical
+  roll inertia                    288.079 kg m2   estimated from the sprung mass and the roll arm
+  roll damping                   2728.581 Nms/rad 35 percent of critical, typical for a road car
+  steering ratio                   15.708         rack ratio and arm length not yet combined; 16 to 1 assumed
+  drag area                         0.680 m2      no body in the model; typical of a small hatchback
+  front brake bias                  0.627         set from the static weight split plus a typical forward shift
+
+Every number above is only as good as the tyre coefficients and the assumptions listed.
+The tyre model has not been measured against a real tyre, which is the largest single
+source of error here. There are also no suspension kinematics, so camber and toe do not
+change as the wheels move.

@@ -1006,15 +1006,26 @@ fn print_bounds<K: wmds_geom::GeomKernel>(k: &K, built: &wmds_geom::BuiltAssembl
     }
 
     // Pair left with right and say whether each pair is a mirror image.
-    println!("\nleft and right pairs");
-    let mut any = false;
+    println!("
+left and right pairs");
+    let mut paired: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut wrong = 0;
     for (id, (lo, hi)) in &extents {
         let Some(right) = mirror_name(id) else { continue };
         let Some((rlo, rhi)) = extents.get(&right) else {
             continue;
         };
-        any = true;
-        let mirrored = (lo[1] + rhi[1]).abs() < 1e-4 && (hi[1] + rlo[1]).abs() < 1e-4;
+        paired.insert(id.clone());
+        paired.insert(right.clone());
+        // A true mirror image: y reflected, x and z untouched.
+        let mirrored = (lo[1] + rhi[1]).abs() < 1e-4
+            && (hi[1] + rlo[1]).abs() < 1e-4
+            && (lo[0] - rlo[0]).abs() < 1e-4
+            && (lo[2] - rlo[2]).abs() < 1e-4
+            && (hi[2] - rhi[2]).abs() < 1e-4;
+        if !mirrored {
+            wrong += 1;
+        }
         println!(
             "  {:<34} y {:>7.0} to {:>7.0}   {:<34} y {:>7.0} to {:>7.0}   {}",
             id,
@@ -1026,9 +1037,38 @@ fn print_bounds<K: wmds_geom::GeomKernel>(k: &K, built: &wmds_geom::BuiltAssembl
             if mirrored { "mirrored" } else { "NOT MIRRORED" }
         );
     }
-    if !any {
-        println!("  no parts whose names pair left with right");
+
+    // Anything with no twin is either deliberately one of a kind, or a part somebody forgot to
+    // fit on the other side. Both are worth seeing, and one of them is a defect.
+    println!("
+parts off the centreline with no twin");
+    let mut lone = 0;
+    for (id, (lo, hi)) in &extents {
+        if paired.contains(id) {
+            continue;
+        }
+        let centre = (lo[1] + hi[1]) / 2.0;
+        // A part straddling the centreline is a single central part, which is normal.
+        if centre.abs() < 0.02 {
+            continue;
+        }
+        lone += 1;
+        println!(
+            "  {:<34} y {:>7.0} to {:>7.0}   sits on the {}",
+            id,
+            lo[1] * 1e3,
+            hi[1] * 1e3,
+            if centre > 0.0 { "LEFT" } else { "RIGHT" }
+        );
     }
+    if lone == 0 {
+        println!("  none: everything off the centreline has a twin");
+    }
+    println!(
+        "
+{} pair(s) checked, {wrong} not mirrored, {lone} part(s) alone off the centreline",
+        paired.len() / 2
+    );
 }
 
 /// The right-hand name of a part whose name marks it as the left-hand one.
@@ -1048,6 +1088,10 @@ fn mirror_name(id: &str) -> Option<String> {
             out.replace_range(pos..pos + l.len(), r);
             return Some(out);
         }
+    }
+    // A name that simply ends in _l, such as `tie_rod_l`.
+    if let Some(stem) = id.strip_suffix("_l") {
+        return Some(format!("{stem}_r"));
     }
     // A dotted sub-assembly id such as `corner_fl.lower_arm` is handled above by `_fl`.
     None

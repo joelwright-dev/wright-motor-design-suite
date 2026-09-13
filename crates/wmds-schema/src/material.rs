@@ -52,6 +52,24 @@ pub struct MaterialDef {
     pub note: String,
     /// Per-solver material cards, keyed by solver name.
     pub solvers: IndexMap<String, IndexMap<String, String>>,
+    /// How this material behaves when it is crushed, which is a different question from how
+    /// strong it is. A carbon tube absorbs several times what steel does per kilogram, and only
+    /// if it is triggered so that it fragments progressively instead of splitting in half.
+    pub crush: Option<Crush>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Crush {
+    /// Specific energy absorption: joules per kilogram of material actually crushed.
+    pub sea: Quantity,
+    /// How much of the available length can be consumed before the debris packs solid.
+    pub efficiency: f64,
+    /// The initial peak force, as a multiple of the steady crush force. A structure with no
+    /// trigger peaks hard and then drops, and that peak is what hurts the occupants.
+    pub trigger_ratio: f64,
+    /// Whether progressive crush has been demonstrated on a real coupon. A composite that has
+    /// not been tested does not get to claim these numbers.
+    pub validated: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -126,6 +144,30 @@ pub fn parse_materials(name: &str, src: &str) -> Result<Vec<MaterialDef>, Schema
     } else {
         Err(SchemaErrors::new(name, src, ctx.errors))
     }
+}
+
+/// The `crush` block, which says how a material behaves when it is destroyed rather than loaded.
+fn crush_block(ctx: &mut Ctx, node: &KdlNode) -> Option<Crush> {
+    let n = child(node, "crush")?;
+    let sea = quantity(
+        ctx,
+        n,
+        "sea",
+        Dim {
+            m: 2,
+            s: -2,
+            ..Dim::NONE
+        },
+        "specific energy absorption, in joules per kilogram",
+    )?;
+    Some(Crush {
+        sea,
+        efficiency: prop(n, "efficiency").and_then(|v| v.as_float()).unwrap_or(0.7),
+        trigger_ratio: prop(n, "trigger_ratio")
+            .and_then(|v| v.as_float())
+            .unwrap_or(1.6),
+        validated: prop(n, "validated").and_then(|v| v.as_bool()).unwrap_or(false),
+    })
 }
 
 fn quantity(ctx: &mut Ctx, node: &KdlNode, key: &str, want: Dim, what: &str) -> Option<Quantity> {
@@ -284,6 +326,7 @@ fn parse_one(ctx: &mut Ctx, node: &KdlNode) -> Option<MaterialDef> {
         elastic,
         strength,
         environment,
+        crush: crush_block(ctx, node),
         cost,
         source: child(node, "source")
             .and_then(first_positional_string)

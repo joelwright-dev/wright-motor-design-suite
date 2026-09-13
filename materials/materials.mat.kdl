@@ -24,6 +24,8 @@ material "cfrp/pultruded-ud-t700-epoxy" version="0.1.0" {
     note "Not calibrated. No crash result using this material is evidence of anything yet."
     solver "openradioss" law="LAW25" formulation="CRASURV" \
         note="Progressive damage. Parameters must come from crush-tube tests before use."
+    crush sea="65 kJ/kg" efficiency=0.70 trigger_ratio=2.2 validated=#false
+    note "The crush figures are the reason this material was chosen and the reason it cannot be           trusted yet. A triggered carbon tube absorbs several times what steel does per           kilogram, and an untriggered one splits down its length and absorbs almost nothing.           Which of those happens is decided by the trigger geometry and the layup, not by the           material, so nothing here counts as evidence until coupon and crush-tube tests exist."
 }
 
 material "cfrp/woven-2x2-t300-epoxy" version="0.1.0" {
@@ -37,6 +39,7 @@ material "cfrp/woven-2x2-t300-epoxy" version="0.1.0" {
     cost "60 AUD/kg"
     source "PROVISIONAL: typical published values"
     solver "openradioss" law="LAW25" formulation="CRASURV"
+    crush sea="48 kJ/kg" efficiency=0.68 trigger_ratio=2.0 validated=#false
 }
 
 material "gfrp/e-glass-polyester" version="0.1.0" {
@@ -48,6 +51,7 @@ material "gfrp/e-glass-polyester" version="0.1.0" {
     strength xt="300 MPa" xc="250 MPa" yt="300 MPa" yc="250 MPa" s="45 MPa"
     cost "12 AUD/kg"
     source "PROVISIONAL: typical published values"
+    crush sea="35 kJ/kg" efficiency=0.65 trigger_ratio=1.9 validated=#false
 }
 
 // ---------------------------------------------------------------------------------- metals
@@ -62,6 +66,7 @@ material "steel/e355-tube" version="0.1.0" {
     environment corrosion="paint-or-plate"
     cost "3.60 AUD/kg"
     source "PROVISIONAL: EN 10305-1 grade E355 nominal properties"
+    crush sea="22 kJ/kg" efficiency=0.72 trigger_ratio=1.5 validated=#false
 }
 
 material "steel/s355-plate" version="0.1.0" {
@@ -74,6 +79,7 @@ material "steel/s355-plate" version="0.1.0" {
     environment corrosion="paint-or-galvanise"
     cost "2.20 AUD/kg"
     source "PROVISIONAL: EN 10025-2 grade S355 nominal properties"
+    crush sea="18 kJ/kg" efficiency=0.65 trigger_ratio=1.6 validated=#false
 }
 
 material "steel/dc04-sheet" version="0.1.0" {
@@ -85,6 +91,7 @@ material "steel/dc04-sheet" version="0.1.0" {
     strength yield="210 MPa" ultimate="330 MPa"
     cost "1.90 AUD/kg"
     source "PROVISIONAL: EN 10130 grade DC04 nominal properties"
+    crush sea="26 kJ/kg" efficiency=0.75 trigger_ratio=1.4 validated=#false
 }
 
 material "alu/6061-t6" version="0.1.0" {
@@ -97,6 +104,7 @@ material "alu/6061-t6" version="0.1.0" {
     environment galvanic="isolate-from-carbon"
     cost "8.50 AUD/kg"
     source "PROVISIONAL: typical published values for 6061-T6"
+    crush sea="28 kJ/kg" efficiency=0.75 trigger_ratio=1.5 validated=#false
 }
 
 material "alu/a356-cast" version="0.1.0" {
