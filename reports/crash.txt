@@ -1,0 +1,75 @@
+reference/city-ev  crash screening
+  1042 kg, occupant compartment starts 1100 mm from the front
+
+the structure in front of the occupants
+  -1250 to -975 mm          406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  -975 to -700 mm           406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  -700 to -425 mm           406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  -425 to -150 mm           406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  -150 to 125 mm            812 kN steady,   1787 kN peak,   193 mm of stroke, 156.4 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 812 kN
+  125 to 400 mm             406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  400 to 675 mm             406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  675 to 950 mm             406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  950 to 1225 mm            406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  1225 to 1500 mm           406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  1500 to 1775 mm           406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+  1775 to 2050 mm           406 kN steady,    894 kN peak,   193 mm of stroke,  78.2 kJ
+                           cfrp/pultruded-ud-t700-epoxy gives 406 kN
+
+full width rigid barrier at 56 km/h
+  ADR 69: 56 km/h into a rigid barrier
+  energy           126 kJ coming in, 313 kJ the structure can take
+  crush            268 mm
+  intrusion        none: it stopped before the crush zone ran out
+  peak             104 g
+  mean             46 g over 34 ms
+  occupant load    40 g   (the constant rate a belted occupant would feel)
+  pulse              :+*####*-:.      --+=#*##+++-  ==*###+  -##*=  -###=  =*
+                   0                                                     34 ms
+  verdict          Survivable structure, but 40 g of occupant load is a severe pulse. A softer front would help.
+  note             At least one material in the crush structure has not had its crush behaviour measured on a coupon, so this result is not evidence of anything.
+
+40 per cent offset deformable barrier at 64 km/h
+  ADR 73: 64 km/h, 40 per cent overlap
+  energy           165 kJ coming in, 125 kJ the structure can take
+  crush            647 mm
+  intrusion        none: it stopped before the crush zone ran out
+  peak             111 g
+  mean             27 g over 67 ms
+  occupant load    33 g   (the constant rate a belted occupant would feel)
+  pulse              .:::::..   :-:::::-.:::.-:..-*##=..- ::..-+*+:........-=
+                   0                                                     67 ms
+  verdict          The compartment holds and the pulse is firm at 33 g. Typical of a small car.
+  note             The structure ahead of the occupants can absorb 125 kJ and the impact brings 165 kJ.
+  note             At least one material in the crush structure has not had its crush behaviour measured on a coupon, so this result is not evidence of anything.
+
+rigid pole at 32 km/h
+  Not an ADR test; the hardest case for a narrow crush zone
+  energy           41 kJ coming in, 78 kJ the structure can take
+  crush            321 mm
+  intrusion        none: it stopped before the crush zone ran out
+  peak             26 g
+  mean             13 g over 72 ms
+  occupant load    13 g   (the constant rate a belted occupant would feel)
+  pulse              -+**###=-.     .=-+###+*+*+##*++===+*#    :#+-----------
+                   0                                                     72 ms
+  verdict          The compartment holds and the pulse is gentle at 13 g. Check the structure is not softer than it needs to be.
+  note             At least one material in the crush structure has not had its crush behaviour measured on a coupon, so this result is not evidence of anything.
+
+what this is
+  A lumped mass model: the vehicle cut into slices joined by crushable elements, run
+  explicitly into a barrier. It answers whether there is enough crush length and what
+  pulse that gives, while the layout is still moving. It is not finite element, it has
+  no buckling modes, no joint failures and no contact, and it cannot tell you whether
+  a structure will fold the way it is meant to. Nothing here is certification evidence.

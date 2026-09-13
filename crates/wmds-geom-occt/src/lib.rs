@@ -71,7 +71,13 @@ impl GeomKernel for OcctKernel {
     }
 
     fn mirrored(&self, s: &OcctSolid, origin: Vec3, normal: Vec3) -> Result<OcctSolid> {
-        Ok(OcctSolid(Arc::new(s.0.mirrored(mm(origin), dir(normal)))))
+        // A reflection in the plane, not OpenCASCADE's `mirrored`, which mirrors about a line
+        // and is a 180 degree rotation. The difference is invisible on a part that happens to
+        // be symmetric and completely wrong on one that is not: a right-hand suspension arm
+        // came out reaching inboard.
+        Ok(OcctSolid(Arc::new(
+            s.0.mirrored_in_plane(mm(origin), dir(normal)),
+        )))
     }
 
     fn rotated(&self, s: &OcctSolid, axis: Vec3, angle: f64) -> Result<OcctSolid> {

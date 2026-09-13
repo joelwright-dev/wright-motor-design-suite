@@ -10,6 +10,7 @@ members = [
     "crates/wmds-rules",
     "crates/wmds-analytics",
     "crates/wmds-dynamics",
+    "crates/wmds-crash",
     "crates/wmds-geom-occt",
     "crates/wmds-cli",
     "crates/wmds-app",
@@ -34,6 +35,7 @@ wmds-mfg = { path = "crates/wmds-mfg" }
 wmds-rules = { path = "crates/wmds-rules" }
 wmds-analytics = { path = "crates/wmds-analytics" }
 wmds-dynamics = { path = "crates/wmds-dynamics" }
+wmds-crash = { path = "crates/wmds-crash" }
 wmds-geom-occt = { path = "crates/wmds-geom-occt" }
 
 kdl = "6"

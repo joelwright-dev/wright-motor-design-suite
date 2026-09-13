@@ -1,0 +1,14 @@
+[package]
+name = "wmds-crash"
+description = "Crash screening: a lumped-mass crush model of a vehicle against a barrier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wmds-units = { workspace = true }
+wmds-expr = { workspace = true }
+wmds-schema = { workspace = true }
+wmds-model = { workspace = true }
+wmds-geom = { workspace = true }

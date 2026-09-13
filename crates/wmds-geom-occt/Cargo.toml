@@ -13,3 +13,6 @@ wmds-model = { workspace = true }
 # See third_party/opencascade-rs/README.md for why and what was changed.
 opencascade = { path = "../../third_party/opencascade-rs/crates/opencascade" }
 glam = "0.24"
+
+[dev-dependencies]
+wmds-schema = { workspace = true }

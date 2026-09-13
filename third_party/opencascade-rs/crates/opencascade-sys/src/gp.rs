@@ -79,6 +79,12 @@ mod inner {
         pub fn new_transform() -> UniquePtr<gp_Trsf>;
         #[rust_name = "set_mirror_axis"]
         pub fn SetMirror(self: Pin<&mut gp_Trsf>, axis: &gp_Ax1);
+        // WMDS patch: the Ax1 overload above mirrors about a LINE, which is a 180 degree
+        // rotation, not a reflection. Handed parts need a reflection in a PLANE, which is the
+        // Ax2 overload. Without this a right-hand suspension arm comes out rotated rather than
+        // mirrored, and reaches inboard instead of outboard.
+        #[rust_name = "set_mirror_plane"]
+        pub fn SetMirror(self: Pin<&mut gp_Trsf>, plane: &gp_Ax2);
         pub fn SetRotation(self: Pin<&mut gp_Trsf>, axis: &gp_Ax1, angle: f64);
         pub fn SetScale(self: Pin<&mut gp_Trsf>, point: &gp_Pnt, scale: f64);
         pub fn SetTranslation(self: Pin<&mut gp_Trsf>, point1: &gp_Pnt, point2: &gp_Pnt);

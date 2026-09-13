@@ -61,8 +61,33 @@ make_pipe_shell.rs,primitives/wire.rs}` were updated to match.
 Windows: OCCT's OSD layer uses registry, security-descriptor and user-name APIs that live there,
 and the static build otherwise fails to link with `LNK2019` errors.
 
+## Patch 2: mirroring in a plane
+
+`Shape::mirrored` binds `gp_Trsf::SetMirror(const gp_Ax1&)`, which mirrors about a **line**. That
+is a point symmetry: a 180 degree rotation, which preserves handedness. A handed part needs a
+reflection in a **plane**, which is the `gp_Ax2` overload of the same function, and that overload
+was not bound.
+
+The difference is invisible on a symmetric shape and total on an asymmetric one. In WMDS it meant
+every right-hand suspension arm was drawn reaching inboard instead of outboard, while its
+mounting points were in the correct places, so the model was self-consistent and the picture was
+wrong. It survived a long time because the pure-Rust kernel does it correctly and every test ran
+on that one.
+
+Added:
+
+| Where | What |
+|-------|------|
+| `crates/opencascade-sys/src/gp.rs` | `set_mirror_plane`, binding `SetMirror(const gp_Ax2&)` |
+| `crates/opencascade/src/primitives/shape.rs` | `Shape::mirrored_in_plane(origin, normal)` |
+
+`Shape::mirrored` is left alone and its documentation now says what it actually does.
+`crates/wmds-geom-occt` calls `mirrored_in_plane`, and `crates/wmds-geom-occt/tests` compares
+both kernels on a deliberately asymmetric shape so they can never disagree again.
+
 Nothing else was modified. Verified on Windows 11 with MSVC 14.44 and OCCT 7.8.1: the WMDS
-kernel tests (box, tube, union, STEP round trip) pass. Worth offering upstream as a pull request.
+kernel tests (box, tube, union, STEP round trip, mirroring) pass. Both patches are worth offering
+upstream as pull requests.
 
 ## Licence note for distribution
 

@@ -1247,3 +1247,71 @@ pub fn drive(project: &Path, file: &Path, radius: f64, lane_change_speed: f64) -
     print!("{}", wmds_dynamics::write_text(&h));
     ExitCode::SUCCESS
 }
+
+// ------------------------------------------------------------------------------------ crash
+
+/// Screen the crash structure against the standard impacts.
+pub fn crash(project: &Path, file: &Path, slices: usize) -> ExitCode {
+    let lib = match Library::load(project) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let def = match Library::load_assembly_file(file) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut extra = Vec::new();
+    if let Some(req) = &def.chassis {
+        match wmds_model::generate_chassis(&lib, req) {
+            Ok(g) => extra.push((req.id.clone(), g.assembly)),
+            Err(e) => {
+                eprintln!("error: chassis: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    let asm = match wmds_model::resolve_assembly(&lib, &def, &Overrides::default(), extra) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let k = kernel();
+    let built = wmds_geom::build_assembly(&k, &asm);
+    let density_of = |m: &str| lib.density(m);
+    let masses = wmds_geom::assembly_masses(&k, &built, &density_of);
+
+    let model = wmds_crash::build_model(
+        &asm,
+        &lib,
+        &masses,
+        wmds_crash::Standard::FullFrontal,
+        slices,
+    );
+    let results: Vec<wmds_crash::CrashResult> = wmds_crash::Standard::all()
+        .iter()
+        .map(|s| {
+            // The overlap differs per standard, so the model is rebuilt for each one: less of
+            // the structure is engaged in an offset impact.
+            let m = wmds_crash::build_model(&asm, &lib, &masses, *s, slices);
+            wmds_crash::run(&m, *s)
+        })
+        .collect();
+
+    print!("{}", wmds_crash::write_text(&model, &results));
+
+    // A vehicle whose compartment is crushed in a standard impact is not a pass.
+    if results.iter().any(|r| r.bottomed_out) {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}

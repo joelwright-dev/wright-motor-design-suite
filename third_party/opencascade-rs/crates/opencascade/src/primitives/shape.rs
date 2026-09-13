@@ -881,10 +881,25 @@ impl Shape {
 
     /// Create a mirrored copy of this shape about an axis.
     #[must_use]
+    /// Rotate 180 degrees about the line through `origin` along `dir`.
+    ///
+    /// Named for what OpenCASCADE calls it. This is a point symmetry about an axis, not a
+    /// reflection: a shape put through it keeps its handedness.
     pub fn mirrored(&self, origin: DVec3, dir: DVec3) -> Self {
         self.with_transform(|trsf| {
             let axis_1 = make_axis_1(origin, dir);
             trsf.set_mirror_axis(&axis_1);
+        })
+    }
+
+    /// Reflect in the plane through `origin` whose normal is `normal`.
+    ///
+    /// WMDS patch. This is what a handed part needs: the reflection reverses handedness, so a
+    /// left-hand part becomes a genuine right-hand one rather than the same part turned round.
+    pub fn mirrored_in_plane(&self, origin: DVec3, normal: DVec3) -> Self {
+        self.with_transform(|trsf| {
+            let plane = make_axis_2(origin, normal);
+            trsf.set_mirror_plane(&plane);
         })
     }
 

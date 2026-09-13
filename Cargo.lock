@@ -3795,6 +3795,7 @@ dependencies = [
  "indexmap",
  "miette",
  "wmds-analytics",
+ "wmds-crash",
  "wmds-dynamics",
  "wmds-expr",
  "wmds-geom",
@@ -3802,6 +3803,17 @@ dependencies = [
  "wmds-mfg",
  "wmds-model",
  "wmds-rules",
+ "wmds-schema",
+ "wmds-units",
+]
+
+[[package]]
+name = "wmds-crash"
+version = "0.0.1"
+dependencies = [
+ "wmds-expr",
+ "wmds-geom",
+ "wmds-model",
  "wmds-schema",
  "wmds-units",
 ]
@@ -3844,6 +3856,7 @@ dependencies = [
  "opencascade",
  "wmds-geom",
  "wmds-model",
+ "wmds-schema",
 ]
 
 [[package]]

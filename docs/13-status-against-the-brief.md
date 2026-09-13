@@ -27,7 +27,7 @@ harder to fool yourself with.
 | 1 | Library of primitives for every vehicle | **Thin** | 22 primitives. Suspension, steering and braking are now complete enough to simulate. Still missing: body, interior, seats, lights, glazing, driveshafts, fuel system, internal combustion powertrain, cooling, wiring and pedals. |
 | 2 | Regulatory compliance | **Half** | The engine is real and honest. The Australian Design Rules pack is a five-rule unverified template. Nobody has read the actual standards against it. |
 | 3 | Realistic driving dynamics simulator | **Started** | A transient four-wheel model with a Magic Formula tyre per axle, load transfer split by roll stiffness, and a friction ellipse. Skidpad, step steer, braking, acceleration and a double lane change. Roll stiffness now comes from the springs and bars in the model. Still no suspension kinematics, so camber and toe do not change with wheel travel. |
-| 4 | Realistic crash simulator | **Not started** | Nothing at all. No solver, no deck export, no material cards for crash. |
+| 4 | Realistic crash simulator | **Started** | A lumped-mass crush model against rigid, offset and pole barriers, with crush force read from the structure and the material, an occupant load criterion and a pulse. It is screening, not finite element, and says so. No explicit FE and no deck export yet. |
 | 5 | Build primitives without programming | **Started** | The application edits a part: dimensions, shapes and mounting points, with the geometry rebuilding as you go, and writes the file. Chassis systems still have no editor. |
 | 6 | Build new MCDS chassis without programming | **Not started** | Chassis systems are data rather than code, which is the hard half, but there is no editor for them. |
 | 7 | Complex mounting and modularity | **Good** | Typed ports, expression compatibility rules, a placement solver over the mate graph, closure checking, variant mirroring, sub-assemblies. The strongest part of the suite. |
@@ -62,9 +62,8 @@ stop having nothing behind them.
    kinematics to read, which is what the next item unblocks.
 5. ~~Springs, dampers and anti-roll bars~~. Done. Roll stiffness, ride frequency and the
    understeer gradient are now consequences of the parts fitted.
-6. **Crash** (pillar 4). Explicit finite element is the only honest answer for a real crash
-   result. The plan is a deck exporter for OpenRadioss plus a lumped-mass nonlinear-spring model
-   for early-phase work, clearly labelled as the screening tool it is.
+6. ~~Crash screening~~ (pillar 4). Done as a lumped-mass model. Explicit finite element, and a
+   deck exporter for OpenRadioss, are still the only route to a result anyone can certify.
 7. **The rest of the library** (pillars 1, 11). Body, interior, springs and dampers,
    driveshafts, lights, glazing, pedals, wiring.
 8. **The Australian Design Rules pack read against the actual standards** (pillar 2).

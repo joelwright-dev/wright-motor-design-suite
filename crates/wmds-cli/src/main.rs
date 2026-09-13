@@ -62,6 +62,13 @@ enum Cmd {
         #[arg(long, default_value_t = 70.0)]
         lane_change_speed: f64,
     },
+    /// Screen a vehicle's crash structure against the standard impacts
+    Crash {
+        file: PathBuf,
+        /// How many slices to cut the vehicle into along its length
+        #[arg(long, default_value_t = 12)]
+        slices: usize,
+    },
     /// Check a vehicle against its rule packs
     Check {
         file: PathBuf,
@@ -223,6 +230,7 @@ fn main() -> ExitCode {
             radius,
             lane_change_speed,
         } => report::drive(&project, &file, radius, lane_change_speed),
+        Cmd::Crash { file, slices } => report::crash(&project, &file, slices),
         Cmd::Check { file, json, all } => {
             report::check_vehicle(&project, &file, json.as_deref(), all)
         }
