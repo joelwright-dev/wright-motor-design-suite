@@ -5,7 +5,7 @@
 //! file; a second chassis family needs another file, not another generator (WMDS-20).
 //!
 //! Coordinates follow doc 04: the origin is on the vehicle centreline, at the front
-//! section-joint plane, in the plane of the rail top surfaces. X runs rearward, Y to the left,
+//! section-joint plane, in the plane of the rail top surfaces. X runs rearward, Y to the RIGHT,
 //! Z up. Grid stations are numbered from the front joint plane, negative forward.
 
 use indexmap::IndexMap;
@@ -148,7 +148,10 @@ pub fn generate(lib: &Library, req: &ChassisRef) -> Result<GeneratedChassis, Cha
     for kind in sections {
         let (x0, x1) = spans[kind];
         let length = x1 - x0;
-        for (side, sign) in [("left", 1.0f64), ("right", -1.0f64)] {
+        // Y is positive to the vehicle's right. The frame is x rearward, y right, z up, which
+        // is right-handed; calling positive y "left" made it left-handed and put the driver on
+        // the wrong side of an Australian car for a while before anybody noticed.
+        for (side, sign) in [("right", 1.0f64), ("left", -1.0f64)] {
             let id = format!("{kind}_rail_{side}");
             let mut o = Overrides::default();
             o.params.insert(

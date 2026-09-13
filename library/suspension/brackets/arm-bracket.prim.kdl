@@ -23,7 +23,7 @@ primitive "suspension/brackets/arm-bracket" version="0.1.0" {
     variants {
         // The side decides which way `reach` points, since inboard is +y on the left and -y on
         // the right.
-        side "left" "right" mirror_when="right" mirror_plane="xz"
+        side "left" "right" mirror_when="left" mirror_plane="xz"
     }
 
     material "steel/s355-plate"

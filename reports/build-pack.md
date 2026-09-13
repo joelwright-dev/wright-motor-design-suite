@@ -211,7 +211,7 @@ Follow these in order. Each step only asks for parts that are already in front o
 103. Also bolt rear arb at mount_r to chassis at station_right_12. It should line up without forcing. Use 2 x bolt M12 8.8. Tighten to 90 Nm.
 104. Also bolt rear arb at link_l to rear left corner at antiroll. It should line up without forcing. Use 1 x nut M10 8.8, nyloc nut. Tighten to 45 Nm.
 105. Also bolt rear arb at link_r to rear right corner at antiroll. It should line up without forcing. Use 1 x nut M10 8.8, nyloc nut. Tighten to 45 Nm.
-106. Fit master cylinder to chassis at station_left_-4. Use 2 x bolt M12 8.8. Tighten to 90 Nm.
+106. Fit master cylinder to chassis at station_right_-4. Use 2 x bolt M12 8.8. Tighten to 90 Nm.
 107. Also bolt left tie rod at inner to rack at end_l. It should line up without forcing. Use 1 x nut M14x1.5 8.8, lock nut. Tighten to 60 Nm.
 108. Also bolt right tie rod at inner to rack at end_r. It should line up without forcing. Use 1 x nut M14x1.5 8.8, lock nut. Tighten to 60 Nm.
 

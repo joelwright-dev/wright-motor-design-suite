@@ -1,0 +1,84 @@
+// Crush can: the part of the vehicle that is meant to be destroyed.
+//
+// The MCDS rails cannot be the crush structure. They are sized for stiffness and they are carbon,
+// so they carry about 400 kN of steady crush force, which stops the vehicle in under 300 mm and
+// puts 40 g through the occupants' belts. A crush can sits in front of them and is deliberately
+// much weaker, so it folds first, over a long stroke, at a force the people inside can survive.
+//
+// It is aluminium rather than carbon for the same reason a real one is: aluminium folds
+// progressively into a concertina at a predictable force, and carbon either fragments beautifully
+// or splits in half depending on a trigger nobody has tested yet.
+//
+// Local frame: the origin is the mounting face on the chassis, x forward into the can.
+
+primitive "chassis/crush-can" version="0.1.0" {
+    description "Bolt-on aluminium crush can, the designed crumple zone"
+    category "chassis" sub="crush-can"
+
+    params {
+        length   unit="mm" default=400 min=120 max=800 doc="how far it reaches ahead of the rail"
+        width    unit="mm" default=100 min=50  max=200 doc="section width"
+        height   unit="mm" default=100 min=50  max=200 doc="section height"
+        wall     unit="mm" default=2.5 min=1.2 max=6   doc="wall thickness; this is what sets the crush force"
+        plate    unit="mm" default=8   min=4   max=16  doc="mounting plate thickness"
+        mount_span unit="mm" default=200 min=80 max=400 doc="bolt spacing on the mounting plate"
+
+        // The section area, and from it the force the can will fold at. The number that matters.
+        area unit="mm^2" expr="width * height - (width - 2 * wall) * (height - 2 * wall)" \
+             doc="derived: section area"
+        // Aluminium folds at roughly 28 kJ per kilogram of material consumed, so the steady
+        // force is that times the mass per unit length.
+        crush_force unit="kN" expr="28 kJ/kg * 2700 kg/m^3 * area" doc="derived: steady crush force"
+        // Useful stroke, after the folds pack up.
+        stroke unit="mm" expr="length * 0.7" doc="derived: usable crush stroke"
+        energy unit="kJ" expr="crush_force * stroke" doc="derived: energy this can absorbs"
+    }
+
+    material "alu/6061-t6"
+
+    geometry level="manufacture" {
+        box_tube "can" size="(length, width, height)" wall=wall \
+                 at="(length/2, 0 mm, 0 mm)"
+        box "plate" size="(plate, mount_span + 60 mm, height + 40 mm)" at="(0 mm - plate/2, 0 mm, 0 mm)"
+        union
+    }
+
+    massprops computed=#true
+
+    ports {
+        // Bolts to the chassis grid, facing forward.
+        port "mount_l" type="mcds.grid-mount" at="(0 mm - plate, mount_span/2, 0 mm)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        port "mount_r" type="mcds.grid-mount" at="(0 mm - plate, 0 mm - mount_span/2, 0 mm)" axis="-z" clock="x" {
+            params bolt="M12"
+        }
+        // The front face, where a bumper beam or the next can would go.
+        port "front" type="bolt.pattern" at="(length, 0 mm, 0 mm)" axis="x" clock="z" {
+            count 4
+            pcd "120 mm"
+            bolt "M10"
+        }
+    }
+
+    // The crush behaviour, declared rather than guessed from the material alone, because a can
+    // only folds this way if it has a trigger bead near the mounting plate.
+    behaviour "crush-element" {
+        model "folding-tube"
+        force crush_force
+        stroke stroke
+        trigger_ratio 1.35
+        note "Aluminium square section with a trigger bead. PROVISIONAL: representative of \
+              published crush tests on 6xxx extrusions, not measured on ours."
+    }
+
+    manufacturing {
+        method "extrusion-cut-and-weld" scale="1..*" {
+            export "step"
+            export "flat-pattern"
+            cost fixed="0 AUD" per_unit="34 AUD"
+        }
+    }
+
+    compliance "structural" "impact.crush-structure"
+}

@@ -274,8 +274,8 @@ rulepack "wright-internal" version="0.1.0" {
         verified "J. Wright" date="2026-09-13"
         applies_when "\"AU\" in vehicle.markets and count(filter(parts, p -> \"steering.wheel\" in p.tags)) > 0"
         evidence "calculation"
-        // Vehicle y is positive to the left, so the driver's side is negative.
-        check "all(filter(parts, p -> \"steering.wheel\" in p.tags), p -> p.y < 0 mm)"
+        // Vehicle y is positive to the right, so the driver's side is positive.
+        check "all(filter(parts, p -> \"steering.wheel\" in p.tags), p -> p.y > 0 mm)"
         on_fail "The steering wheel is on the left. This vehicle is built for a market that                  drives on the left, which means the driver sits on the right."
         note "Found by the symmetry report: the steering column, the wheel and the master               cylinder were all on the wrong side, and so was the driver's mass."
         severity "fail"

@@ -60,16 +60,16 @@ primitive "suspension/anti-roll/bar" version="0.1.0" {
 
     ports {
         // Bolts to the chassis grid through two rubber bushes.
-        port "mount_l" type="mcds.grid-mount" at="(0 mm, mount_span/2, mount_rise)" axis="-z" clock="x" {
+        port "mount_r" type="mcds.grid-mount" at="(0 mm, mount_span/2, mount_rise)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "mount_r" type="mcds.grid-mount" at="(0 mm, 0 mm - mount_span/2, mount_rise)" axis="-z" clock="x" {
+        port "mount_l" type="mcds.grid-mount" at="(0 mm, 0 mm - mount_span/2, mount_rise)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "link_l" type="antiroll.link" at="(arm, span/2, 0 mm)" axis="z" clock="x" {
+        port "link_r" type="antiroll.link" at="(arm, span/2, 0 mm)" axis="z" clock="x" {
             params bolt="M10"
         }
-        port "link_r" type="antiroll.link" at="(arm, 0 mm - span/2, 0 mm)" axis="z" clock="x" {
+        port "link_l" type="antiroll.link" at="(arm, 0 mm - span/2, 0 mm)" axis="z" clock="x" {
             params bolt="M10"
         }
     }

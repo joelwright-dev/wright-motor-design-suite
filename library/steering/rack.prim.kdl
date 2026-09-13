@@ -43,17 +43,17 @@ primitive "steering/rack" version="0.1.0" {
 
     ports {
         // Bolts to the chassis grid, like everything else.
-        port "mount_l" type="mcds.grid-mount" at="(0 mm, mount_span_y/2, mount_rise)" axis="-z" clock="x" {
+        port "mount_r" type="mcds.grid-mount" at="(0 mm, mount_span_y/2, mount_rise)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "mount_r" type="mcds.grid-mount" at="(0 mm, -mount_span_y/2, mount_rise)" axis="-z" clock="x" {
+        port "mount_l" type="mcds.grid-mount" at="(0 mm, -mount_span_y/2, mount_rise)" axis="-z" clock="x" {
             params bolt="M12"
         }
         // The rack ends, at the centred position. A tie rod screws onto each.
-        port "end_l" type="steer.rack-end" at="(0 mm, rack_length/2, 0 mm)" axis="y" clock="z" {
+        port "end_r" type="steer.rack-end" at="(0 mm, rack_length/2, 0 mm)" axis="y" clock="z" {
             params thread="M14x1.5"
         }
-        port "end_r" type="steer.rack-end" at="(0 mm, -rack_length/2, 0 mm)" axis="-y" clock="z" {
+        port "end_l" type="steer.rack-end" at="(0 mm, -rack_length/2, 0 mm)" axis="-y" clock="z" {
             params thread="M14x1.5"
         }
         // Where the column comes in.

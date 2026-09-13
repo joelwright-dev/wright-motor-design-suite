@@ -23,7 +23,7 @@ primitive "suspension/arms/lca-wishbone-a" version="1.2.0" {
     }
 
     variants {
-        hand "left" "right" mirror_when="right" mirror_plane="xz"          // right-hand parts are mirrored about the vehicle XZ plane
+        hand "left" "right" mirror_when="left" mirror_plane="xz"          // parts are authored reaching +y, which is the vehicle's right, so the LEFT hand is the mirrored one
     }
 
     material "steel/e355-tube"

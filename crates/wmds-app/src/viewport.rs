@@ -136,13 +136,16 @@ impl Camera {
     /// Named views matter more here than in a general 3D viewer. Most of what goes wrong with a
     /// modular vehicle, such as a handed part reaching the wrong way or a component fouling a
     /// rail, is obvious from directly above or directly ahead and nearly invisible from a three
-    /// quarter view. Vehicle axes are x rearward, y to the left, z up.
+    /// quarter view. Vehicle axes are x rearward, y to the RIGHT, z up, which is right-handed.
     pub fn set_view(&mut self, name: &str) -> bool {
         use std::f32::consts::{FRAC_PI_2, PI};
         let (yaw, pitch) = match name {
-            // Looking straight down. Yaw puts vehicle +x to the right of the image.
-            "top" => (PI, FRAC_PI_2 - 0.0001),
-            "bottom" => (PI, -FRAC_PI_2 + 0.0001),
+            // Looking straight down, with the front of the vehicle at the TOP of the image,
+            // which is how anybody reads a plan view. Vehicle x runs rearward, so the front is
+            // at negative x and has to point up the screen. Getting this backwards hid a
+            // left-hand drive car for longer than it should have.
+            "top" => (0.0, FRAC_PI_2 - 0.0001),
+            "bottom" => (0.0, -FRAC_PI_2 + 0.0001),
             // From the left of the vehicle, which is +y.
             "left" => (FRAC_PI_2, 0.0),
             "right" => (-FRAC_PI_2, 0.0),

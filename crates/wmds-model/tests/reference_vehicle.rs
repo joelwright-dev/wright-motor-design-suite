@@ -288,16 +288,17 @@ fn the_front_corners_mirror_and_close() {
         .unwrap()
         .placement
         .translation;
-    let track = mm(l[1]) * 2.0;
+    // Absolute, because corner_fl sits at negative y: vehicle y is positive to the RIGHT.
+    let track = mm(l[1]).abs() * 2.0;
     assert!(
         (track - 1280.0).abs() < 0.5,
         "front track was {track} mm, expected 1280"
     );
 
-    // And the disc really is between them.
+    // And the disc really is between them: closer to the centreline than the wheel face.
     let disc = asm.instance("corner_fl.disc").unwrap().placement.translation;
     assert!(
-        mm(disc[1]) < mm(l[1]),
+        mm(disc[1]).abs() < mm(l[1]).abs(),
         "the disc should sit inboard of the wheel face: disc at {}, wheel at {}",
         mm(disc[1]),
         mm(l[1])

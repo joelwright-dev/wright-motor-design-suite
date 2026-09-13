@@ -26,7 +26,7 @@ primitive "steering/tie-rod" version="0.1.0" {
     }
 
     variants {
-        side "left" "right" mirror_when="right" mirror_plane="xz"
+        side "left" "right" mirror_when="left" mirror_plane="xz"
     }
 
     material "steel/4140-bar"

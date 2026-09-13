@@ -38,22 +38,22 @@ primitive "drivetrain/motor/drive-unit" version="0.1.0" {
     massprops declared mass=mass cg="(0 mm, 0 mm, 0 mm)"
 
     ports {
-        port "mount_fl" type="mcds.grid-mount" at="(-mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
+        port "mount_fr" type="mcds.grid-mount" at="(-mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "mount_fr" type="mcds.grid-mount" at="(-mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
+        port "mount_fl" type="mcds.grid-mount" at="(-mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "mount_rl" type="mcds.grid-mount" at="(mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
+        port "mount_rr" type="mcds.grid-mount" at="(mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "mount_rr" type="mcds.grid-mount" at="(mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
+        port "mount_rl" type="mcds.grid-mount" at="(mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "output_left" type="shaft.spline" at="(0 mm, width/2 + 80 mm, 0 mm)" axis="y" {
+        port "output_right" type="shaft.spline" at="(0 mm, width/2 + 80 mm, 0 mm)" axis="y" {
             params spline="27x1.0" diameter="35 mm"
         }
-        port "output_right" type="shaft.spline" at="(0 mm, -width/2 - 80 mm, 0 mm)" axis="-y" {
+        port "output_left" type="shaft.spline" at="(0 mm, -width/2 - 80 mm, 0 mm)" axis="-y" {
             params spline="27x1.0" diameter="35 mm"
         }
         port "hv_in" type="hv.connector" at="(-length/2, 0 mm, height/4)" axis="-x" {

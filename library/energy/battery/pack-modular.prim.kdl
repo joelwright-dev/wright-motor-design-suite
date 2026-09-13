@@ -37,16 +37,16 @@ primitive "energy/battery/pack-modular" version="0.1.0" {
     massprops declared mass=mass cg="(0 mm, 0 mm, 0 mm)"
 
     ports {
-        port "mount_fl" type="mcds.grid-mount" at="(-mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
+        port "mount_fr" type="mcds.grid-mount" at="(-mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "mount_fr" type="mcds.grid-mount" at="(-mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
+        port "mount_fl" type="mcds.grid-mount" at="(-mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "mount_rl" type="mcds.grid-mount" at="(mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
+        port "mount_rr" type="mcds.grid-mount" at="(mount_span_x/2, mount_span_y/2, -height/2)" axis="-z" clock="x" {
             params bolt="M12"
         }
-        port "mount_rr" type="mcds.grid-mount" at="(mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
+        port "mount_rl" type="mcds.grid-mount" at="(mount_span_x/2, -mount_span_y/2, -height/2)" axis="-z" clock="x" {
             params bolt="M12"
         }
         port "hv_out" type="hv.connector" at="(length/2, 0 mm, 0 mm)" axis="x" {

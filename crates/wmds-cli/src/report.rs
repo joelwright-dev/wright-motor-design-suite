@@ -1058,7 +1058,8 @@ parts off the centreline with no twin");
             id,
             lo[1] * 1e3,
             hi[1] * 1e3,
-            if centre > 0.0 { "LEFT" } else { "RIGHT" }
+            // Vehicle y is positive to the right: x rearward, y right, z up.
+            if centre > 0.0 { "RIGHT" } else { "LEFT" }
         );
     }
     if lone == 0 {
